@@ -1,0 +1,8 @@
+[package]
+name = "mogilefsd-rs"
+version = "0.1.0"
+authors = ["Andrew Watts <ahwatts@gmail.com>"]
+
+[dependencies]
+mysql = "0.13.1"
+url = "0.2.35"
