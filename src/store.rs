@@ -1,6 +1,33 @@
 use mysql::conn::pool::MyPool;
 use mysql::value::{ToValue, Value};
 use std::collections::HashMap;
+use url::percent_encoding;
+
+pub enum StoreError {
+    Db(String),
+}
+
+impl StoreError {
+    fn new_db_error<T: AsRef<str>>(msg: T) -> StoreError {
+        StoreError::Db(msg.as_ref().to_string())
+    }
+
+    pub fn to_error_string(&self) -> String {
+        let err_type = match self {
+            &StoreError::Db(_) => "db_error",
+        };
+
+        let err_msg = match self {
+            &StoreError::Db(ref err_str) => {
+                percent_encoding::percent_encode(err_str.as_bytes(), percent_encoding::FORM_URLENCODED_ENCODE_SET)
+            }
+        };
+
+        format!("{} {}", err_type, err_msg)
+    }
+}
+
+type StoreResult<T> = Result<T, StoreError>;
 
 pub struct Store {
     pool: MyPool,
@@ -13,21 +40,20 @@ impl Store {
         }
     }
 
-    pub fn get_domain_id(&self, domain_name: &str) -> Option<i32> {
+    pub fn get_domain_id(&self, domain_name: &str) -> StoreResult<Option<i32>> {
         let domains = run_query(&self.pool, "SELECT dmid FROM domain WHERE namespace = ?", &[ &domain_name ]);
 
         match domains {
             Err(e) => {
-                println!("Error querying domains: {:?}", e);
-                None
+                Err(StoreError::new_db_error(format!("Error querying domains: {:?}", e)))
             },
             Ok(rows) => {
                 match rows.first() {
-                    None => None,
+                    None => Ok(None),
                     Some(row) => {
                         match row.get("dmid") {
-                            Some(&Value::Int(v)) => Some(v as i32),
-                            _ => None,
+                            Some(&Value::Int(v)) => Ok(Some(v as i32)),
+                            _ => Ok(None),
                         }
                     }
                 }
@@ -35,7 +61,7 @@ impl Store {
         }
     }
 
-    pub fn get_matching_keys(&self, domain_id: i32, prefix: Option<&String>, after: Option<&String>, limit: i32) -> Vec<String> {
+    pub fn get_matching_keys(&self, domain_id: i32, prefix: Option<&String>, after: Option<&String>, limit: i32) -> StoreResult<Vec<String>> {
         let mut prefix_param = prefix.cloned().unwrap_or("".to_string());
         let after_param = after.map(|n| n.as_ref()).unwrap_or("");
 
@@ -57,7 +83,7 @@ impl Store {
 
         match keys {
             Err(e) => {
-                println!("Error querying matching keys: {:?}", e);
+                return Err(StoreError::new_db_error(format!("Error querying matching keys: {:?}", e)));
             },
             Ok(rows) => {
                 for row in rows {
@@ -71,7 +97,7 @@ impl Store {
             }
         }
 
-        rv
+        Ok(rv)
     }
 }
 

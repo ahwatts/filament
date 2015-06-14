@@ -99,12 +99,9 @@ impl Handler {
     fn list_keys_command(&self, args: &CommandArgs) -> TrackerResult {
         println!("args = {:?}", args);
 
-        let domain_id = try!{
-            args.get("domain")
-                .and_then(|v| v.first())
-                .and_then(|domain_name| self.store.get_domain_id(domain_name))
-                .ok_or("ERR no_domain No+domain+provided")
-        };
+        let domain_name   = try!(args.get("domain").and_then(|v| v.first()).ok_or("ERR no_domain No+domain+provided"));
+        let domain_id_opt = try!(self.store.get_domain_id(domain_name).map_err(|e| format!("ERR {}", e.to_error_string())));
+        let domain_id     = try!(domain_id_opt.ok_or("ERR unreg_domain Domain+name+invalid/not+found"));
 
         let prefix = args.get("prefix").and_then(|v| v.first());
         let after = args.get("after").and_then(|v| v.first());
@@ -123,7 +120,7 @@ impl Handler {
             }
         }
 
-        let keys = self.store.get_matching_keys(domain_id, prefix, after, limit);
+        let keys = try!(self.store.get_matching_keys(domain_id, prefix, after, limit).map_err(|e| format!("ERR {}", e.to_error_string())));
         let mut returned_values: Vec<(String, String)> = keys.iter().enumerate().map(|(i, k)| (format!("key_{}", i + 1), k.clone())).collect();
         returned_values.push(("key_count".to_string(), keys.len().to_string()));
         returned_values.push(("next_after".to_string(), keys.last().unwrap().clone()));
