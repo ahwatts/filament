@@ -1,8 +1,10 @@
+extern crate argparse;
 extern crate mysql;
 extern crate url;
 
 mod store;
 
+use argparse::{ArgumentParser, Store};
 use mysql::conn::MyOpts;
 use mysql::conn::pool::MyPool;
 use std::collections::HashMap;
@@ -16,14 +18,27 @@ type CommandArgs = HashMap<String, Vec<String>>;
 type TrackerResult = Result<String, String>;
 
 fn main() {
+    let mut mysql_user = "mogile".to_string();
+    let mut mysql_pass = "".to_string();
+
+    {
+        let mut parser = ArgumentParser::new();
+        parser.set_description("A partial clone for the MogileFS tracker daemon.");
+        parser.refer(&mut mysql_user).add_option(&[ "-u", "--user" ], Store, "The username for the MySQL connection.");
+        parser.refer(&mut mysql_pass).add_option(&[ "-p", "--password" ], Store, "The password for the MySQL connection.");
+        parser.parse_args_or_exit();
+    }
+
     let listener = TcpListener::bind("127.0.0.1:7002").unwrap();
     let mysql_opts = MyOpts {
-        user: Some("mogile username".to_string()),
-        pass: Some("mogile password".to_string()),
+        user: Some(mysql_user.clone()),
+        pass: Some(mysql_pass.clone()),
         db_name: Some("mogilefs".to_string()),
         ..Default::default()
     };
-    let db_pool = MyPool::new(mysql_opts).unwrap();
+    let db_pool = MyPool::new(mysql_opts).unwrap_or_else(|e| {
+        panic!("Error connecting to MySQL: {}", e);
+    });
 
     for stream_result in listener.incoming() {
         match stream_result {
