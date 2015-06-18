@@ -1,5 +1,5 @@
 use mysql::conn::pool::MyPool;
-use mysql::value::{ToValue, Value};
+use mysql::value::{Value, ToValue, FromValue};
 use std::collections::HashMap;
 use url::percent_encoding;
 
@@ -40,8 +40,8 @@ impl Store {
         }
     }
 
-    pub fn get_domain_id(&self, domain_name: &str) -> StoreResult<Option<i32>> {
-        let domains = run_query(&self.pool, "SELECT dmid FROM domain WHERE namespace = ?", &[ &domain_name ]);
+    pub fn get_domain_id<T: AsRef<str>>(&self, domain_name: T) -> StoreResult<Option<i32>> {
+        let domains = run_query(&self.pool, "SELECT dmid FROM domain WHERE namespace = ?", &[ &domain_name.as_ref() ]);
 
         match domains {
             Err(e) => {
@@ -61,9 +61,11 @@ impl Store {
         }
     }
 
-    pub fn get_matching_keys(&self, domain_id: i32, prefix: Option<&String>, after: Option<&String>, limit: i32) -> StoreResult<Vec<String>> {
-        let mut prefix_param = prefix.cloned().unwrap_or("".to_string());
-        let after_param = after.map(|n| n.as_ref()).unwrap_or("");
+    pub fn get_matching_keys<T, U>(&self, domain_id: i32, prefix: Option<T>, after: Option<U>, limit: i32) -> StoreResult<Vec<String>>
+        where T: AsRef<str>, U: AsRef<str>
+    {
+        let mut prefix_param = prefix.map(|n| n.as_ref().to_string()).unwrap_or("".to_string());
+        let after_param = after.map(|n| n.as_ref().to_string()).unwrap_or("".to_string());
 
         prefix_param = prefix_param
             .replace("\\", "\\\\")
@@ -98,6 +100,27 @@ impl Store {
         }
 
         Ok(rv)
+    }
+
+    pub fn get_file_row_from_dmid_and_key<T: AsRef<str>>(&self, domain_id: i32, key: T) -> StoreResult<Option<HashMap<String, Value>>> {
+        let result = run_query(
+            &self.pool,
+            "SELECT fid, dmid, dkey, length, classid, devcount FROM file WHERE dmid = ? AND dkey = ? LIMIT 1",
+            &[ &domain_id, &key.as_ref() ]);
+
+        match result {
+            Err(e) => Err(StoreError::new_db_error(format!("Error querying file row: {:?}", e))),
+            Ok(rows) => Ok(rows.into_iter().next()),
+        }
+    }
+
+    pub fn get_devids_for_fid(&self, fid: i32) -> StoreResult<Vec<i32>> {
+        let result = run_query(&self.pool, "SELECT devid FROM file_on WHERE fid = ?", &[ &fid ]);
+
+        match result {
+            Err(e) => Err(StoreError::new_db_error(format!("Error querying file_on rows: {:?}", e))),
+            Ok(rows) => Ok(rows.into_iter().map(|r| i32::from_value(&r["devid"])).collect()),
+        }
     }
 }
 

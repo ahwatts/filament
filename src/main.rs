@@ -2,9 +2,10 @@ extern crate argparse;
 extern crate mysql;
 extern crate url;
 
+mod fid;
 mod store;
 
-use argparse::{ArgumentParser, Store};
+use argparse::ArgumentParser;
 use mysql::conn::MyOpts;
 use mysql::conn::pool::MyPool;
 use std::collections::HashMap;
@@ -13,6 +14,8 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use url::form_urlencoded;
+use self::store::Store;
+use self::fid::Fid;
 
 type CommandArgs = HashMap<String, Vec<String>>;
 type TrackerResult = Result<String, String>;
@@ -77,12 +80,12 @@ impl Options {
         {
             let mut parser = ArgumentParser::new();
             parser.set_description("A partial clone for the MogileFS tracker daemon.");
-            parser.refer(&mut self.listen)    .add_option(&[ "-l", "--listen"   ], Store, "The host:port for the tracker to listen on.");
-            parser.refer(&mut self.mysql_host).add_option(&[ "-H", "--db-host"  ], Store, "The MySQL server address.");
-            parser.refer(&mut self.mysql_port).add_option(&[ "-P", "--db-port"  ], Store, "The MySQL server port.");
-            parser.refer(&mut self.mysql_user).add_option(&[ "-u", "--user"     ], Store, "The username for the MySQL connection.");
-            parser.refer(&mut self.mysql_pass).add_option(&[ "-p", "--password" ], Store, "The password for the MySQL connection.");
-            parser.refer(&mut self.mysql_db)  .add_option(&[ "-D", "--db-name"  ], Store, "The MySQL database name.");
+            parser.refer(&mut self.listen)    .add_option(&[ "-l", "--listen"   ], argparse::Store, "The host:port for the tracker to listen on.");
+            parser.refer(&mut self.mysql_host).add_option(&[ "-H", "--db-host"  ], argparse::Store, "The MySQL server address.");
+            parser.refer(&mut self.mysql_port).add_option(&[ "-P", "--db-port"  ], argparse::Store, "The MySQL server port.");
+            parser.refer(&mut self.mysql_user).add_option(&[ "-u", "--user"     ], argparse::Store, "The username for the MySQL connection.");
+            parser.refer(&mut self.mysql_pass).add_option(&[ "-p", "--password" ], argparse::Store, "The password for the MySQL connection.");
+            parser.refer(&mut self.mysql_db)  .add_option(&[ "-D", "--db-name"  ], argparse::Store, "The MySQL database name.");
             parser.parse_args_or_exit();
         }
 
@@ -181,12 +184,19 @@ impl Handler {
 
         let domain_id = try!(get_domain_id_from_args(args, &self.store));
         let key = try!(args.get("key").and_then(|v| v.first()).ok_or("ERR no_key No+key+provided"));
-        let path_count = args.get("pathcount").and_then(|v| v.first())
-            .and_then(|s| i32::from_str_radix(s, 10).ok())
-            .and_then(|d| clamp(d, 2, 10))
-            .unwrap_or(2);
+        // let path_count = args.get("pathcount").and_then(|v| v.first())
+        //     .and_then(|s| i32::from_str_radix(s, 10).ok())
+        //     .and_then(|d| clamp(d, 2, 10))
+        //     .unwrap_or(2);
 
-        Err(format!("ERR no_domain No+domain+provided"))
+        let fid = try!(Fid::new_from_dmid_and_key(&self.store, domain_id, key).map_err(|e| format!("ERR {}", e)));
+
+        let mut returned_values: Vec<(String, String)> = vec![];
+        returned_values.push(("paths".to_string(), fid.device_ids.len().to_string()));
+        for (i, device_id) in fid.device_ids.iter().enumerate() {
+            returned_values.push((format!("path{}", (i + 1)), device_id.to_string()));
+        }
+        Ok(format!("OK {}", form_urlencoded::serialize(returned_values)))
     }
 }
 
