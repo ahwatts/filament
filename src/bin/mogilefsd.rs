@@ -2,12 +2,12 @@ extern crate argparse;
 extern crate mogilefsd;
 
 use argparse::ArgumentParser;
+use mogilefsd::tracker;
 use std::collections::HashMap;
 use std::default::Default;
 use std::net::{TcpListener, Ipv4Addr};
-use std::thread;
-use mogilefsd::tracker;
 use std::sync::Arc;
+use std::thread;
 
 type CommandArgs = HashMap<String, Vec<String>>;
 type TrackerResult = Result<String, String>;
@@ -19,13 +19,13 @@ fn main() {
     let handler = Arc::new(tracker::Handler::new());
 
     for stream_result in listener.incoming() {
-        let local_handler = handler.clone();
+        let handler_clone = handler.clone();
         match stream_result {
             Ok(stream) => {
-                thread::spawn(move|| local_handler.handle(stream));
+                thread::spawn(move|| handler_clone.handle(stream));
             },
             Err(e) => {
-                panic!("Connection failed: {:?}", e);
+                panic!("Connection failed: {}", e);
             },
         }
     }
@@ -64,8 +64,3 @@ impl Options {
         parser
     }
 }
-
-// fn handle_client(stream: TcpStream) {
-//     let mut handler = tracker::Handler::new();
-//     handler.handle(stream);
-// }
