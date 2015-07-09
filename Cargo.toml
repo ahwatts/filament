@@ -1,5 +1,5 @@
 [package]
-name = "mogilefsd-rs"
+name = "mogilefsd"
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
 
