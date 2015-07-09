@@ -7,4 +7,4 @@ authors = ["Andrew Watts <ahwatts@gmail.com>"]
 mysql = "0.13.1"
 url = "0.2.35"
 # hyper = "0.5.2"
-argparse = "*"
+argparse = "0.2.0"
