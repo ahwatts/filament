@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::convert::AsRef;
 use std::error;
 use std::fmt::{self, Display, Formatter};
-use std::io::{BufRead, BufReader, Write};
-use std::net::{TcpStream};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::result;
 use url::{form_urlencoded, percent_encoding};
 
@@ -69,10 +68,8 @@ impl Handler {
         Handler
     }
     
-    pub fn handle(&self, mut stream: TcpStream) {
-        println!("Connection received: local = {:?} remote = {:?}",
-                 stream.local_addr(), stream.peer_addr());
-        let reader = BufReader::new(stream.try_clone().unwrap());
+    pub fn handle<R: Read, W: Write>(&self, read_stream: &mut R, write_stream: &mut W) {
+        let reader = BufReader::new(read_stream);
 
         for line_result in reader.lines() {
             match line_result {
@@ -85,11 +82,11 @@ impl Handler {
                     // won't be in the future?
                     match response {
                         Ok(response_args) => {
-                            write!(stream, "{}\r\n", form_urlencoded::serialize(response_args))
+                            write!(write_stream, "{}\r\n", form_urlencoded::serialize(response_args))
                                 .unwrap_or_else(|e| println!("Error writing successful response: {:?}", e));
                         },
                         Err(error) => {
-                            write!(stream, "{}\r\n", error.error_line())
+                            write!(write_stream, "{}\r\n", error.error_line())
                                 .unwrap_or_else(|e| println!("Error writing error response: {:?}", e));
                         }
                     }
@@ -121,4 +118,12 @@ fn parse_query_string(query_string: &[u8]) -> CommandArgs {
     parsed.into_iter().fold(HashMap::new(), |mut m, (k, v)| {
         m.entry(k).or_insert(vec![]).push(v); m
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn tracker_works() {
+        assert!(true);
+    }
 }

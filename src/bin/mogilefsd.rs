@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(dead_code))]
+
 extern crate argparse;
 extern crate mogilefsd;
 
@@ -16,9 +18,17 @@ fn main() {
 
     for stream_result in listener.incoming() {
         let handler_clone = handler.clone();
+
         match stream_result {
-            Ok(stream) => {
-                thread::spawn(move|| handler_clone.handle(stream));
+            Ok(mut stream) => {
+                let mut read_stream = stream.try_clone().unwrap();
+
+                thread::spawn(move|| {
+                    println!(
+                        "Connection received: local = {:?} remote = {:?}",
+                        stream.local_addr(), stream.peer_addr());
+                    handler_clone.handle(&mut read_stream, &mut stream)
+                });
             },
             Err(e) => {
                 panic!("Connection failed: {}", e);
