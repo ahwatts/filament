@@ -3,14 +3,10 @@ extern crate mogilefsd;
 
 use argparse::ArgumentParser;
 use mogilefsd::tracker;
-use std::collections::HashMap;
 use std::default::Default;
 use std::net::{TcpListener, Ipv4Addr};
 use std::sync::Arc;
 use std::thread;
-
-type CommandArgs = HashMap<String, Vec<String>>;
-type TrackerResult = Result<String, String>;
 
 fn main() {
     let mut opts: Options = Default::default();
