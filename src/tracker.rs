@@ -6,18 +6,19 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::result;
 use url::{form_urlencoded, percent_encoding};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ErrorKind {
     UnknownCommand,
     Other(String),
 }
 
-impl AsRef<str> for ErrorKind {
-    fn as_ref(&self) -> &str {
-        match *self {
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let s = match *self {
             ErrorKind::UnknownCommand => "unknown_command",
-            ErrorKind::Other(ref s) => s,
-        }
+            ErrorKind::Other(ref s) => s.as_ref(),
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -33,7 +34,7 @@ impl Error {
         let encoded_description = percent_encoding::percent_encode(
             self.description.as_bytes(),
             percent_encoding::FORM_URLENCODED_ENCODE_SET);
-        format!("ERR {} {}", self.kind.as_ref(), encoded_description)
+        format!("ERR {} {}", self.kind, encoded_description)
     }
 
     pub fn unknown_command(desc: &str) -> Error {
@@ -46,8 +47,8 @@ impl Error {
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ERR {} {}", self.kind.as_ref(), self.description)
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "ERR {} {}", self.kind, self.description)
     }
 }
 
@@ -122,8 +123,43 @@ fn parse_query_string(query_string: &[u8]) -> CommandArgs {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::io::{Cursor, Read};
+    use regex::Regex;
+
     #[test]
-    fn tracker_works() {
-        assert!(true);
+    fn error_kinds() {
+        assert_eq!("unknown_command", format!("{}", ErrorKind::UnknownCommand));
+        assert_eq!("arbitrary_error", format!("{}", ErrorKind::Other("arbitrary_error".to_string())));
+    }
+
+    #[test]
+    fn error_line() {
+        let e = Error::unknown_command("unknown command: blah");
+        assert_eq!("ERR unknown_command unknown%20command%3A%20blah", e.error_line());
+    }
+
+    fn handler_fixture() -> Handler {
+        Handler::new()
+    }
+
+    #[test]
+    fn dispatch_unknown_command() {
+        let handler = handler_fixture();
+        let request = "this_command_doesnt_exist key1=val1&domain=foo";
+        let result = handler.dispatch_command(request);
+        assert!(result.is_err());
+        assert_eq!(ErrorKind::UnknownCommand, result.unwrap_err().kind);
+    }
+
+    #[test]
+    fn handle_unknown_command() {
+        let handler = handler_fixture();
+        let request: Vec<u8> = "this_command_doesnt_exist key1=val1&domain=foo\r\n".bytes().collect();
+        let mut response = vec![];
+        handler.handle(&mut Cursor::new(request), &mut response);
+
+        let response_re = Regex::new("^ERR unknown_command [^ ]+\r\n").unwrap();
+        assert!(response_re.is_match(String::from_utf8_lossy(&response).as_ref()));
     }
 }
