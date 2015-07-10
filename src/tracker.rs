@@ -123,9 +123,9 @@ fn parse_query_string(query_string: &[u8]) -> CommandArgs {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::io::{Cursor, Read};
     use regex::Regex;
+    use std::io::{Cursor, Read};
+    use super::*;
 
     #[test]
     fn error_kinds() {
@@ -154,12 +154,12 @@ mod tests {
 
     #[test]
     fn handle_unknown_command() {
-        let handler = handler_fixture();
-        let request: Vec<u8> = "this_command_doesnt_exist key1=val1&domain=foo\r\n".bytes().collect();
-        let mut response = vec![];
-        handler.handle(&mut Cursor::new(request), &mut response);
-
         let response_re = Regex::new("^ERR unknown_command [^ ]+\r\n").unwrap();
+        let handler = handler_fixture();
+        let request_bytes: Vec<u8> = "this_command_doesnt_exist key1=val1&domain=foo\r\n".bytes().collect();
+        let mut request = Cursor::new(request_bytes);
+        let mut response = vec![];
+        handler.handle(&mut request, &mut response);
         assert!(response_re.is_match(String::from_utf8_lossy(&response).as_ref()));
     }
 }

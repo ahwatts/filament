@@ -5,36 +5,32 @@ extern crate mogilefsd;
 
 use argparse::ArgumentParser;
 use mogilefsd::tracker;
+use mogilefsd::listener::ListenerPool;
 use std::default::Default;
-use std::net::{TcpListener, Ipv4Addr};
+use std::net::{TcpListener, TcpStream, Ipv4Addr};
 use std::sync::Arc;
 use std::thread;
 
 fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
-    let listener = TcpListener::bind((opts.listen_ip, opts.listen_port)).unwrap();
-    let handler = Arc::new(tracker::Handler::new());
 
-    for stream_result in listener.incoming() {
-        let handler_clone = handler.clone();
+    let tracker_listener = TcpListener::bind((opts.listen_ip, opts.listen_port)).unwrap();
+    let tracker_handler = Arc::new(tracker::Handler::new());
+    let mfs_supervisor_thread = thread::spawn(move|| {
+        let pool = ListenerPool::new(tracker_listener);
+        pool.accept(move|mut stream: TcpStream| {
+            let mut read_stream = stream.try_clone().unwrap();
+            println!(
+                "Connection received: local = {:?} remote = {:?}",
+                stream.local_addr(), stream.peer_addr());
+            tracker_handler.clone().handle(&mut read_stream, &mut stream)
+        }, 4);
+    });
 
-        match stream_result {
-            Ok(mut stream) => {
-                let mut read_stream = stream.try_clone().unwrap();
-
-                thread::spawn(move|| {
-                    println!(
-                        "Connection received: local = {:?} remote = {:?}",
-                        stream.local_addr(), stream.peer_addr());
-                    handler_clone.handle(&mut read_stream, &mut stream)
-                });
-            },
-            Err(e) => {
-                panic!("Connection failed: {}", e);
-            },
-        }
-    }
+    mfs_supervisor_thread.join().unwrap_or_else(|e| {
+        println!("MogileFSd supervisor thread panicked: {:?}", e);
+    })
 }
 
 #[derive(Debug)]
