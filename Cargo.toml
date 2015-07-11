@@ -5,6 +5,7 @@ authors = ["Andrew Watts <ahwatts@gmail.com>"]
 
 [dependencies]
 argparse = "0.2.0"
+mio = "0.3.7"
 url = "0.2.35"
 
 [dev-dependencies]
