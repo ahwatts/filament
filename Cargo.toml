@@ -3,6 +3,10 @@ name = "mogilefsd"
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
 
+[[bin]]
+name = "mogilefsd"
+doc = false
+
 [dependencies]
 argparse = "0.2.0"
 mio = "0.3.7"

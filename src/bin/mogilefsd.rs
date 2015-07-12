@@ -5,22 +5,22 @@ extern crate mio;
 extern crate mogilefsd;
 
 use argparse::ArgumentParser;
-use mio::{EventLoop, Handler, NonBlock, ReadHint, Token, Interest, PollOpt};
+use mio::buf::{Buf, ByteBuf, MutByteBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
-use mogilefsd::tracker;
-use mogilefsd::listener::ListenerPool;
-use std::default::Default;
-use std::net::{ToSocketAddrs, Ipv4Addr};
-use std::sync::Arc;
-use std::thread;
+use mio::{EventLoop, Handler, NonBlock, ReadHint, Token, Interest, PollOpt, TryRead, TryWrite};
+// use mogilefsd::listener::ListenerPool;
+// use mogilefsd::tracker;
 use std::collections::HashMap;
+use std::default::Default;
 use std::io::{Read, Write};
+use std::net::{ToSocketAddrs, Ipv4Addr};
+use std::iter;
 
 fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
 
-    let tracker = tracker::Handler::new();
+    // let tracker = tracker::Handler::new();
 
     let sock_addr = (opts.listen_ip, opts.listen_port).to_socket_addrs().unwrap().next().unwrap();
     let server_token = Token(0);
@@ -29,7 +29,11 @@ fn main() {
     });
 
     let mut event_loop: EventLoop<MfsEventHandler> = EventLoop::new().unwrap();
-    event_loop.register_opt(&server, server_token, Interest::all(), PollOpt::all()).unwrap();
+    event_loop.register_opt(
+        &server, server_token,
+        Interest::all(),
+        PollOpt::edge())
+        .unwrap();
     event_loop.run(&mut MfsEventHandler::new(server, server_token)).unwrap();
 
     // let tracker_listener = TcpListener::bind((opts.listen_ip, opts.listen_port)).unwrap();
@@ -50,11 +54,19 @@ fn main() {
     // })
 }
 
+struct MfsConnection {
+    sock: NonBlock<TcpStream>,
+    token: Token,
+    buf: Option<ByteBuf>,
+    mut_buf: Option<MutByteBuf>,
+    interest: Interest,
+}
+
 struct MfsEventHandler {
     server: NonBlock<TcpListener>,
-    tracker: tracker::Handler,
+    // tracker: tracker::Handler,
     server_token: Token,
-    conns: HashMap<Token, NonBlock<TcpStream>>,
+    conns: HashMap<Token, MfsConnection>,
     last_token: Token,
 }
 
@@ -62,7 +74,7 @@ impl MfsEventHandler {
     pub fn new(server: NonBlock<TcpListener>, server_token: Token) -> MfsEventHandler {
         MfsEventHandler {
             server: server,
-            tracker: tracker::Handler::new(),
+            // tracker: tracker::Handler::new(),
             server_token: server_token,
             conns: HashMap::new(),
             last_token: server_token,
@@ -80,19 +92,22 @@ impl Handler for MfsEventHandler {
             t if t == self.server_token => {
                 match self.server.accept() {
                     Ok(Some(stream)) => {
-                        let conn_token = Token(self.last_token.as_usize() + 1);
-                        let register_result = event_loop.register_opt(
-                            &stream, conn_token,
-                            Interest::readable(),
-                            PollOpt::level());
+                        let conn = MfsConnection {
+                            sock: stream,
+                            token: Token(self.last_token.as_usize() + 1),
+                            buf: None,
+                            mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
+                            interest: Interest::readable(),
+                        };
 
-                        match  register_result {
+                        match event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()) {
                             Ok(_) => {
                                 println!(
                                     "Connection received: local = {:?} remote = {:?} token = {:?}",
-                                    stream.local_addr(), stream.peer_addr(), conn_token);
-                                self.conns.insert(conn_token, stream);
-                                self.last_token = conn_token;
+                                    conn.sock.local_addr(), conn.sock.peer_addr(), conn.token);
+
+                                self.last_token = conn.token;
+                                self.conns.insert(conn.token, conn);
                             },
                             Err(e) => {
                                 println!("Error registering connection: {}", e);
@@ -107,39 +122,83 @@ impl Handler for MfsEventHandler {
                     }
                 }
             },
-            t if self.conns.contains_key(&t) => {
-                let conn = self.conns.get_mut(&t).unwrap();
-                let mut s = String::new();
-                // let read_result = conn.read_to_string(&mut s);
 
-                match conn.read_to_string(&mut s) {
-                    Ok(0) => {},
-                    Ok(n) => {
-                        println!("Readable event for connection {:?} bytes_read = {:?} s = {:?}", t, n, s);
+            t if self.conns.contains_key(&t) => {
+                let mut conn = self.conns.get_mut(&t).unwrap();
+                let mut buf = conn.mut_buf.take().unwrap();
+
+                match conn.sock.read(&mut buf) {
+                    Ok(None) => {
+                        println!("Socket is readable, but unable to read from it? token = {:?}", conn.token);
+                    },
+                    Ok(Some(n)) => {
+                        println!("Readable event for connection {:?} bytes_read = {:?}", t, n);
                     },
                     Err(e) => {
                         println!("Error reading from stream for connection {:?}: {}", t, e);
                     }
                 }
+
+                let mut rbuf = buf.flip();
+                let mut readout: Vec<u8> = iter::repeat(0u8).take(rbuf.capacity()).collect();
+                let mut line = None;
+
+                rbuf.mark();
+                rbuf.read_slice(&mut readout);
+                rbuf.reset();
+
+                for (i, w) in readout.windows(2).enumerate() {
+                    if w == &[ '\r' as u8, '\n' as u8 ] {
+                        line = Some(String::from_utf8_lossy(&readout[0..i]));
+                        break;
+                    }
+                }
+
+                println!("line = {:?}", line);
+
+                match line {
+                    Some(_) => {
+                        let mut wbuf = rbuf.flip();
+                        wbuf.clear();
+                        conn.buf = Some(wbuf.flip());
+                        conn.interest = Interest::writable();
+                        event_loop.reregister(&conn.sock, conn.token, conn.interest, PollOpt::edge()).unwrap();
+                    },
+                    None => {
+                        conn.mut_buf = Some(rbuf.resume());
+                    }
+                }
             },
+
             _ => {
                 println!("Readable event! server: {:?} token: {:?} hint: {:?}", self.server, token, hint);
             }
         }
     }
 
-    fn writable(&mut self, _: &mut EventLoop<Self>, token: Token) {
-        // println!("Writeable event! server: {:?} token: {:?}", self.server, token);
-
+    fn writable(&mut self, event_loop: &mut EventLoop<Self>, token: Token) {
         match token {
             t if self.conns.contains_key(&t) => {
-                let conn = self.conns.get_mut(&t).unwrap();
-                match conn.write_all(b"test") {
-                    Ok(_) => {},
+                let mut conn = self.conns.get_mut(&t).unwrap();
+                let buf = conn.buf.take().unwrap();
+                let mut wbuf = buf.flip();
+                wbuf.write(b"ERR unknown_command unknown+command\r\n").unwrap();
+                let mut rbuf = wbuf.flip();
+
+                match conn.sock.write(&mut rbuf) {
+                    Ok(n) => {
+                        println!("Wrote {:?} bytes to {:?}", n, token);
+                    },
                     Err(e) => {
                         println!("Error writing to stream for connection {:?}: {}", t, e);
                     }
                 }
+
+                let mut wbuf2 = rbuf.flip();
+                wbuf2.clear();
+                conn.mut_buf = Some(wbuf2);
+                conn.interest = Interest::readable();
+                event_loop.reregister(&conn.sock, conn.token, conn.interest, PollOpt::edge()).unwrap();
             }
             _ => {
                 println!("Writeable event! server: {:?} token: {:?}", self.server, token);
