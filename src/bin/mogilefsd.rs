@@ -5,7 +5,7 @@ extern crate mio;
 extern crate mogilefsd;
 
 use argparse::ArgumentParser;
-use mogilefsd::listener_events::{Server, ServerHandler};
+use mogilefsd::evserver::{Server, ServerHandler};
 use std::default::Default;
 use std::net::Ipv4Addr;
 
