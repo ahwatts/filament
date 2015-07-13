@@ -1,4 +1,4 @@
-use mio::buf::{Buf, RingBuf};
+use mio::buf::{Buf, MutBuf, RingBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
 use mio::{EventLoop, Handler, Interest, NonBlock, PollOpt, ReadHint, Token, TryRead, TryWrite};
 use std::collections::HashMap;
@@ -133,10 +133,10 @@ impl Connection {
 
         match self.extract_line(&self.in_buf) {
             Some(line) => {
-                // Do something with line...
-                // println!("line = {:?}", String::from_utf8_lossy(&line));
-                self.tracker.handle(&mut Cursor::new(line.as_ref()), &mut self.out_buf);
-                self.in_buf.advance(line.len() + 2);
+                Buf::advance(&mut self.in_buf, line.len() + 2);
+                // self.in_buf.advance(line.len() + 2);
+                let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
+                self.out_buf.write_slice(response.render().as_bytes());
                 self.interest = Interest::writable();
                 try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
