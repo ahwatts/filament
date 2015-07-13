@@ -104,6 +104,18 @@ impl Handler for ServerHandler {
             }
         }
     }
+
+    fn notify(&mut self, _: &mut EventLoop<Self>, message: ()) {
+        println!("Notify event: message = {:?}", message);
+    }
+
+    fn timeout(&mut self, _: &mut EventLoop<Self>, timeout: usize) {
+        println!("Timeout event: timeout = {:?}", timeout);
+    }
+
+    fn interrupted(&mut self, _: &mut EventLoop<Self>) {
+        println!("Interruted event.");
+    }
 }
 
 pub struct Connection {
