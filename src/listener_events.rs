@@ -1,12 +1,14 @@
-use mio::buf::{ByteBuf, MutByteBuf, Buf, MutBuf};
+use mio::buf::{Buf, RingBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
 use mio::{EventLoop, Handler, Interest, NonBlock, PollOpt, ReadHint, Token, TryRead, TryWrite};
 use std::collections::HashMap;
 use std::error;
 use std::fmt::{self, Display, Formatter};
-use std::io;
+use std::io::{self, Cursor};
 use std::net::ToSocketAddrs;
 use std::result;
+use std::rc::Rc;
+use super::tracker::Tracker;
 
 pub struct Server {
     event_loop: EventLoop<ServerHandler>,
@@ -35,6 +37,7 @@ pub struct ServerHandler {
     token: Token,
     conns: HashMap<Token, Connection>,
     last_token: Token,
+    tracker: Rc<Tracker>,
 }
 
 impl ServerHandler {
@@ -48,6 +51,7 @@ impl ServerHandler {
             token: token,
             conns: HashMap::new(),
             last_token: token,
+            tracker: Rc::new(Tracker::new()),
         };
 
         Ok(handler)
@@ -55,7 +59,7 @@ impl ServerHandler {
 
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
         let stream = try!(try!(self.server.accept()).ok_or(Error::Other));
-        let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1));
+        let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
         try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
         println!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
         self.last_token = conn.token;
@@ -105,59 +109,63 @@ impl Handler for ServerHandler {
 pub struct Connection {
     sock: NonBlock<TcpStream>,
     token: Token,
-    buf: Option<ByteBuf>,
-    mut_buf: Option<MutByteBuf>,
+    in_buf: RingBuf,
+    out_buf: RingBuf,
     interest: Interest,
+    tracker: Rc<Tracker>,
 }
 
 impl Connection {
-    pub fn new(sock: NonBlock<TcpStream>, token: Token) -> Connection {
+    pub fn new(sock: NonBlock<TcpStream>, token: Token, tracker: Rc<Tracker>) -> Connection {
         Connection {
             sock: sock,
             token: token,
-            buf: None,
-            mut_buf: Some(ByteBuf::mut_with_capacity(2048)),
+            in_buf: RingBuf::new(2048),
+            out_buf: RingBuf::new(2048),
             interest: Interest::readable(),
+            tracker: tracker,
         }
     }
 
     fn readable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
-        let mut wbuf = self.mut_buf.take().unwrap();
-        let bytes_read = try!(try!(self.sock.read(&mut wbuf)).ok_or(Error::Other));
+        let bytes_read = try!(try!(self.sock.read(&mut self.in_buf)).ok_or(Error::Other));
         println!("Read {} bytes from {:?}", bytes_read, self.token);
 
-        let mut rbuf = wbuf.flip();
-
-        match self.extract_line(&rbuf) {
+        match self.extract_line(&self.in_buf) {
             Some(line) => {
                 // Do something with line...
-                println!("line = {:?}", String::from_utf8_lossy(&line));
-                rbuf.advance(line.len() + 2);
-                self.buf = Some(rbuf);
+                // println!("line = {:?}", String::from_utf8_lossy(&line));
+                self.tracker.handle(&mut Cursor::new(line.as_ref()), &mut self.out_buf);
+                self.in_buf.advance(line.len() + 2);
                 self.interest = Interest::writable();
                 try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
-            None => {
-                self.mut_buf = Some(rbuf.resume());
-            }
+            None => {}
         }
 
         Ok(())
     }
 
     fn writable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
-        let mut rbuf = self.buf.take().unwrap();
-        let bytes_wrote = try!(try!(self.sock.write(&mut rbuf)).ok_or(Error::Other));
+        let has_line = self.has_line(&self.out_buf);
+        let bytes_wrote = try!(try!(self.sock.write(&mut self.out_buf)).ok_or(Error::Other));
         println!("Wrote {} bytes to {:?}", bytes_wrote, self.token);
 
-        // Should we check to see if we wrote a complete line here?
-
-        let wbuf = rbuf.flip();
-        self.mut_buf = Some(wbuf);
-        self.interest = Interest::readable();
-        try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        if has_line {
+            self.interest = Interest::readable();
+            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        }
 
         Ok(())
+    }
+
+    fn has_line<T: Buf>(&self, buf: &T) -> bool {
+        for w in buf.bytes().windows(2) {
+            if w == &[ '\r' as u8, '\n' as u8 ] {
+                return true;
+            }
+        }
+        false
     }
 
     fn extract_line<T: Buf>(&self, buf: &T) -> Option<Vec<u8>> {

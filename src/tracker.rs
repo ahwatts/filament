@@ -62,11 +62,11 @@ pub type Result<'a, T> = result::Result<T, Error>;
 type CommandArgs = HashMap<String, Vec<String>>;
 type ResponseArgs = Vec<(String, String)>;
 
-pub struct Handler;
+pub struct Tracker;
 
-impl Handler {
-    pub fn new() -> Handler {
-        Handler
+impl Tracker {
+    pub fn new() -> Tracker {
+        Tracker
     }
     
     pub fn handle<R: Read, W: Write>(&self, read_stream: &mut R, write_stream: &mut W) {
@@ -75,7 +75,7 @@ impl Handler {
         for line_result in reader.lines() {
             match line_result {
                 Ok(line) => {
-                    println!("request  = {:?}", line);
+                    println!("request = {:?}", line);
                     let response = self.dispatch_command(&line.trim_right());
                     println!("response = {:?}", response);
 
@@ -139,8 +139,8 @@ mod tests {
         assert_eq!("ERR unknown_command unknown%20command%3A%20blah", e.error_line());
     }
 
-    fn handler_fixture() -> Handler {
-        Handler::new()
+    fn handler_fixture() -> Tracker {
+        Tracker::new()
     }
 
     #[test]

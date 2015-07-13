@@ -19,6 +19,7 @@ fn main() {
         panic!("Error setting up server on {:?}: {}",
                (opts.listen_ip, opts.listen_port), e);
     });
+
     let mut server = Server::new().unwrap_or_else(|e| {
         panic!("Error creating event loop: {}", e);
     });
