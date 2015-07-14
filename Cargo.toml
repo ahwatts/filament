@@ -9,6 +9,8 @@ doc = false
 
 [dependencies]
 argparse = "0.2.0"
+lazy_static = "0.1.11"
+libc = "0.1.8"
 mio = "0.3.7"
 url = "0.2.35"
 

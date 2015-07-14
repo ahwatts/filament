@@ -1,6 +1,6 @@
 use mio::buf::{Buf, MutBuf, RingBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
-use mio::{EventLoop, Handler, Interest, NonBlock, PollOpt, ReadHint, Token, TryRead, TryWrite};
+use mio::{EventLoop, Handler, Interest, NonBlock, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
 use std::collections::HashMap;
 use std::error;
 use std::fmt::{self, Display, Formatter};
@@ -8,6 +8,7 @@ use std::io::{self, Cursor};
 use std::net::ToSocketAddrs;
 use std::result;
 use std::rc::Rc;
+use super::ctrlc::CtrlC;
 use super::tracker::Tracker;
 
 pub struct Server {
@@ -25,8 +26,17 @@ impl Server {
         try!{
             self.event_loop.register_opt(
                 &handler.server, handler.token,
-                Interest::all(), PollOpt::edge())
+                Interest::all(), PollOpt::level())
         }
+
+        // register a handler for ctrl+c.
+        let notify_channel = self.event_loop.channel();
+        CtrlC::set_handler(move|| {
+            println!("SIGINT received!");
+            notify_channel.send(()).unwrap_or_else(|e| {
+                println!("Error notifying event loop of SIGINT: {:?}", e);
+            });
+        });
 
         Ok(try!(self.event_loop.run(handler)))
     }
@@ -60,7 +70,8 @@ impl ServerHandler {
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
         let stream = try!(try!(self.server.accept()).ok_or(Error::Other));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
-        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
+        println!("socket linger = {:?}", conn.sock.linger());
+        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::level()));
         println!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
         self.last_token = conn.token;
         self.conns.insert(conn.token, conn);
@@ -105,16 +116,20 @@ impl Handler for ServerHandler {
         }
     }
 
-    fn notify(&mut self, _: &mut EventLoop<Self>, message: ()) {
+    fn notify(&mut self, event_loop: &mut EventLoop<Self>, message: ()) {
         println!("Notify event: message = {:?}", message);
+        event_loop.shutdown();
     }
 
     fn timeout(&mut self, _: &mut EventLoop<Self>, timeout: usize) {
         println!("Timeout event: timeout = {:?}", timeout);
     }
 
-    fn interrupted(&mut self, _: &mut EventLoop<Self>) {
+    fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
         println!("Interruted event.");
+        event_loop.channel().send(()).unwrap_or_else(|e| {
+            println!("Error handling interrupted event by sending message: {:?}", e);
+        });
     }
 }
 
@@ -134,12 +149,13 @@ impl Connection {
             token: token,
             in_buf: RingBuf::new(2048),
             out_buf: RingBuf::new(2048),
-            interest: Interest::readable(),
+            // interest: Interest::readable(),
+            interest: Interest::all(),
             tracker: tracker,
         }
     }
 
-    fn readable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
+    fn readable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
         let bytes_read = try!(try!(self.sock.read(&mut self.in_buf)).ok_or(Error::Other));
         println!("Read {} bytes from {:?}", bytes_read, self.token);
 
@@ -149,8 +165,8 @@ impl Connection {
                 // self.in_buf.advance(line.len() + 2);
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
-                self.interest = Interest::writable();
-                try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+                // self.interest = Interest::writable();
+                // try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
             None => {}
         }
@@ -158,27 +174,30 @@ impl Connection {
         Ok(())
     }
 
-    fn writable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
-        let has_line = self.has_line(&self.out_buf);
-        let bytes_wrote = try!(try!(self.sock.write(&mut self.out_buf)).ok_or(Error::Other));
-        println!("Wrote {} bytes to {:?}", bytes_wrote, self.token);
+    fn writable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
+        // let has_line = self.has_line(&self.out_buf);
 
-        if has_line {
-            self.interest = Interest::readable();
-            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        if Buf::has_remaining(&self.out_buf) {
+            let bytes_wrote = try!(try!(self.sock.write(&mut self.out_buf)).ok_or(Error::Other));
+            println!("Wrote {} bytes to {:?}", bytes_wrote, self.token);
         }
+
+        // if has_line {
+        //     self.interest = Interest::readable();
+        //     try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        // }
 
         Ok(())
     }
 
-    fn has_line<T: Buf>(&self, buf: &T) -> bool {
-        for w in buf.bytes().windows(2) {
-            if w == &[ '\r' as u8, '\n' as u8 ] {
-                return true;
-            }
-        }
-        false
-    }
+    // fn has_line<T: Buf>(&self, buf: &T) -> bool {
+    //     for w in buf.bytes().windows(2) {
+    //         if w == &[ '\r' as u8, '\n' as u8 ] {
+    //             return true;
+    //         }
+    //     }
+    //     false
+    // }
 
     fn extract_line<T: Buf>(&self, buf: &T) -> Option<Vec<u8>> {
         let bytes = buf.bytes();
@@ -226,3 +245,47 @@ impl From<io::Error> for Error {
 }
 
 pub type Result<T> = result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use mio::tcp;
+    use super::*;
+    use std::thread;
+
+    #[test]
+    fn it_works() {
+        let mut server = Server::new().unwrap();
+        let addr = { tcp::v4().unwrap().getsockname().unwrap() };
+        let mut handler = ServerHandler::new(addr).unwrap();
+
+        let server_addr = handler.server.local_addr().unwrap();
+        println!("Listening on {:?}", server_addr);
+
+        let channel = server.event_loop.channel();
+        // let join =
+        thread::spawn(move|| {
+            use std::net;
+            use std::io::{Write, BufRead, BufReader};
+
+            let mut writer = net::TcpStream::connect(server_addr).unwrap();
+            let mut reader = BufReader::new(writer.try_clone().unwrap());
+            let mut resp = String::new();
+
+            assert_eq!("", resp);
+            writer.write("file_info domain=rn_development_private&key=test/key/2\r\n".as_bytes()).unwrap();
+            reader.read_line(&mut resp).unwrap();
+            assert!(resp.len() > 0);
+
+            resp.clear();
+            assert_eq!("", resp);
+            writer.write("file_info domain=rn_development_private&key=test/key/3\r\n".as_bytes()).unwrap();
+            reader.read_line(&mut resp).unwrap();
+            assert!(resp.len() > 0);
+
+            channel.send(()).unwrap();
+        });
+
+        server.run(&mut handler).unwrap();
+        // join.join().unwrap();
+    }
+}
