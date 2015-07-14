@@ -177,11 +177,8 @@ impl Connection {
         match self.extract_line(&self.in_buf) {
             Some(line) => {
                 Buf::advance(&mut self.in_buf, line.len() + 2);
-                // self.in_buf.advance(line.len() + 2);
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
-                // self.interest = Interest::writable();
-                // try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
             None => {}
         }
@@ -190,36 +187,29 @@ impl Connection {
     }
 
     fn writable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
-        // let has_line = self.has_line(&self.out_buf);
-
         if Buf::has_remaining(&self.out_buf) {
-            let bytes_wrote = try!(try!(self.sock.write(&mut self.out_buf)).ok_or(Error::Other));
-            println!("Wrote {} bytes to {:?}", bytes_wrote, self.token);
+            match self.sock.write(&mut self.out_buf) {
+                Ok(Some(n)) => {
+                    println!("Wrote {} bytes to {:?}", n, self.token);
+                },
+                Ok(None) => {
+                    println!("Not ready to write to {:?}", self.token);
+                },
+                Err(e) => {
+                    return Err(Error::from(e));
+                }
+            }
         }
-
-        // if has_line {
-        //     self.interest = Interest::readable();
-        //     try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
-        // }
 
         Ok(())
     }
-
-    // fn has_line<T: Buf>(&self, buf: &T) -> bool {
-    //     for w in buf.bytes().windows(2) {
-    //         if w == &[ '\r' as u8, '\n' as u8 ] {
-    //             return true;
-    //         }
-    //     }
-    //     false
-    // }
 
     fn extract_line<T: Buf>(&self, buf: &T) -> Option<Vec<u8>> {
         let bytes = buf.bytes();
         let mut line = None;
 
         for (i, w) in bytes.windows(2).enumerate() {
-            if w == &[ '\r' as u8, '\n' as u8 ] {
+            if w == &[ b'\r', b'\n' ] {
                 line = Some(Vec::from(&bytes[0..i]));
                 break;
             }
@@ -264,22 +254,33 @@ pub type Result<T> = result::Result<T, Error>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
+    use std::io::{self, Write, BufRead, BufReader};
+    use std::net::{TcpStream, ToSocketAddrs};
+    use std::thread::{self, JoinHandle};
+
+    fn fixture_server() -> (Server, ServerHandler) {
+        (Server::new().unwrap(), ServerHandler::new("0.0.0.0:0").unwrap())
+    }
+
+    fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
+        where F: FnOnce(io::BufReader<TcpStream>, TcpStream) + Send + 'static
+    {
+        let server_addr = addr.to_socket_addrs().unwrap().next().unwrap();
+
+        thread::spawn(move|| {
+            let writer = TcpStream::connect(server_addr).unwrap();
+            let reader = BufReader::new(writer.try_clone().unwrap());
+            func(reader, writer);
+        })
+    }
 
     #[test]
-    fn it_works() {
-        let mut server = Server::new().unwrap();
-        let mut handler = ServerHandler::new("0.0.0.0:0").unwrap();
-
+    fn basic_interaction() {
+        let (mut server, mut handler) = fixture_server();
         let server_addr = handler.server.local_addr().unwrap();
-
         let channel = server.event_loop.channel();
-        thread::spawn(move|| {
-            use std::net;
-            use std::io::{Write, BufRead, BufReader};
 
-            let mut writer = net::TcpStream::connect(server_addr).unwrap();
-            let mut reader = BufReader::new(writer.try_clone().unwrap());
+        client_thread(server_addr, move|mut reader, mut writer| {
             let mut resp = String::new();
 
             assert_eq!("", resp);
