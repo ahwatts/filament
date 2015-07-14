@@ -1,3 +1,5 @@
+// Adapted from https://github.com/Detegr/rust-ctrlc .
+
 use libc::funcs::posix01::signal::signal;
 use libc::{SIGINT, c_int, sighandler_t};
 use std::mem;

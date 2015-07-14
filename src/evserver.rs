@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::error;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor};
-use std::net::ToSocketAddrs;
+use std::net::{Shutdown, ToSocketAddrs};
 use std::result;
 use std::rc::Rc;
 use super::ctrlc::CtrlC;
@@ -32,7 +32,6 @@ impl Server {
         // register a handler for ctrl+c.
         let notify_channel = self.event_loop.channel();
         CtrlC::set_handler(move|| {
-            println!("SIGINT received!");
             notify_channel.send(()).unwrap_or_else(|e| {
                 println!("Error notifying event loop of SIGINT: {:?}", e);
             });
@@ -118,6 +117,13 @@ impl Handler for ServerHandler {
 
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, message: ()) {
         println!("Notify event: message = {:?}", message);
+
+        for (t, c) in self.conns.iter() {
+            c.sock.shutdown(Shutdown::Both).unwrap_or_else(|e| {
+                println!("Error shutting down connection {:?}: {}", t, e);
+            });
+        }
+
         event_loop.shutdown();
     }
 
@@ -156,8 +162,17 @@ impl Connection {
     }
 
     fn readable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
-        let bytes_read = try!(try!(self.sock.read(&mut self.in_buf)).ok_or(Error::Other));
-        println!("Read {} bytes from {:?}", bytes_read, self.token);
+        match self.sock.read(&mut self.in_buf) {
+            Ok(Some(n)) => {
+                println!("Read {} bytes from {:?}", n, self.token);
+            },
+            Ok(None) => {
+                println!("No more bytes to read from {:?}", self.token);
+            },
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+        }
 
         match self.extract_line(&self.in_buf) {
             Some(line) => {
@@ -248,21 +263,17 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
-    use mio::tcp;
     use super::*;
     use std::thread;
 
     #[test]
     fn it_works() {
         let mut server = Server::new().unwrap();
-        let addr = { tcp::v4().unwrap().getsockname().unwrap() };
-        let mut handler = ServerHandler::new(addr).unwrap();
+        let mut handler = ServerHandler::new("0.0.0.0:0").unwrap();
 
         let server_addr = handler.server.local_addr().unwrap();
-        println!("Listening on {:?}", server_addr);
 
         let channel = server.event_loop.channel();
-        // let join =
         thread::spawn(move|| {
             use std::net;
             use std::io::{Write, BufRead, BufReader};
@@ -286,6 +297,5 @@ mod tests {
         });
 
         server.run(&mut handler).unwrap();
-        // join.join().unwrap();
     }
 }
