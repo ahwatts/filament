@@ -12,12 +12,10 @@ use std::net::Ipv4Addr;
 fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
+    let listen_addr = (opts.listen_ip, opts.listen_port);
 
-    // let tracker = tracker::Handler::new();
-
-    let mut handler = ServerHandler::new((opts.listen_ip, opts.listen_port)).unwrap_or_else(|e| {
-        panic!("Error setting up server on {:?}: {}",
-               (opts.listen_ip, opts.listen_port), e);
+    let mut handler = ServerHandler::new(listen_addr).unwrap_or_else(|e| {
+        panic!("Error setting up server on {:?}: {}", listen_addr, e);
     });
 
     let mut server = Server::new().unwrap_or_else(|e| {

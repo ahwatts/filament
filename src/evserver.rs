@@ -26,7 +26,7 @@ impl Server {
         try!{
             self.event_loop.register_opt(
                 &handler.server, handler.token,
-                Interest::all(), PollOpt::level())
+                Interest::readable(), PollOpt::edge())
         }
 
         // register a handler for ctrl+c.
@@ -55,6 +55,9 @@ impl ServerHandler {
         let socket = try!(tcp::listen(&sock_addr));
         let token = Token(0);
 
+        try!(socket.set_reuseaddr(true));
+        try!(socket.set_reuseport(true));
+
         let handler = ServerHandler {
             server: socket,
             token: token,
@@ -70,7 +73,7 @@ impl ServerHandler {
         let stream = try!(try!(self.server.accept()).ok_or(Error::Other));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
         println!("socket linger = {:?}", conn.sock.linger());
-        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::level()));
+        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
         println!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
         self.last_token = conn.token;
         self.conns.insert(conn.token, conn);
@@ -118,10 +121,19 @@ impl Handler for ServerHandler {
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, message: ()) {
         println!("Notify event: message = {:?}", message);
 
-        for (t, c) in self.conns.iter() {
-            c.sock.shutdown(Shutdown::Both).unwrap_or_else(|e| {
-                println!("Error shutting down connection {:?}: {}", t, e);
-            });
+        let keys: Vec<Token> = self.conns.keys().cloned().collect();
+
+        for t in keys.iter() {
+            match self.conns.remove(t) {
+                Some(conn) => {
+                    conn.shutdown(event_loop).unwrap_or_else(|e| {
+                        println!("Error shutting down connection {:?}: {}", t, e);
+                    })
+                },
+                None => {
+                    println!("Could not find connection {:?}", t);
+                }
+            }
         }
 
         event_loop.shutdown();
@@ -132,7 +144,7 @@ impl Handler for ServerHandler {
     }
 
     fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
-        println!("Interruted event.");
+        println!("Interrupted event.");
         event_loop.channel().send(()).unwrap_or_else(|e| {
             println!("Error handling interrupted event by sending message: {:?}", e);
         });
@@ -155,13 +167,12 @@ impl Connection {
             token: token,
             in_buf: RingBuf::new(2048),
             out_buf: RingBuf::new(2048),
-            // interest: Interest::readable(),
-            interest: Interest::all(),
+            interest: Interest::readable(),
             tracker: tracker,
         }
     }
 
-    fn readable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
+    fn readable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
         match self.sock.read(&mut self.in_buf) {
             Ok(Some(n)) => {
                 println!("Read {} bytes from {:?}", n, self.token);
@@ -179,6 +190,8 @@ impl Connection {
                 Buf::advance(&mut self.in_buf, line.len() + 2);
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
+                self.interest = Interest::writable();
+                try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
             None => {}
         }
@@ -186,7 +199,7 @@ impl Connection {
         Ok(())
     }
 
-    fn writable<S: Handler>(&mut self, _: &mut EventLoop<S>) -> Result<()> {
+    fn writable<S: Handler>(&mut self, event_loop: &mut EventLoop<S>) -> Result<()> {
         if Buf::has_remaining(&self.out_buf) {
             match self.sock.write(&mut self.out_buf) {
                 Ok(Some(n)) => {
@@ -199,7 +212,23 @@ impl Connection {
                     return Err(Error::from(e));
                 }
             }
+        } else {
+            self.interest = Interest::readable();
+            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
+
+        Ok(())
+    }
+
+    fn shutdown<S: Handler>(self, event_loop: &mut EventLoop<S>) -> Result<()> {
+        use std::io::Write;
+
+        println!("Shutting down {:?}", self.token);
+        try!(event_loop.deregister(&self.sock));
+
+        let mut unwrapped = self.sock.unwrap();
+        try!(unwrapped.flush());
+        try!(unwrapped.shutdown(Shutdown::Both));
 
         Ok(())
     }
@@ -294,6 +323,31 @@ mod tests {
             writer.write("file_info domain=rn_development_private&key=test/key/3\r\n".as_bytes()).unwrap();
             reader.read_line(&mut resp).unwrap();
             assert!(!resp.is_empty());
+
+            channel.send(()).unwrap();
+        });
+
+        server.run(&mut handler).unwrap();
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn oneshot_reading() {
+        let (mut server, mut handler) = fixture_server();
+        let server_addr = handler.server.local_addr().unwrap();
+        let channel = server.event_loop.channel();
+
+        let handle = client_thread(server_addr, move|mut reader, mut writer| {
+            let mut resp = String::new();
+            assert!(resp.is_empty());
+
+            writer.write("file_info domain=rn_develop".as_bytes()).unwrap();
+            thread::sleep_ms(1000);
+            writer.write("ment_private&key=test/key/2\r\n".as_bytes()).unwrap();
+
+            reader.read_line(&mut resp).unwrap();
+            assert!(!resp.is_empty());
+
 
             channel.send(()).unwrap();
         });
