@@ -280,23 +280,25 @@ mod tests {
         let server_addr = handler.server.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
-        client_thread(server_addr, move|mut reader, mut writer| {
+        let handle = client_thread(server_addr, move|mut reader, mut writer| {
             let mut resp = String::new();
+            assert!(resp.is_empty());
 
-            assert_eq!("", resp);
             writer.write("file_info domain=rn_development_private&key=test/key/2\r\n".as_bytes()).unwrap();
             reader.read_line(&mut resp).unwrap();
-            assert!(resp.len() > 0);
+            assert!(!resp.is_empty());
 
             resp.clear();
-            assert_eq!("", resp);
+            assert!(resp.is_empty());
+
             writer.write("file_info domain=rn_development_private&key=test/key/3\r\n".as_bytes()).unwrap();
             reader.read_line(&mut resp).unwrap();
-            assert!(resp.len() > 0);
+            assert!(!resp.is_empty());
 
             channel.send(()).unwrap();
         });
 
         server.run(&mut handler).unwrap();
+        handle.join().unwrap();
     }
 }
