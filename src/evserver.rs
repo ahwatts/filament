@@ -33,7 +33,7 @@ impl Server {
         let notify_channel = self.event_loop.channel();
         CtrlC::set_handler(move|| {
             notify_channel.send(Notification::shutdown()).unwrap_or_else(|e| {
-                println!("Error notifying event loop of SIGINT: {:?}", e);
+                error!("Error notifying event loop of SIGINT: {:?}", e);
             });
         });
 
@@ -73,9 +73,8 @@ impl ServerHandler {
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
         let stream = try!(try!(self.server.accept()).ok_or(Error::StreamNotReady));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
-        println!("socket linger = {:?}", conn.sock.linger());
         try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
-        println!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
+        info!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
         self.last_token = conn.token;
         self.conns.insert(conn.token, conn);
         Ok(())
@@ -95,11 +94,11 @@ impl ServerHandler {
         match self.conns.remove(&token) {
             Some(conn) => {
                 conn.shutdown(event_loop).unwrap_or_else(|e| {
-                    println!("Error shutting down connection {:?}: {}", token, e);
+                    error!("Error shutting down connection {:?}: {}", token, e);
                 })
             },
             None => {
-                println!("Could not find connection {:?}", token);
+                error!("Could not find connection {:?}", token);
             }
         }
     }
@@ -113,17 +112,17 @@ impl Handler for ServerHandler {
         match token {
             t if t == self.token => {
                 self.accept(event_loop).unwrap_or_else(|e| {
-                    println!("Error accepting connection: {} (hint: {:?})", e, hint);
+                    error!("Error accepting connection: {} (hint: {:?})", e, hint);
                 });
             },
             t if self.conns.contains_key(&t) => {
                 let conn = self.conns.get_mut(&t).unwrap();
                 conn.readable(event_loop, hint).unwrap_or_else(|e| {
-                    println!("Error handling readable event for connection {:?}: {}", t, e);
+                    error!("Error handling readable event for connection {:?}: {}", t, e);
                 });
             },
             _ => {
-                println!("Readable event for unknown connection {:?}", token);
+                debug!("Readable event for unknown connection {:?}", token);
             }
         }
     }
@@ -133,17 +132,17 @@ impl Handler for ServerHandler {
             t if self.conns.contains_key(&t) => {
                 let conn = self.conns.get_mut(&t).unwrap();
                 conn.writable(event_loop).unwrap_or_else(|e| {
-                    println!("Error handling writable event for connection {:?}: {}", t, e);
+                    error!("Error handling writable event for connection {:?}: {}", t, e);
                 });
             }
             _ => {
-                println!("Writable event for unknown connection: {:?}", token);
+                debug!("Writable event for unknown connection: {:?}", token);
             }
         }
     }
 
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, message: Notification) {
-        println!("Notify event: message = {:?}", message);
+        debug!("Notify event: message = {:?}", message);
 
         match message {
             Notification::Shutdown => self.shutdown(event_loop),
@@ -152,13 +151,13 @@ impl Handler for ServerHandler {
     }
 
     fn timeout(&mut self, _: &mut EventLoop<Self>, timeout: usize) {
-        println!("Timeout event: timeout = {:?}", timeout);
+        debug!("Timeout event: timeout = {:?}", timeout);
     }
 
     fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
-        println!("Interrupted event.");
+        debug!("Interrupted event.");
         event_loop.channel().send(Notification::shutdown()).unwrap_or_else(|e| {
-            println!("Error handling interrupted event by sending message: {:?}", e);
+            error!("Error handling interrupted event by sending message: {:?}", e);
         });
     }
 }
@@ -201,19 +200,19 @@ impl Connection {
     }
 
     fn readable(&mut self, event_loop: &mut EventLoop<ServerHandler>, hint: ReadHint) -> Result<()> {
-        print!("Readable event on {:?} (hint: {:?}): ", self.token, hint);
+        debug!("Readable event on {:?} (hint: {:?})", self.token, hint);
 
         let read_result = self.sock.read(&mut self.in_buf);
 
         match read_result {
             Ok(Some(n)) => {
-                println!("Read {} bytes from {:?}", n, self.token);
+                debug!("Read {} bytes from {:?}", n, self.token);
             },
             Ok(None) => {
-                println!("No more bytes to read from {:?}", self.token);
+                debug!("No more bytes to read from {:?}", self.token);
             },
             Err(_) => {
-                println!("(error)");
+                debug!("(error)");
             }
         }
 
@@ -239,10 +238,10 @@ impl Connection {
         if Buf::has_remaining(&self.out_buf) {
             match self.sock.write(&mut self.out_buf) {
                 Ok(Some(n)) => {
-                    println!("Wrote {} bytes to {:?}", n, self.token);
+                    debug!("Wrote {} bytes to {:?}", n, self.token);
                 },
                 Ok(None) => {
-                    println!("Not ready to write to {:?}", self.token);
+                    debug!("Not ready to write to {:?}", self.token);
                 },
                 Err(e) => {
                     return Err(Error::from(e));
@@ -259,7 +258,7 @@ impl Connection {
     fn shutdown(self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
         use std::io::Write;
 
-        println!("Shutting down {:?}", self.token);
+        info!("Shutting down {:?}", self.token);
         try!(event_loop.deregister(&self.sock));
 
         let mut unwrapped = self.sock.unwrap();

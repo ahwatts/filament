@@ -1,8 +1,12 @@
 #![cfg_attr(test, allow(dead_code))]
 
 extern crate argparse;
+extern crate env_logger;
 extern crate mio;
 extern crate mogilefsd;
+
+#[macro_use]
+extern crate log;
 
 use argparse::ArgumentParser;
 use mogilefsd::evserver::{Server, ServerHandler};
@@ -10,6 +14,8 @@ use std::default::Default;
 use std::net::Ipv4Addr;
 
 fn main() {
+    env_logger::init().unwrap();
+
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
     let listen_addr = (opts.listen_ip, opts.listen_port);

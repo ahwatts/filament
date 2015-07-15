@@ -108,14 +108,14 @@ impl Tracker {
         let request = match request_in.to_message() {
             Ok(msg) => msg,
             Err(e) => {
-                println!("Error reading MogileFS request: {}", e);
+                error!("Error reading MogileFS request: {}", e);
                 return Message::from(e);
             }
         };
 
-        println!("request = {:?}", request);
+        info!("request = {:?}", request);
         let response = self.dispatch_command(&request);
-        println!("response = {:?}", response);
+        info!("response = {:?}", response);
 
         match response {
             Ok(msg) => msg,
