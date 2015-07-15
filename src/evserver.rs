@@ -51,7 +51,7 @@ pub struct ServerHandler {
 
 impl ServerHandler {
     pub fn new<T: ToSocketAddrs>(sock_addr: T) -> Result<ServerHandler> {
-        let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(Error::Other));
+        let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(Error::NoListenAddr));
         let token = Token(0);
 
         let socket = try!(tcp::v4());
@@ -71,7 +71,7 @@ impl ServerHandler {
     }
 
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
-        let stream = try!(try!(self.server.accept()).ok_or(Error::Other));
+        let stream = try!(try!(self.server.accept()).ok_or(Error::StreamNotReady));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
         println!("socket linger = {:?}", conn.sock.linger());
         try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
@@ -288,7 +288,8 @@ impl Connection {
 pub enum Error {
     IoError(io::Error),
     FullNotifyQueue,
-    Other,
+    NoListenAddr,
+    StreamNotReady,
 }
 
 impl error::Error for Error {
@@ -296,17 +297,19 @@ impl error::Error for Error {
         match *self {
             Error::IoError(ref io_err) => io_err.description(),
             Error::FullNotifyQueue => "Notification queue is full",
-            Error::Other => "Other error",
+            Error::NoListenAddr => "Unable to determine address on which to listen",
+            Error::StreamNotReady => "Stream is not ready",
         }
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use std::error::Error;
+
         match *self {
-            Error::IoError(ref io_err) => write!(f, "{}", io_err),
-            Error::FullNotifyQueue => write!(f, "Notification queue is full"),
-            Error::Other => write!(f, "Other error"),
+            self::Error::IoError(ref io_err) => write!(f, "{}", io_err),
+            _ => f.write_str(self.description()),
         }
     }
 }
