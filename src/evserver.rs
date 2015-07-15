@@ -52,14 +52,15 @@ pub struct ServerHandler {
 impl ServerHandler {
     pub fn new<T: ToSocketAddrs>(sock_addr: T) -> Result<ServerHandler> {
         let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(Error::Other));
-        let socket = try!(tcp::listen(&sock_addr));
         let token = Token(0);
 
+        let socket = try!(tcp::v4());
         try!(socket.set_reuseaddr(true));
-        try!(socket.set_reuseport(true));
+        try!(socket.bind(&sock_addr));
+        let server = try!(socket.listen(256));
 
         let handler = ServerHandler {
-            server: socket,
+            server: server,
             token: token,
             conns: HashMap::new(),
             last_token: token,
