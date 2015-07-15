@@ -9,7 +9,9 @@ extern crate mogilefsd;
 extern crate log;
 
 use argparse::ArgumentParser;
+use mogilefsd::tpool::TrackerPool;
 use mogilefsd::evserver::{Server, ServerHandler};
+use mogilefsd::tracker::Tracker;
 use std::default::Default;
 use std::net::Ipv4Addr;
 
@@ -20,7 +22,10 @@ fn main() {
     opts.parser().parse_args_or_exit();
     let listen_addr = (opts.listen_ip, opts.listen_port);
 
-    let mut handler = ServerHandler::new(listen_addr).unwrap_or_else(|e| {
+    let tracker = Tracker::new();
+    let pool = TrackerPool::new(tracker, 4);
+
+    let mut handler = ServerHandler::new(listen_addr, pool).unwrap_or_else(|e| {
         panic!("Error setting up server on {:?}: {}", listen_addr, e);
     });
 
