@@ -26,7 +26,7 @@ impl Server {
         try!{
             self.event_loop.register_opt(
                 &handler.server, handler.token,
-                Interest::readable(), PollOpt::edge())
+                Interest::all(), PollOpt::edge())
         }
 
         // register a handler for ctrl+c.
@@ -195,7 +195,7 @@ impl Connection {
             token: token,
             in_buf: RingBuf::new(2048),
             out_buf: RingBuf::new(2048),
-            interest: Interest::readable(),
+            interest: Interest::readable() | Interest::hup() | Interest::error(),
             tracker: tracker,
         }
     }
@@ -222,7 +222,7 @@ impl Connection {
                 Buf::advance(&mut self.in_buf, line.len() + 2);
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
-                self.interest = Interest::writable();
+                self.interest = Interest::writable() | Interest::hup() | Interest::error();
                 debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
                 try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
@@ -252,11 +252,11 @@ impl Connection {
         }
 
         if Buf::has_remaining(&self.out_buf) {
-            self.interest = Interest::writable();
+            self.interest = Interest::writable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         } else {
-            self.interest = Interest::readable();
+            self.interest = Interest::readable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
