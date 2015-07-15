@@ -74,7 +74,7 @@ impl ServerHandler {
         let stream = try!(try!(self.server.accept()).ok_or(Error::StreamNotReady));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
         info!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
-        debug!("Registering {:?} as {:?} / edge", conn.token, conn.interest);
+        // debug!("Registering {:?} as {:?} / edge", conn.token, conn.interest);
         try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
         self.last_token = conn.token;
         self.conns.insert(conn.token, conn);
@@ -95,11 +95,11 @@ impl ServerHandler {
         match self.conns.remove(&token) {
             Some(conn) => {
                 conn.shutdown(event_loop).unwrap_or_else(|e| {
-                    error!("Error shutting down connection {:?}: {}", token, e);
+                    warn!("Error shutting down connection {:?}: {}", token, e);
                 })
             },
             None => {
-                error!("Could not find connection {:?}", token);
+                warn!("Could not find connection {:?}", token);
             }
         }
     }
@@ -123,7 +123,7 @@ impl Handler for ServerHandler {
                 });
             },
             _ => {
-                debug!("Readable event for unknown connection {:?}", token);
+                warn!("Readable event for unknown connection {:?}", token);
             }
         }
     }
@@ -137,23 +137,22 @@ impl Handler for ServerHandler {
                 });
             }
             _ => {
-                debug!("Writable event for unknown connection: {:?}", token);
+                warn!("Writable event for unknown connection: {:?}", token);
             }
         }
     }
 
     fn notify(&mut self, event_loop: &mut EventLoop<Self>, message: Notification) {
         debug!("Notify event: message = {:?}", message);
-
         match message {
             Notification::Shutdown => self.shutdown(event_loop),
             Notification::CloseConnection(token) => self.close_connection(event_loop, token),
         }
     }
 
-    fn timeout(&mut self, _: &mut EventLoop<Self>, timeout: usize) {
-        debug!("Timeout event: timeout = {:?}", timeout);
-    }
+    // fn timeout(&mut self, _: &mut EventLoop<Self>, timeout: usize) {
+    //     debug!("Timeout event: timeout = {:?}", timeout);
+    // }
 
     fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
         debug!("Interrupted event.");
@@ -201,8 +200,6 @@ impl Connection {
     }
 
     fn readable(&mut self, event_loop: &mut EventLoop<ServerHandler>, hint: ReadHint) -> Result<()> {
-        debug!("Readable event on {:?} (hint: {:?})", self.token, hint);
-
         let read_result = self.sock.read(&mut self.in_buf);
 
         match read_result {
@@ -223,7 +220,7 @@ impl Connection {
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
                 self.interest = Interest::writable() | Interest::hup() | Interest::error();
-                debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
+                // debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
                 try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
             None => {}
@@ -256,11 +253,11 @@ impl Connection {
         // response gets written to the buffer in toto.
         if Buf::has_remaining(&self.out_buf) {
             self.interest = Interest::writable() | Interest::hup() | Interest::error();
-            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
+            // debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         } else {
             self.interest = Interest::readable() | Interest::hup() | Interest::error();
-            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
+            // debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
 
@@ -270,8 +267,8 @@ impl Connection {
     fn shutdown(self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
         use std::io::Write;
 
-        info!("Shutting down {:?}", self.token);
-        debug!("Deregistering {:?}", self.token);
+        info!("Shutting down {:?} from {:?}", self.token, self.sock.peer_addr());
+        // debug!("Deregistering {:?}", self.token);
         try!(event_loop.deregister(&self.sock));
 
         let mut unwrapped = self.sock.unwrap();
