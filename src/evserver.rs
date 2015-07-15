@@ -212,8 +212,8 @@ impl Connection {
             Ok(None) => {
                 debug!("No more bytes to read from {:?}", self.token);
             },
-            Err(_) => {
-                debug!("(error)");
+            Err(ref e) => {
+                debug!("Error reading from {:?}: {}", self.token, e);
             }
         }
 
@@ -229,11 +229,11 @@ impl Connection {
             None => {}
         }
 
-        if hint.is_hup() {
+        if hint.is_hup() | hint.is_error() {
             try!(event_loop.channel().send(Notification::close_connection(self.token)));
         }
 
-        Ok(())
+        read_result.map(|_| ()).map_err(|e| Error::from(e))
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
@@ -251,6 +251,9 @@ impl Connection {
             }
         }
 
+        // We should probably only switch back to readable if we've
+        // written a newline, but for now we'll just assume that the
+        // response gets written to the buffer in toto.
         if Buf::has_remaining(&self.out_buf) {
             self.interest = Interest::writable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
