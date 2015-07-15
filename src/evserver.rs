@@ -73,8 +73,9 @@ impl ServerHandler {
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
         let stream = try!(try!(self.server.accept()).ok_or(Error::StreamNotReady));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
-        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
         info!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
+        debug!("Registering {:?} as {:?} / edge", conn.token, conn.interest);
+        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
         self.last_token = conn.token;
         self.conns.insert(conn.token, conn);
         Ok(())
@@ -222,6 +223,7 @@ impl Connection {
                 let response = self.tracker.handle(&mut Cursor::new(line.as_ref()));
                 self.out_buf.write_slice(response.render().as_bytes());
                 self.interest = Interest::writable();
+                debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
                 try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
             },
             None => {}
@@ -235,30 +237,38 @@ impl Connection {
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
-        if Buf::has_remaining(&self.out_buf) {
-            match self.sock.write(&mut self.out_buf) {
-                Ok(Some(n)) => {
-                    debug!("Wrote {} bytes to {:?}", n, self.token);
-                },
-                Ok(None) => {
-                    debug!("Not ready to write to {:?}", self.token);
-                },
-                Err(e) => {
-                    return Err(Error::from(e));
-                }
+        let write_result = self.sock.write(&mut self.out_buf);
+
+        match write_result {
+            Ok(Some(n)) => {
+                debug!("Wrote {} bytes to {:?}", n, self.token);
+            },
+            Ok(None) => {
+                debug!("Not ready to write to {:?}", self.token);
+            },
+            Err(ref e) => {
+                error!("Error writing to {:?}: {}", self.token, e);
             }
+        }
+
+        if Buf::has_remaining(&self.out_buf) {
+            self.interest = Interest::writable();
+            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
+            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         } else {
             self.interest = Interest::readable();
+            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
 
-        Ok(())
+        write_result.map(|_| ()).map_err(|e| Error::from(e))
     }
 
     fn shutdown(self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
         use std::io::Write;
 
         info!("Shutting down {:?}", self.token);
+        debug!("Deregistering {:?}", self.token);
         try!(event_loop.deregister(&self.sock));
 
         let mut unwrapped = self.sock.unwrap();
