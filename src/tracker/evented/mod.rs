@@ -1,32 +1,40 @@
 use mio::buf::{Buf, RingBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
-use mio::{EventLoop, Handler, Interest, NonBlock, NotifyError, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
+use mio::{self, EventLoop, Interest, NonBlock, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
 use std::collections::HashMap;
-use std::error;
-use std::fmt::{self, Display, Formatter};
-use std::io;
 use std::net::{Shutdown, ToSocketAddrs};
 use std::rc::Rc;
-use std::result;
+use super::Tracker;
 use super::super::ctrlc::CtrlC;
-use super::super::tpool::TrackerPool;
+use self::tracker_pool::TrackerPool;
 use super::Message;
+use self::notification::Notification;
 
-pub struct Server {
-    event_loop: EventLoop<ServerHandler>,
+pub use self::error::{EventedError, EventedResult};
+
+pub mod error;
+mod notification;
+mod tracker_pool;
+
+pub struct EventedListener {
+    event_loop: EventLoop<Handler>,
+    handler: Handler,
 }
 
-impl Server {
-    pub fn new() -> Result<Server> {
-        Ok(Server {
+impl EventedListener {
+    pub fn new<T>(addr: T, tracker: Tracker, threads: usize) -> EventedResult<EventedListener>
+        where T: ToSocketAddrs
+    {
+        Ok(EventedListener {
             event_loop: try!(EventLoop::new()),
+            handler: try!(Handler::new(addr, TrackerPool::new(tracker, threads))),
         })
     }
 
-    pub fn run(&mut self, handler: &mut ServerHandler) -> Result<()> {
+    pub fn run(&mut self) -> EventedResult<()> {
         try!{
             self.event_loop.register_opt(
-                &handler.server, handler.token,
+                &self.handler.server, self.handler.token,
                 Interest::all(), PollOpt::edge())
         }
 
@@ -38,11 +46,11 @@ impl Server {
             });
         });
 
-        Ok(try!(self.event_loop.run(handler)))
+        Ok(try!(self.event_loop.run(&mut self.handler)))
     }
 }
 
-pub struct ServerHandler {
+struct Handler {
     server: NonBlock<TcpListener>,
     token: Token,
     conns: HashMap<Token, Connection>,
@@ -50,9 +58,9 @@ pub struct ServerHandler {
     tracker: Rc<TrackerPool>,
 }
 
-impl ServerHandler {
-    pub fn new<T: ToSocketAddrs>(sock_addr: T, pool: TrackerPool) -> Result<ServerHandler> {
-        let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(Error::NoListenAddr));
+impl Handler {
+    pub fn new<T: ToSocketAddrs>(sock_addr: T, pool: TrackerPool) -> EventedResult<Handler> {
+        let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(EventedError::NoListenAddr));
         let token = Token(0);
 
         let socket = try!(tcp::v4());
@@ -60,7 +68,7 @@ impl ServerHandler {
         try!(socket.bind(&sock_addr));
         let server = try!(socket.listen(256));
 
-        let handler = ServerHandler {
+        let handler = Handler {
             server: server,
             token: token,
             conns: HashMap::new(),
@@ -71,8 +79,8 @@ impl ServerHandler {
         Ok(handler)
     }
 
-    fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> Result<()> {
-        let stream = try!(try!(self.server.accept()).ok_or(Error::StreamNotReady));
+    fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> EventedResult<()> {
+        let stream = try!(try!(self.server.accept()).ok_or(EventedError::StreamNotReady));
         let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
         info!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
         debug!("Registering {:?} as {:?} / edge", conn.token, conn.interest);
@@ -94,22 +102,22 @@ impl ServerHandler {
         event_loop.shutdown();
     }
 
-    fn close_connection(&mut self, event_loop: &mut EventLoop<Self>, token: Token) -> Result<()> {
+    fn close_connection(&mut self, event_loop: &mut EventLoop<Self>, token: Token) -> EventedResult<()> {
         match self.conns.remove(&token) {
             Some(conn) => conn.shutdown(event_loop),
-            None => Err(Error::UnknownConnection(token)),
+            None => Err(EventedError::UnknownConnection(token)),
         }
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Message) -> Result<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Message) -> EventedResult<()> {
         match self.conns.get_mut(&token) {
             Some(conn) => conn.write_response(event_loop, response),
-            None => Err(Error::UnknownConnection(token)),
+            None => Err(EventedError::UnknownConnection(token)),
         }
     }
 }
 
-impl Handler for ServerHandler {
+impl mio::Handler for Handler {
     type Timeout = usize;
     type Message = Notification;
 
@@ -175,24 +183,7 @@ impl Handler for ServerHandler {
     }
 }
 
-#[derive(Debug)]
-pub enum Notification {
-    CloseConnection(Token),
-    Shutdown,
-    Response(Token, Message),
-}
-
-impl Notification {
-    pub fn close_connection(token: Token) -> Notification {
-        Notification::CloseConnection(token)
-    }
-
-    pub fn shutdown() -> Notification {
-        Notification::Shutdown
-    }
-}
-
-pub struct Connection {
+struct Connection {
     sock: NonBlock<TcpStream>,
     token: Token,
     in_buf: RingBuf,
@@ -213,7 +204,7 @@ impl Connection {
         }
     }
 
-    fn readable(&mut self, event_loop: &mut EventLoop<ServerHandler>, hint: ReadHint) -> Result<()> {
+    fn readable(&mut self, event_loop: &mut EventLoop<Handler>, hint: ReadHint) -> EventedResult<()> {
         let read_result = self.sock.read(&mut self.in_buf);
 
         match read_result {
@@ -243,10 +234,10 @@ impl Connection {
             try!(event_loop.channel().send(Notification::close_connection(self.token)));
         }
 
-        read_result.map(|_| ()).map_err(|e| Error::from(e))
+        read_result.map(|_| ()).map_err(|e| EventedError::from(e))
     }
 
-    fn writable(&mut self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
+    fn writable(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
         let write_result = self.sock.write(&mut self.out_buf);
 
         match write_result {
@@ -274,10 +265,10 @@ impl Connection {
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
 
-        write_result.map(|_| ()).map_err(|e| Error::from(e))
+        write_result.map(|_| ()).map_err(|e| EventedError::from(e))
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<ServerHandler>, response: Message) -> Result<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Message) -> EventedResult<()> {
         use std::io::Write;
 
         try!(self.out_buf.write(response.render().as_bytes()));
@@ -287,7 +278,7 @@ impl Connection {
         Ok(())
     }
 
-    fn shutdown(self, event_loop: &mut EventLoop<ServerHandler>) -> Result<()> {
+    fn shutdown(self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
         use std::io::Write;
 
         info!("Shutting down {:?} from {:?}", self.token, self.sock.peer_addr());
@@ -316,69 +307,18 @@ impl Connection {
     }
 }
 
-#[derive(Debug)]
-pub enum Error {
-    IoError(io::Error),
-    FullNotifyQueue,
-    NoListenAddr,
-    StreamNotReady,
-    UnknownConnection(Token),
-}
-
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match *self {
-            Error::IoError(ref io_err) => io_err.description(),
-            Error::FullNotifyQueue => "Notification queue is full",
-            Error::NoListenAddr => "Unable to determine address on which to listen",
-            Error::StreamNotReady => "Stream is not ready",
-            Error::UnknownConnection(_) => "Unknown connection"
-        }
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        use std::error::Error;
-
-        match *self {
-            self::Error::IoError(ref io_err) => write!(f, "{}", io_err),
-            self::Error::UnknownConnection(ref token) => write!(f, "Unknown connection: {:?}", token),
-            _ => f.write_str(self.description()),
-        }
-    }
-}
-
-impl From<io::Error> for Error {
-    fn from(io_err: io::Error) -> Error {
-        Error::IoError(io_err)
-    }
-}
-
-impl From<NotifyError<Notification>> for Error {
-    fn from(not_err: NotifyError<Notification>) -> Error {
-        match not_err {
-            NotifyError::Io(io_err) => Error::IoError(io_err),
-            NotifyError::Full(_) => Error::FullNotifyQueue,
-        }
-    }
-}
-
-pub type Result<T> = result::Result<T, Error>;
-
 #[cfg(test)]
 mod tests {
     use std::io::{self, Write, BufRead, BufReader};
     use std::net::{TcpStream, ToSocketAddrs};
     use std::thread::{self, JoinHandle};
     use super::*;
-    use super::super::super::tpool::TrackerPool;
     use super::super::Tracker;
+    use super::notification::Notification;
 
-    fn fixture_server() -> (Server, ServerHandler) {
+    fn fixture_server() -> EventedListener {
         let tracker = Tracker::new();
-        let pool = TrackerPool::new(tracker, 4);
-        (Server::new().unwrap(), ServerHandler::new("0.0.0.0:0", pool).unwrap())
+        EventedListener::new("0.0.0.0:0", tracker, 1).unwrap()
     }
 
     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
@@ -395,8 +335,8 @@ mod tests {
 
     #[test]
     fn basic_interaction() {
-        let (mut server, mut handler) = fixture_server();
-        let server_addr = handler.server.local_addr().unwrap();
+        let mut server = fixture_server();
+        let server_addr = server.handler.server.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
         let handle = client_thread(server_addr, move|mut reader, mut writer| {
@@ -417,14 +357,14 @@ mod tests {
             channel.send(Notification::shutdown()).unwrap();
         });
 
-        server.run(&mut handler).unwrap();
+        server.run().unwrap();
         handle.join().unwrap();
     }
 
     #[test]
     fn oneshot_reading() {
-        let (mut server, mut handler) = fixture_server();
-        let server_addr = handler.server.local_addr().unwrap();
+        let mut server = fixture_server();
+        let server_addr = server.handler.server.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
         let handle = client_thread(server_addr, move|mut reader, mut writer| {
@@ -442,7 +382,7 @@ mod tests {
             channel.send(Notification::shutdown()).unwrap();
         });
 
-        server.run(&mut handler).unwrap();
+        server.run().unwrap();
         handle.join().unwrap();
     }
 }

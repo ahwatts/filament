@@ -8,8 +8,7 @@ extern crate mogilefsd;
 extern crate log;
 
 use argparse::ArgumentParser;
-use mogilefsd::tpool::TrackerPool;
-use mogilefsd::tracker::evented::{Server, ServerHandler};
+use mogilefsd::tracker::evented::EventedListener;
 use mogilefsd::tracker::Tracker;
 use std::default::Default;
 use std::net::Ipv4Addr;
@@ -22,18 +21,13 @@ fn main() {
     let listen_addr = (opts.listen_ip, opts.listen_port);
 
     let tracker = Tracker::new();
-    let pool = TrackerPool::new(tracker, opts.tracker_threads);
 
-    let mut handler = ServerHandler::new(listen_addr, pool).unwrap_or_else(|e| {
-        panic!("Error setting up server on {:?}: {}", listen_addr, e);
+    let mut listener = EventedListener::new(listen_addr, tracker, opts.tracker_threads).unwrap_or_else(|e| {
+        panic!("Error creating evented listener on {:?}: {}", listen_addr, e);
     });
 
-    let mut server = Server::new().unwrap_or_else(|e| {
-        panic!("Error creating event loop: {}", e);
-    });
-
-    server.run(&mut handler).unwrap_or_else(|e| {
-        panic!("Error running event loop: {}", e);
+    listener.run().unwrap_or_else(|e| {
+        panic!("Error running evented listener: {}", e);
     });
 }
 
