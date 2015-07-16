@@ -12,12 +12,6 @@ use mogilefsd::tracker::Tracker;
 use std::default::Default;
 use std::net::Ipv4Addr;
 
-#[cfg(not(windows))]
-use mogilefsd::tracker::evented::EventedListener;
-
-#[cfg(windows)]
-use mogilefsd::tracker::threaded::ThreadedListener;
-
 fn main() {
     env_logger::init().unwrap();
 
@@ -33,6 +27,8 @@ fn create_tracker() -> Tracker {
 
 #[cfg(not(windows))]
 fn run(opts: &Options) {
+    use mogilefsd::tracker::evented::EventedListener;
+
     let listener_result = EventedListener::new(
         opts.listen_addr(),
         create_tracker(),
@@ -49,6 +45,8 @@ fn run(opts: &Options) {
 
 #[cfg(windows)]
 fn run(opts: &Options) {
+    use mogilefsd::tracker::threaded::ThreadedListener;
+
     let listener_result = ThreadedListener::new(
         opts.listen_addr(),
         create_tracker());
