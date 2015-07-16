@@ -8,27 +8,56 @@ extern crate mogilefsd;
 extern crate log;
 
 use argparse::ArgumentParser;
-use mogilefsd::tracker::evented::EventedListener;
 use mogilefsd::tracker::Tracker;
 use std::default::Default;
 use std::net::Ipv4Addr;
+
+#[cfg(not(windows))]
+use mogilefsd::tracker::evented::EventedListener;
+
+#[cfg(windows)]
+use mogilefsd::tracker::threaded::ThreadedListener;
 
 fn main() {
     env_logger::init().unwrap();
 
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
-    let listen_addr = (opts.listen_ip, opts.listen_port);
 
-    let tracker = Tracker::new();
+    run(&opts);
+}
 
-    let mut listener = EventedListener::new(listen_addr, tracker, opts.tracker_threads).unwrap_or_else(|e| {
-        panic!("Error creating evented listener on {:?}: {}", listen_addr, e);
+fn create_tracker() -> Tracker {
+    Tracker::new()
+}
+
+#[cfg(not(windows))]
+fn run(opts: &Options) {
+    let listener_result = EventedListener::new(
+        opts.listen_addr(),
+        create_tracker(),
+        opts.tracker_threads);
+
+    let mut listener = listener_result.unwrap_or_else(|e| {
+        panic!("Error creating evented listener on {:?}: {}", opts.listen_addr(), e);
     });
 
     listener.run().unwrap_or_else(|e| {
         panic!("Error running evented listener: {}", e);
     });
+}
+
+#[cfg(windows)]
+fn run(opts: &Options) {
+    let listener_result = ThreadedListener::new(
+        opts.listen_addr(),
+        create_tracker());
+
+    let listener = listener_result.unwrap_or_else(|e| {
+        panic!("Error creating threaded listener on {:?}: {}", opts.listen_addr(), e);
+    });
+
+    listener.run();
 }
 
 #[derive(Debug)]
@@ -69,5 +98,9 @@ impl Options {
             "How many threads the tracker should run.");
 
         parser
+    }
+
+    fn listen_addr(&self) -> (Ipv4Addr, u16) {
+        (self.listen_ip, self.listen_port)
     }
 }

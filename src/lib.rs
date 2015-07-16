@@ -1,7 +1,9 @@
 extern crate libc;
-extern crate mio;
 extern crate threadpool;
 extern crate url;
+
+#[cfg(not(windows))]
+extern crate mio;
 
 #[macro_use]
 extern crate lazy_static;

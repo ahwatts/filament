@@ -3,7 +3,11 @@ pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 
 pub mod message;
 pub mod error;
+
+#[cfg(not(windows))]
 pub mod evented;
+
+#[cfg(windows)]
 pub mod threaded;
 
 /// The tracker object.
