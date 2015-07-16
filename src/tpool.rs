@@ -1,7 +1,7 @@
 use mio::{Sender, Token};
 use std::fmt::Debug;
 use std::sync::Arc;
-use super::evserver::Notification;
+use super::tracker::evented::Notification;
 use super::tracker::{Tracker, ToMessage};
 use threadpool::ThreadPool;
 

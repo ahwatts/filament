@@ -9,7 +9,7 @@ extern crate log;
 
 use argparse::ArgumentParser;
 use mogilefsd::tpool::TrackerPool;
-use mogilefsd::evserver::{Server, ServerHandler};
+use mogilefsd::tracker::evented::{Server, ServerHandler};
 use mogilefsd::tracker::Tracker;
 use std::default::Default;
 use std::net::Ipv4Addr;

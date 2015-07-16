@@ -8,9 +8,9 @@ use std::io;
 use std::net::{Shutdown, ToSocketAddrs};
 use std::rc::Rc;
 use std::result;
-use super::ctrlc::CtrlC;
-use super::tpool::TrackerPool;
-use super::tracker::Message;
+use super::super::ctrlc::CtrlC;
+use super::super::tpool::TrackerPool;
+use super::Message;
 
 pub struct Server {
     event_loop: EventLoop<ServerHandler>,
@@ -372,8 +372,8 @@ mod tests {
     use std::net::{TcpStream, ToSocketAddrs};
     use std::thread::{self, JoinHandle};
     use super::*;
-    use super::super::tpool::TrackerPool;
-    use super::super::tracker::Tracker;
+    use super::super::super::tpool::TrackerPool;
+    use super::super::Tracker;
 
     fn fixture_server() -> (Server, ServerHandler) {
         let tracker = Tracker::new();

@@ -36,5 +36,4 @@ extern crate regex;
 
 pub mod ctrlc;
 pub mod tracker;
-pub mod evserver;
 pub mod tpool;
