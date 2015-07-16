@@ -221,9 +221,10 @@ mod tests {
         assert_eq!(new_content, content);
     }
 
+    #[test]
     fn store_content_to_unknown_key() {
         let storage = fixture();
         let new_content: &'static [u8] = b"This is new test content";
-        assert_eq!(StorageError::UnknownKey, storage.store_content(TEST_KEY_2, &mut Cursor::new(new_content)).unwrap_err());
+        assert_eq!(StorageError::UnknownKey, storage.store_content("test/key/3", &mut Cursor::new(new_content)).unwrap_err());
     }
 }
