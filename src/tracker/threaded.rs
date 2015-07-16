@@ -1,8 +1,8 @@
-use super::Tracker;
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
-use std::thread;
 use std::io::{self, Write, BufRead, BufReader};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
+use std::thread;
+use super::Tracker;
 
 pub struct ThreadedListener {
     listener: TcpListener,

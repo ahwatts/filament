@@ -1,14 +1,14 @@
 use mio::buf::{Buf, RingBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
 use mio::{self, EventLoop, Interest, NonBlock, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
+use self::notification::Notification;
+use self::tracker_pool::TrackerPool;
 use std::collections::HashMap;
 use std::net::{Shutdown, ToSocketAddrs};
 use std::rc::Rc;
+use super::Message;
 use super::Tracker;
 use super::super::ctrlc::CtrlC;
-use self::tracker_pool::TrackerPool;
-use super::Message;
-use self::notification::Notification;
 
 pub use self::error::{EventedError, EventedResult};
 

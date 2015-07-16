@@ -1,6 +1,6 @@
-use std::io;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
+use std::io;
 use url::percent_encoding;
 
 /// A result type with the error type hard-coded to `tracker::Error`.

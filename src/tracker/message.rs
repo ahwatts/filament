@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::error::Error;
-use url::{form_urlencoded, percent_encoding};
 use super::{TrackerError, TrackerResult};
+use url::{form_urlencoded, percent_encoding};
 
 /// A request to or response from a MogileFS tracker.
 #[derive(Debug)]

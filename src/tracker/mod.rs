@@ -1,5 +1,3 @@
-use std::convert::AsRef;
-
 pub use self::message::{Message, MessageBody, ToMessage};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 

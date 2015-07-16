@@ -1,7 +1,7 @@
-use std::io;
 use mio::{Token, NotifyError};
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
+use std::io;
 use super::notification::Notification;
 
 pub type EventedResult<T> = Result<T, EventedError>;
