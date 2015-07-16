@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::AsRef;
 use std::error;
 use std::fmt::{self, Display, Formatter};
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, Write};
 use std::result;
 use url::{form_urlencoded, percent_encoding};
 
@@ -86,12 +86,15 @@ pub trait ToMessage {
     fn to_message<'a>(self) -> Result<'a, Message>;
 }
 
-impl<R: Read> ToMessage for R {
+impl ToMessage for Message {
     fn to_message<'a>(self) -> Result<'a, Message> {
-        let mut reader = BufReader::new(self);
-        let mut line: Vec<u8> = vec![];
-        try!(reader.read_until(b'\r', &mut line));
-        Ok(Message::from(line.as_ref()))
+        Ok(self)
+    }
+}
+
+impl<'b> ToMessage for &'b [u8] {
+    fn to_message<'a>(self) -> Result<'a, Message> {
+        Ok(Message::from(self))
     }
 }
 
@@ -139,6 +142,17 @@ pub enum ErrorKind {
     UnknownCommand,
     IoError(io::Error),
     Other(String),
+}
+
+impl PartialEq for ErrorKind {
+    fn eq(&self, other: &ErrorKind) -> bool {
+        match (self, other) {
+            (&ErrorKind::UnknownCommand, &ErrorKind::UnknownCommand) => true,
+            (&ErrorKind::IoError(_), &ErrorKind::IoError(_)) => true,
+            (&ErrorKind::Other(_), &ErrorKind::Other(_)) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Display for ErrorKind {
@@ -209,45 +223,43 @@ impl From<io::Error> for Error {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use regex::Regex;
-//     use std::io::{Cursor, Read};
-//     use super::*;
+#[cfg(test)]
+mod tests {
+    use regex::Regex;
+    use super::*;
 
-//     #[test]
-//     fn error_kinds() {
-//         assert_eq!("unknown_command", format!("{}", ErrorKind::UnknownCommand));
-//         assert_eq!("arbitrary_error", format!("{}", ErrorKind::Other("arbitrary_error")));
-//     }
+    #[test]
+    fn error_kinds() {
+        assert_eq!("unknown_command", format!("{}", ErrorKind::UnknownCommand));
+        assert_eq!("arbitrary_error", format!("{}", ErrorKind::Other("arbitrary_error".to_string())));
+    }
 
-//     #[test]
-//     fn error_line() {
-//         let e = Error::unknown_command("unknown command: blah");
-//         assert_eq!("ERR unknown_command unknown%20command%3A%20blah", e.error_line());
-//     }
+    #[test]
+    fn error_line() {
+        let e = Error::unknown_command("unknown command: blah");
+        assert_eq!("ERR unknown_command unknown%20command%3A%20blah", e.error_line());
+    }
 
-//     fn handler_fixture() -> Tracker {
-//         Tracker::new()
-//     }
+    fn handler_fixture() -> Tracker {
+        Tracker::new()
+    }
 
-//     #[test]
-//     fn dispatch_unknown_command() {
-//         let handler = handler_fixture();
-//         let request = "this_command_doesnt_exist key1=val1&domain=foo";
-//         let result = handler.dispatch_command(request);
-//         assert!(result.is_err());
-//         assert_eq!(ErrorKind::UnknownCommand, result.unwrap_err().kind);
-//     }
+    #[test]
+    fn dispatch_unknown_command() {
+        let handler = handler_fixture();
+        let request = Message::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
+        let result = handler.dispatch_command(&request);
+        assert!(result.is_err());
+        assert_eq!(ErrorKind::UnknownCommand, result.unwrap_err().kind);
+    }
 
-//     #[test]
-//     fn handle_unknown_command() {
-//         let response_re = Regex::new("^ERR unknown_command [^ ]+\r\n").unwrap();
-//         let handler = handler_fixture();
-//         let request_bytes: Vec<u8> = "this_command_doesnt_exist key1=val1&domain=foo\r\n".bytes().collect();
-//         let mut request = Cursor::new(request_bytes);
-//         let mut response = vec![];
-//         handler.handle(&mut request, &mut response);
-//         assert!(response_re.is_match(String::from_utf8_lossy(&response).as_ref()));
-//     }
-// }
+    #[test]
+    fn handle_unknown_command() {
+        let response_re = Regex::new("^ERR unknown_command [^ ]+\r\n").unwrap();
+        let handler = handler_fixture();
+        let request = Message::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
+        let response = handler.handle(request);
+        let response_line = response.render();
+        assert!(response_re.is_match(&response_line));
+    }
+}

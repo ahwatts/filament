@@ -4,13 +4,13 @@ use mio::{EventLoop, Handler, Interest, NonBlock, NotifyError, PollOpt, ReadHint
 use std::collections::HashMap;
 use std::error;
 use std::fmt::{self, Display, Formatter};
-use std::io::{self, Cursor};
+use std::io;
 use std::net::{Shutdown, ToSocketAddrs};
 use std::rc::Rc;
 use std::result;
 use super::ctrlc::CtrlC;
-use super::tracker::Message;
 use super::tpool::TrackerPool;
+use super::tracker::Message;
 
 pub struct Server {
     event_loop: EventLoop<ServerHandler>,
@@ -231,7 +231,7 @@ impl Connection {
         match self.extract_line(&self.in_buf) {
             Some(line) => {
                 Buf::advance(&mut self.in_buf, line.len() + 2);
-                self.tracker.handle(Cursor::new(line), self.token, event_loop.channel());
+                self.tracker.handle(line.as_ref(), self.token, event_loop.channel());
                 // self.interest = Interest::writable() | Interest::hup() | Interest::error();
                 // debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
                 // try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
@@ -366,79 +366,83 @@ impl From<NotifyError<Notification>> for Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use std::io::{self, Write, BufRead, BufReader};
-//     use std::net::{TcpStream, ToSocketAddrs};
-//     use std::thread::{self, JoinHandle};
+#[cfg(test)]
+mod tests {
+    use std::io::{self, Write, BufRead, BufReader};
+    use std::net::{TcpStream, ToSocketAddrs};
+    use std::thread::{self, JoinHandle};
+    use super::*;
+    use super::super::tpool::TrackerPool;
+    use super::super::tracker::Tracker;
 
-//     fn fixture_server() -> (Server, ServerHandler) {
-//         (Server::new().unwrap(), ServerHandler::new("0.0.0.0:0").unwrap())
-//     }
+    fn fixture_server() -> (Server, ServerHandler) {
+        let tracker = Tracker::new();
+        let pool = TrackerPool::new(tracker, 4);
+        (Server::new().unwrap(), ServerHandler::new("0.0.0.0:0", pool).unwrap())
+    }
 
-//     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
-//         where F: FnOnce(io::BufReader<TcpStream>, TcpStream) + Send + 'static
-//     {
-//         let server_addr = addr.to_socket_addrs().unwrap().next().unwrap();
+    fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
+        where F: FnOnce(io::BufReader<TcpStream>, TcpStream) + Send + 'static
+    {
+        let server_addr = addr.to_socket_addrs().unwrap().next().unwrap();
 
-//         thread::spawn(move|| {
-//             let writer = TcpStream::connect(server_addr).unwrap();
-//             let reader = BufReader::new(writer.try_clone().unwrap());
-//             func(reader, writer);
-//         })
-//     }
+        thread::spawn(move|| {
+            let writer = TcpStream::connect(server_addr).unwrap();
+            let reader = BufReader::new(writer.try_clone().unwrap());
+            func(reader, writer);
+        })
+    }
 
-//     #[test]
-//     fn basic_interaction() {
-//         let (mut server, mut handler) = fixture_server();
-//         let server_addr = handler.server.local_addr().unwrap();
-//         let channel = server.event_loop.channel();
+    #[test]
+    fn basic_interaction() {
+        let (mut server, mut handler) = fixture_server();
+        let server_addr = handler.server.local_addr().unwrap();
+        let channel = server.event_loop.channel();
 
-//         let handle = client_thread(server_addr, move|mut reader, mut writer| {
-//             let mut resp = String::new();
-//             assert!(resp.is_empty());
+        let handle = client_thread(server_addr, move|mut reader, mut writer| {
+            let mut resp = String::new();
+            assert!(resp.is_empty());
 
-//             writer.write("file_info domain=rn_development_private&key=test/key/2\r\n".as_bytes()).unwrap();
-//             reader.read_line(&mut resp).unwrap();
-//             assert!(!resp.is_empty());
+            writer.write("file_info domain=rn_development_private&key=test/key/2\r\n".as_bytes()).unwrap();
+            reader.read_line(&mut resp).unwrap();
+            assert!(!resp.is_empty());
 
-//             resp.clear();
-//             assert!(resp.is_empty());
+            resp.clear();
+            assert!(resp.is_empty());
 
-//             writer.write("file_info domain=rn_development_private&key=test/key/3\r\n".as_bytes()).unwrap();
-//             reader.read_line(&mut resp).unwrap();
-//             assert!(!resp.is_empty());
+            writer.write("file_info domain=rn_development_private&key=test/key/3\r\n".as_bytes()).unwrap();
+            reader.read_line(&mut resp).unwrap();
+            assert!(!resp.is_empty());
 
-//             channel.send(Notification::shutdown()).unwrap();
-//         });
+            channel.send(Notification::shutdown()).unwrap();
+        });
 
-//         server.run(&mut handler).unwrap();
-//         handle.join().unwrap();
-//     }
+        server.run(&mut handler).unwrap();
+        handle.join().unwrap();
+    }
 
-//     #[test]
-//     fn oneshot_reading() {
-//         let (mut server, mut handler) = fixture_server();
-//         let server_addr = handler.server.local_addr().unwrap();
-//         let channel = server.event_loop.channel();
+    #[test]
+    fn oneshot_reading() {
+        let (mut server, mut handler) = fixture_server();
+        let server_addr = handler.server.local_addr().unwrap();
+        let channel = server.event_loop.channel();
 
-//         let handle = client_thread(server_addr, move|mut reader, mut writer| {
-//             let mut resp = String::new();
-//             assert!(resp.is_empty());
+        let handle = client_thread(server_addr, move|mut reader, mut writer| {
+            let mut resp = String::new();
+            assert!(resp.is_empty());
 
-//             writer.write("file_info domain=rn_develop".as_bytes()).unwrap();
-//             thread::sleep_ms(1000);
-//             writer.write("ment_private&key=test/key/2\r\n".as_bytes()).unwrap();
+            writer.write("file_info domain=rn_develop".as_bytes()).unwrap();
+            thread::sleep_ms(1000);
+            writer.write("ment_private&key=test/key/2\r\n".as_bytes()).unwrap();
 
-//             reader.read_line(&mut resp).unwrap();
-//             assert!(!resp.is_empty());
+            reader.read_line(&mut resp).unwrap();
+            assert!(!resp.is_empty());
 
 
-//             channel.send(Notification::shutdown()).unwrap();
-//         });
+            channel.send(Notification::shutdown()).unwrap();
+        });
 
-//         server.run(&mut handler).unwrap();
-//         handle.join().unwrap();
-//     }
-// }
+        server.run(&mut handler).unwrap();
+        handle.join().unwrap();
+    }
+}

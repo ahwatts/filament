@@ -1,3 +1,5 @@
+// #![allow(unused_variables)]
+
 extern crate libc;
 extern crate mio;
 extern crate threadpool;
