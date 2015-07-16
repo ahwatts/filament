@@ -2,7 +2,6 @@
 
 extern crate argparse;
 extern crate env_logger;
-extern crate mio;
 extern crate mogilefsd;
 
 #[macro_use]
@@ -23,7 +22,7 @@ fn main() {
     let listen_addr = (opts.listen_ip, opts.listen_port);
 
     let tracker = Tracker::new();
-    let pool = TrackerPool::new(tracker, 4);
+    let pool = TrackerPool::new(tracker, opts.tracker_threads);
 
     let mut handler = ServerHandler::new(listen_addr, pool).unwrap_or_else(|e| {
         panic!("Error setting up server on {:?}: {}", listen_addr, e);
@@ -42,6 +41,7 @@ fn main() {
 struct Options {
     listen_ip: Ipv4Addr,
     listen_port: u16,
+    tracker_threads: usize,
 }
 
 impl Default for Options {
@@ -49,6 +49,7 @@ impl Default for Options {
         Options {
             listen_ip: Ipv4Addr::new(0, 0, 0, 0),
             listen_port: 7002,
+            tracker_threads: 4,
         }
     }
 }
@@ -64,9 +65,14 @@ impl Options {
             "The host IP for the tracker to listen on.");
 
         parser.refer(&mut self.listen_port).add_option(
-            &[ "-l", "--listen-ip" ],
+            &[ "-p", "--listen-port" ],
             argparse::Store,
             "The port for the tracker to listen on.");
+
+        parser.refer(&mut self.tracker_threads).add_option(
+            &[ "-t", "--tracker-threads" ],
+            argparse::Store,
+            "How many threads the tracker should run.");
 
         parser
     }
