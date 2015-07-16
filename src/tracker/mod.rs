@@ -6,6 +6,7 @@ pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 pub mod message;
 pub mod error;
 pub mod evented;
+pub mod threaded;
 
 /// The tracker object.
 pub struct Tracker;
