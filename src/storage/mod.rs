@@ -9,7 +9,7 @@ use url::Url;
 pub mod iron;
 
 pub struct Storage {
-    base_url: Url,
+    pub base_url: Url,
     backend: SyncBackend,
 }
 
