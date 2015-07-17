@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use super::common::{Backend, FileInfo};
+
 pub use self::message::{Message, MessageBody, ToMessage};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 
@@ -8,11 +12,15 @@ pub mod threaded;
 #[cfg(feature = "evented")] pub mod evented;
 
 /// The tracker object.
-pub struct Tracker;
+pub struct Tracker {
+    backend: Arc<Mutex<Backend>>,
+}
 
 impl Tracker {
-    pub fn new() -> Tracker {
-        Tracker
+    pub fn new(backend: Arc<Mutex<Backend>>) -> Tracker {
+        Tracker {
+            backend: backend,
+        }
     }
 
     /// Handle a request.
@@ -46,9 +54,10 @@ impl Tracker {
 mod tests {
     use regex::Regex;
     use super::*;
+    use super::super::test_support::*;
 
     fn handler_fixture() -> Tracker {
-        Tracker::new()
+        Tracker::new(sync_backend_fixture())
     }
 
     #[test]

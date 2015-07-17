@@ -1,18 +1,18 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use super::common::FileInfo;
+use super::common::Backend;
 use url::Url;
 
 pub struct Storage {
     base_url: Url,
-    backend: Arc<Mutex<HashMap<String, FileInfo>>>,
+    backend: Arc<Mutex<Backend>>,
 }
 
 impl Storage {
-    pub fn new(backend: Arc<Mutex<HashMap<String, FileInfo>>>, base_url: Url) -> Storage {
+    pub fn new(backend: Arc<Mutex<Backend>>, base_url: Url) -> Storage {
         Storage {
             base_url: base_url,
             backend: backend,
@@ -27,7 +27,9 @@ impl Storage {
 
     pub fn store_content<R: Read>(&self, key: &str, reader: &mut R) -> StorageResult<()> {
         let mut guard = try!(self.backend.lock());
-        match guard.get_mut(key) {
+        let &mut Backend(ref mut backend) = guard.deref_mut();
+
+        match backend.get_mut(key) {
             Some(file_info) => {
                 let mut content = vec![];
                 try!(io::copy(reader, &mut content));
@@ -40,7 +42,9 @@ impl Storage {
 
     pub fn get_content<W: Write>(&self, key: &str, writer: &mut W) -> StorageResult<()> {
         let guard = try!(self.backend.lock());
-        match guard.get(key) {
+        let &Backend(ref backend) = guard.deref();
+
+        match backend.get(key) {
             Some(ref file_info) => {
                 match file_info.content {
                     Some(ref reader) => {
@@ -67,8 +71,8 @@ pub enum StorageError {
     NoContent,
 }
 
-impl<'a> From<PoisonError<MutexGuard<'a, HashMap<String, FileInfo>>>> for StorageError {
-    fn from (_: PoisonError<MutexGuard<'a, HashMap<String, FileInfo>>>) -> StorageError {
+impl<'a> From<PoisonError<MutexGuard<'a, Backend>>> for StorageError {
+    fn from (_: PoisonError<MutexGuard<'a, Backend>>) -> StorageError {
         StorageError::PoisonedMutex
     }
 }
@@ -122,38 +126,12 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use super::*;
     use super::super::common::FileInfo;
+    use super::super::test_support::*;
     use url::Url;
-
-    static TEST_HOST: &'static str = "test.host";
-    static TEST_BASE_PATH: &'static str = "base_path";
-
-    static TEST_KEY_1: &'static str = "test/key/1";
-    static TEST_CONTENT_1: &'static [u8] = b"This is test content";
-
-    static TEST_KEY_2: &'static str = "test/key/2";
 
     fn fixture() -> Storage {
         let base_url = Url::parse(&format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH)).unwrap();
-        let mut backend_hash = HashMap::new();
-
-        backend_hash.insert(
-            TEST_KEY_1.to_string(),
-            FileInfo {
-                key: TEST_KEY_1.to_string(),
-                content: Some(Vec::from(TEST_CONTENT_1)),
-                size: Some(TEST_CONTENT_1.len()),
-            });
-
-        backend_hash.insert(
-            TEST_KEY_2.to_string(),
-            FileInfo {
-                key: TEST_KEY_2.to_string(),
-                content: None,
-                size: None,
-            });
-
-        let backend = Arc::new(Mutex::new(backend_hash));
-        Storage::new(backend, base_url)
+        Storage::new(sync_backend_fixture(), base_url)
     }
 
     #[test]
@@ -203,7 +181,7 @@ mod tests {
         });
 
         let guard = storage.backend.lock().unwrap();
-        let content: &[u8] = guard.get(TEST_KEY_1).unwrap().content.as_ref().unwrap();
+        let content: &[u8] = guard.0.get(TEST_KEY_1).unwrap().content.as_ref().unwrap();
         assert_eq!(new_content, content);
     }
 
@@ -217,7 +195,7 @@ mod tests {
         });
 
         let guard = storage.backend.lock().unwrap();
-        let content: &[u8] = guard.get(TEST_KEY_2).unwrap().content.as_ref().unwrap();
+        let content: &[u8] = guard.0.get(TEST_KEY_2).unwrap().content.as_ref().unwrap();
         assert_eq!(new_content, content);
     }
 

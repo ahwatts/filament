@@ -8,9 +8,12 @@ extern crate mogilefsd;
 extern crate log;
 
 use argparse::ArgumentParser;
+use mogilefsd::common::Backend;
 use mogilefsd::tracker::Tracker;
+use std::collections::HashMap;
 use std::default::Default;
 use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex};
 
 fn main() {
     env_logger::init().unwrap();
@@ -22,7 +25,8 @@ fn main() {
 }
 
 fn create_tracker() -> Tracker {
-    Tracker::new()
+    let backend = Arc::new(Mutex::new(Backend(HashMap::new())));
+    Tracker::new(backend)
 }
 
 #[cfg(feature = "evented")]
