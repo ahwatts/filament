@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 pub struct FileInfo {
     pub key: String,
@@ -7,3 +8,4 @@ pub struct FileInfo {
 }
 
 pub struct Backend(pub HashMap<String, FileInfo>);
+pub type SyncBackend = Arc<Mutex<Backend>>;

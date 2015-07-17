@@ -3,16 +3,18 @@ use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use super::common::Backend;
+use super::common::{Backend, SyncBackend};
 use url::Url;
+
+pub mod iron;
 
 pub struct Storage {
     base_url: Url,
-    backend: Arc<Mutex<Backend>>,
+    backend: SyncBackend,
 }
 
 impl Storage {
-    pub fn new(backend: Arc<Mutex<Backend>>, base_url: Url) -> Storage {
+    pub fn new(backend: SyncBackend, base_url: Url) -> Storage {
         Storage {
             base_url: base_url,
             backend: backend,

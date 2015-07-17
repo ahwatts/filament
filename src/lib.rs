@@ -1,3 +1,4 @@
+extern crate iron;
 extern crate libc;
 extern crate url;
 
@@ -16,7 +17,7 @@ pub mod storage;
 #[cfg(test)]
 mod test_support {
     use std::collections::HashMap;
-    use super::common::{Backend, FileInfo};
+    use super::common::{Backend, SyncBackend, FileInfo};
     use std::sync::{Arc, Mutex};
 
     pub static TEST_HOST: &'static str = "test.host";
@@ -49,7 +50,7 @@ mod test_support {
         backend_hash
     }
 
-    pub fn sync_backend_fixture() -> Arc<Mutex<Backend>> {
+    pub fn sync_backend_fixture() -> SyncBackend {
         Arc::new(Mutex::new(backend_fixture()))
     }
 }

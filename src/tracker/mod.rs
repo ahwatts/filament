@@ -1,6 +1,5 @@
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use super::common::{Backend, FileInfo};
+use super::common::Backend;
 
 pub use self::message::{Message, MessageBody, ToMessage};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};

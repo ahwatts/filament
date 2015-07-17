@@ -2,18 +2,25 @@
 
 extern crate argparse;
 extern crate env_logger;
+extern crate iron;
 extern crate mogilefsd;
+extern crate url;
 
 #[macro_use]
 extern crate log;
 
 use argparse::ArgumentParser;
+use iron::{Chain, Iron};
 use mogilefsd::common::Backend;
 use mogilefsd::tracker::Tracker;
+use mogilefsd::storage::Storage;
+use mogilefsd::storage::iron::StorageHandler;
 use std::collections::HashMap;
 use std::default::Default;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
+use std::thread;
+use url::Url;
 
 fn main() {
     env_logger::init().unwrap();
@@ -21,21 +28,26 @@ fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
 
-    run(&opts);
-}
-
-fn create_tracker() -> Tracker {
     let backend = Arc::new(Mutex::new(Backend(HashMap::new())));
-    Tracker::new(backend)
+    let tracker = Tracker::new(backend.clone());
+    let storage = Storage::new(backend.clone(), Url::parse("http://127.0.0.1:7503").unwrap());
+
+    let storage_thread = thread::spawn(move|| {
+        Iron::new(Chain::new(StorageHandler::new(storage))).http("127.0.0.1:7503").unwrap();
+    });
+
+    run(&opts, tracker);
+
+    storage_thread.join().unwrap();
 }
 
 #[cfg(feature = "evented")]
-fn run(opts: &Options) {
+fn run(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
         opts.listen_addr(),
-        create_tracker(),
+        tracker,
         opts.tracker_threads);
 
     let mut listener = listener_result.unwrap_or_else(|e| {
@@ -48,12 +60,12 @@ fn run(opts: &Options) {
 }
 
 #[cfg(not(feature = "evented"))]
-fn run(opts: &Options) {
+fn run(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
         opts.listen_addr(),
-        create_tracker());
+        tracker);
 
     let listener = listener_result.unwrap_or_else(|e| {
         panic!("Error creating threaded listener on {:?}: {}", opts.listen_addr(), e);

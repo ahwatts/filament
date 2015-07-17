@@ -309,13 +309,13 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{self, Write, BufRead, BufReader};
+    use std::io::{Write, BufRead, BufReader};
     use std::net::{TcpStream, ToSocketAddrs};
     use std::thread::{self, JoinHandle};
     use super::*;
+    use super::notification::Notification;
     use super::super::Tracker;
     use super::super::super::test_support::*;
-    use super::notification::Notification;
 
     fn fixture_server() -> EventedListener {
         let tracker = Tracker::new(sync_backend_fixture());
@@ -323,7 +323,7 @@ mod tests {
     }
 
     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
-        where F: FnOnce(io::BufReader<TcpStream>, TcpStream) + Send + 'static
+        where F: FnOnce(BufReader<TcpStream>, TcpStream) + Send + 'static
     {
         let server_addr = addr.to_socket_addrs().unwrap().next().unwrap();
 
