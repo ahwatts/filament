@@ -314,10 +314,11 @@ mod tests {
     use std::thread::{self, JoinHandle};
     use super::*;
     use super::super::Tracker;
+    use super::super::super::test_support::*;
     use super::notification::Notification;
 
     fn fixture_server() -> EventedListener {
-        let tracker = Tracker::new();
+        let tracker = Tracker::new(sync_backend_fixture());
         EventedListener::new("0.0.0.0:0", tracker, 1).unwrap()
     }
 
