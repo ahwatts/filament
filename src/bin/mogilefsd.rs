@@ -10,7 +10,7 @@ extern crate url;
 extern crate log;
 
 use argparse::ArgumentParser;
-use iron::{Chain, Iron};
+use iron::{Chain, Iron, Protocol};
 use mogilefsd::common::Backend;
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
@@ -30,10 +30,13 @@ fn main() {
 
     let backend = Arc::new(Mutex::new(Backend(HashMap::new())));
     let tracker = Tracker::new(backend.clone());
-    let storage = Storage::new(backend.clone(), Url::parse("http://127.0.0.1:7503").unwrap());
+    let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
 
+    let storage_addr = opts.storage_addr();
+    let storage_threads = opts.storage_threads;
     thread::spawn(move|| {
-        Iron::new(Chain::new(StorageHandler::new(storage))).http("127.0.0.1:7503").unwrap();
+        let iron = Iron::new(Chain::new(StorageHandler::new(storage)));
+        iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
     });
 
     run(&opts, tracker);
@@ -44,12 +47,12 @@ fn run(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
-        opts.listen_addr(),
+        opts.tracker_addr(),
         tracker,
         opts.tracker_threads);
 
     let mut listener = listener_result.unwrap_or_else(|e| {
-        panic!("Error creating evented listener on {:?}: {}", opts.listen_addr(), e);
+        panic!("Error creating evented listener on {:?}: {}", opts.tracker_addr(), e);
     });
 
     listener.run().unwrap_or_else(|e| {
@@ -62,11 +65,11 @@ fn run(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
-        opts.listen_addr(),
+        opts.tracker_addr(),
         tracker);
 
     let listener = listener_result.unwrap_or_else(|e| {
-        panic!("Error creating threaded listener on {:?}: {}", opts.listen_addr(), e);
+        panic!("Error creating threaded listener on {:?}: {}", opts.tracker_addr(), e);
     });
 
     listener.run();
@@ -74,17 +77,27 @@ fn run(opts: &Options, tracker: Tracker) {
 
 #[derive(Debug)]
 struct Options {
-    listen_ip: Ipv4Addr,
-    listen_port: u16,
+    tracker_ip: Ipv4Addr,
+    tracker_port: u16,
     tracker_threads: usize,
+
+    storage_ip: Ipv4Addr,
+    storage_port: u16,
+    storage_threads: usize,
+    storage_base_url: Url,
 }
 
 impl Default for Options {
     fn default() -> Options {
         Options {
-            listen_ip: Ipv4Addr::new(0, 0, 0, 0),
-            listen_port: 7002,
+            tracker_ip: Ipv4Addr::new(0, 0, 0, 0),
+            tracker_port: 7002,
             tracker_threads: 4,
+
+            storage_ip: Ipv4Addr::new(0, 0, 0, 0),
+            storage_port: 7502,
+            storage_threads: 4,
+            storage_base_url: Url::parse("http://127.0.0.1:7502").unwrap(),
         }
     }
 }
@@ -94,25 +107,49 @@ impl Options {
         let mut parser = ArgumentParser::new();
         parser.set_description("A partial clone for the MogileFS tracker daemon.");
 
-        parser.refer(&mut self.listen_ip).add_option(
-            &[ "-l", "--listen-ip" ],
+        parser.refer(&mut self.tracker_ip).add_option(
+            &[ "--tracker-ip" ],
             argparse::Store,
             "The host IP for the tracker to listen on.");
 
-        parser.refer(&mut self.listen_port).add_option(
-            &[ "-p", "--listen-port" ],
+        parser.refer(&mut self.tracker_port).add_option(
+            &[ "--tracker-port" ],
             argparse::Store,
             "The port for the tracker to listen on.");
 
         parser.refer(&mut self.tracker_threads).add_option(
-            &[ "-t", "--tracker-threads" ],
+            &[ "--tracker-threads" ],
             argparse::Store,
             "How many threads the tracker should run.");
+
+        parser.refer(&mut self.storage_ip).add_option(
+            &[ "--storage-ip" ],
+            argparse::Store,
+            "The host IP for the storage server to listen on.");
+
+        parser.refer(&mut self.storage_port).add_option(
+            &[ "--storage-port" ],
+            argparse::Store,
+            "The port for the storage server to listen on.");
+
+        parser.refer(&mut self.storage_threads).add_option(
+            &[ "--storage-threads" ],
+            argparse::Store,
+            "How many threads the storage server should run.");
+
+        parser.refer(&mut self.storage_base_url).add_option(
+            &[ "--storage-base-url" ],
+            argparse::Store,
+            "The base URL that the storage server should report.");
 
         parser
     }
 
-    fn listen_addr(&self) -> (Ipv4Addr, u16) {
-        (self.listen_ip, self.listen_port)
+    fn tracker_addr(&self) -> (Ipv4Addr, u16) {
+        (self.tracker_ip, self.tracker_port)
+    }
+
+    fn storage_addr(&self) -> (Ipv4Addr, u16) {
+        (self.storage_ip, self.storage_port)
     }
 }
