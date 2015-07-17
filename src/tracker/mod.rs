@@ -3,12 +3,9 @@ pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 
 pub mod message;
 pub mod error;
-
-#[cfg(not(windows))]
-pub mod evented;
-
-#[cfg(windows)]
 pub mod threaded;
+
+#[cfg(feature = "evented")] pub mod evented;
 
 /// The tracker object.
 pub struct Tracker;
