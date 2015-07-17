@@ -13,9 +13,19 @@ env_logger = "0.3.1"
 lazy_static = "0.1.11"
 libc = "0.1.8"
 log = "0.3.1"
-mio = "0.3.7"
-threadpool = "0.1.4"
 url = "0.2.35"
+
+[dependencies.mio]
+version = "0.3.7"
+optional = true
+
+[dependencies.threadpool]
+version = "0.1.4"
+optional = true
 
 [dev-dependencies]
 regex = "0.1.40"
+
+[features]
+default = [ "evented" ]
+evented = [ "mio", "threadpool" ]

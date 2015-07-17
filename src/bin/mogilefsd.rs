@@ -25,7 +25,7 @@ fn create_tracker() -> Tracker {
     Tracker::new()
 }
 
-#[cfg(not(windows))]
+#[cfg(feature = "evented")]
 fn run(opts: &Options) {
     use mogilefsd::tracker::evented::EventedListener;
 
@@ -43,7 +43,7 @@ fn run(opts: &Options) {
     });
 }
 
-#[cfg(windows)]
+#[cfg(not(feature = "evented"))]
 fn run(opts: &Options) {
     use mogilefsd::tracker::threaded::ThreadedListener;
 

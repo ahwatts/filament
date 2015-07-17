@@ -22,15 +22,17 @@ impl ThreadedListener {
             match stream {
                 Ok(stream) => {
                     let conn_tracker = self.tracker.clone();
+
                     thread::spawn(move|| {
-                        info!("New connection from {:?}", stream.peer_addr());
+                        let peer_addr = stream.peer_addr();
+                        info!("New connection from {:?}", peer_addr);
                         match handle_connection(stream, conn_tracker) {
                             Ok(_) => {},
                             Err(e) => {
-                                error!("Error handling connection from {:?}: {}", stream.peer_addr, e);
+                                error!("Error handling connection from {:?}: {}", peer_addr, e);
                             }
                         }
-                        info!("Shutting down connection from {:?}", stream.peer_addr());
+                        info!("Shutting down connection from {:?}", peer_addr);
                     });
                 },
                 Err(e) => {

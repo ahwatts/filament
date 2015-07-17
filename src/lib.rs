@@ -1,20 +1,13 @@
 extern crate libc;
-extern crate threadpool;
 extern crate url;
 
-#[cfg(not(windows))]
-extern crate mio;
+#[cfg(feature = "evented")] extern crate mio;
+#[cfg(feature = "evented")] extern crate threadpool;
+#[cfg(test)] extern crate regex;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate log;
 
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-extern crate regex;
-
+#[cfg(feature = "evented")] pub mod ctrlc;
 pub mod common;
-pub mod ctrlc;
 pub mod tracker;
 pub mod storage;
