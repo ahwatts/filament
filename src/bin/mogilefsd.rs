@@ -32,13 +32,11 @@ fn main() {
     let tracker = Tracker::new(backend.clone());
     let storage = Storage::new(backend.clone(), Url::parse("http://127.0.0.1:7503").unwrap());
 
-    let storage_thread = thread::spawn(move|| {
+    thread::spawn(move|| {
         Iron::new(Chain::new(StorageHandler::new(storage))).http("127.0.0.1:7503").unwrap();
     });
 
     run(&opts, tracker);
-
-    storage_thread.join().unwrap();
 }
 
 #[cfg(feature = "evented")]
