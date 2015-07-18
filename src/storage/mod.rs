@@ -2,7 +2,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io::{self, Cursor, Read, Write};
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{MutexGuard, PoisonError};
 use super::common::{Backend, SyncBackend};
 use url::Url;
 
@@ -123,11 +123,8 @@ impl Error for StorageError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::io::Cursor;
-    use std::sync::{Arc, Mutex};
     use super::*;
-    use super::super::common::FileInfo;
     use super::super::test_support::*;
     use url::Url;
 

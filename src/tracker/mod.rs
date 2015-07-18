@@ -1,5 +1,4 @@
-use std::sync::{Arc, Mutex};
-use super::common::Backend;
+use super::common::SyncBackend;
 
 pub use self::message::{Message, MessageBody, ToMessage};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
@@ -12,11 +11,11 @@ pub mod threaded;
 
 /// The tracker object.
 pub struct Tracker {
-    backend: Arc<Mutex<Backend>>,
+    backend: SyncBackend,
 }
 
 impl Tracker {
-    pub fn new(backend: Arc<Mutex<Backend>>) -> Tracker {
+    pub fn new(backend: SyncBackend) -> Tracker {
         Tracker {
             backend: backend,
         }
