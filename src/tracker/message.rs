@@ -9,9 +9,6 @@ use url::{form_urlencoded, percent_encoding};
 pub enum Command {
     CreateOpen,
     Noop,
-
-    // This enum also includes errors on their way out.
-    UnknownCommand,
 }
 
 impl Display for Command {
@@ -21,7 +18,6 @@ impl Display for Command {
         let op_str = match *self {
             CreateOpen => "create_open",
             Noop => "noop",
-            UnknownCommand => "unknown_command",
         };
 
         write!(f, "{}", op_str)

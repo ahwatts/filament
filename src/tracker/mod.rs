@@ -1,6 +1,6 @@
 use super::common::SyncBackend;
 
-pub use self::message::{Message, MessageBody, ToMessage};
+pub use self::message::{Command, Message, MessageBody, ToMessage};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 
 pub mod message;
