@@ -1,12 +1,62 @@
 use std::collections::HashMap;
 use std::error::Error;
-use super::{TrackerError, TrackerResult};
+use std::fmt::{self, Display, Formatter};
+use std::str;
+use super::{TrackerError, TrackerErrorKind, TrackerResult};
 use url::{form_urlencoded, percent_encoding};
+
+#[derive(Debug)]
+pub enum Command {
+    CreateOpen,
+    Noop,
+
+    // This enum also includes errors on their way out.
+    UnknownCommand,
+}
+
+impl Display for Command {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        use self::Command::*;
+
+        let op_str = match *self {
+            CreateOpen => "create_open",
+            Noop => "noop",
+            UnknownCommand => "unknown_command",
+        };
+
+        write!(f, "{}", op_str)
+    }
+}
+
+impl<'a> From<&'a str> for Command {
+    fn from(string: &'a str) -> Command {
+        use self::Command::*;
+        match string {
+            "create_open" => CreateOpen,
+            _ => Noop,
+        }
+    }
+}
+
+impl<'a> From<Option<&'a [u8]>> for Command {
+    fn from(bytes: Option<&'a [u8]>) -> Command {
+        Command::from(str::from_utf8(bytes.unwrap_or(b"")).unwrap_or(""))
+    }
+}
+
+impl<'a> From<&'a TrackerErrorKind> for Command {
+    fn from(kind: &'a TrackerErrorKind) -> Command {
+        match *kind {
+            TrackerErrorKind::UnknownCommand => Command::UnknownCommand,
+            _ => Command::Noop,
+        }
+    }
+}
 
 /// A request to or response from a MogileFS tracker.
 #[derive(Debug)]
 pub struct Message {
-    pub op: String,
+    pub op: Command,
     pub body: MessageBody,
 }
 
@@ -35,7 +85,7 @@ impl Message {
 impl<'a> From<&'a [u8]> for Message {
     fn from(bytes: &[u8]) -> Message {
         let mut toks = bytes.split(|&c| c == b' ');
-        let command = String::from_utf8_lossy(toks.next().unwrap_or(b""));
+        let command = Command::from(toks.next());
         let parsed_args = form_urlencoded::parse(toks.next().unwrap_or(b""));
 
         let body = if parsed_args.len() == 1 && parsed_args[0].1 == "" {
@@ -45,7 +95,7 @@ impl<'a> From<&'a [u8]> for Message {
         };
 
         Message {
-            op: command.into_owned(),
+            op: command,
             body: body,
         }
     }
@@ -54,7 +104,7 @@ impl<'a> From<&'a [u8]> for Message {
 impl From<TrackerError> for Message {
     fn from(err: TrackerError) -> Message {
         Message {
-            op: format!("{}", err.kind),
+            op: Command::from(&err.kind),
             body: MessageBody::Message(err.description().to_string()),
         }
     }
