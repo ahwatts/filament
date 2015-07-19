@@ -17,6 +17,7 @@ pub mod storage;
 #[cfg(test)]
 mod test_support {
     use std::collections::HashMap;
+    use std::default::Default;
     use super::common::{Backend, SyncBackend, FileInfo};
     use std::sync::{Arc, Mutex};
 
@@ -29,7 +30,7 @@ mod test_support {
     pub static TEST_KEY_2: &'static str = "test/key/2";
 
     pub fn backend_fixture() -> Backend {
-        let mut backend_hash = Backend(HashMap::new());
+        let mut backend_hash = Default::default();
 
         backend_hash.0.insert(
             TEST_KEY_1.to_string(),

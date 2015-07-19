@@ -30,7 +30,7 @@ impl Storage {
 
     pub fn store_content<R: Read>(&self, key: &str, reader: &mut R) -> StorageResult<()> {
         let mut guard = try!(self.backend.lock());
-        let &mut Backend(ref mut backend) = guard.deref_mut();
+        let backend = guard.deref_mut();
 
         match backend.get_mut(key) {
             Some(file_info) => {
@@ -45,7 +45,7 @@ impl Storage {
 
     pub fn get_content<W: Write>(&self, key: &str, writer: &mut W) -> StorageResult<()> {
         let guard = try!(self.backend.lock());
-        let &Backend(ref backend) = guard.deref();
+        let backend = guard.deref();
 
         match backend.get(key) {
             Some(ref file_info) => {

@@ -40,14 +40,14 @@ impl<'a> From<Option<&'a [u8]>> for Command {
     }
 }
 
-impl<'a> From<&'a TrackerErrorKind> for Command {
-    fn from(kind: &'a TrackerErrorKind) -> Command {
-        match *kind {
-            TrackerErrorKind::UnknownCommand => Command::UnknownCommand,
-            _ => Command::Noop,
-        }
-    }
-}
+// impl<'a> From<&'a TrackerErrorKind> for Command {
+//     fn from(kind: &'a TrackerErrorKind) -> Command {
+//         match *kind {
+//             TrackerErrorKind::UnknownCommand => Command::UnknownCommand,
+//             _ => Command::Noop,
+//         }
+//     }
+// }
 
 /// A request to or response from a MogileFS tracker.
 #[derive(Debug)]
@@ -97,14 +97,14 @@ impl<'a> From<&'a [u8]> for Message {
     }
 }
 
-impl From<TrackerError> for Message {
-    fn from(err: TrackerError) -> Message {
-        Message {
-            op: Command::from(&err.kind),
-            body: MessageBody::Message(err.description().to_string()),
-        }
-    }
-}
+// impl From<TrackerError> for Message {
+//     fn from(err: TrackerError) -> Message {
+//         Message {
+//             op: Command::from(&err.kind),
+//             body: MessageBody::Message(err.description().to_string()),
+//         }
+//     }
+// }
 
 /// The body of a MogileFS request / response. It can either be a
 /// query string or a url-encoded message.
