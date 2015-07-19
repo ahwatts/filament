@@ -36,7 +36,7 @@ impl Domain {
 
     pub fn classes(&self) -> &[&Class] {
         let mut rv: Vec<&Class> = self.classes.values().map(|c| c.deref()).collect();
-        rv.sort_by(|c1, c2| c1.name.cmp(&c2.name));
+        // rv.sort_by(|c1, c2| c1.name.cmp(&c2.name));
         &rv
     }
 
@@ -127,9 +127,7 @@ impl FileInfo {
 
 #[derive(Debug, Default)]
 pub struct Backend {
-    files: HashMap<String, Arc<FileInfo>>,
     domains: HashMap<String, Arc<Domain>>,
-    classes: HashMap<String, Arc<Class>>,
 }
 
 impl Backend {
@@ -137,9 +135,18 @@ impl Backend {
         Default::default()
     }
 
-    // pub fn add_domain(&mut self, name: &str) -> Arc<Domain> {
-    //     self.domains.entry(name).or_insert(Domain::new(name))
-    // }
+    pub fn add_domain(&mut self, name: &str) -> MogResult<&Domain> {
+        if self.domains.contains_key(name) {
+            Err(MogError::DuplicateDomain)
+        } else {
+            self.domains.insert(name.to_string(), Domain::new(name));
+            Ok(self.domains.get(name).map(|d| d.deref()).unwrap())
+        }
+    }
+
+    pub fn domain(&self, name: &str) -> Option<&Domain> {
+        self.domains.get(name).map(|d| d.deref())
+    }
 }
 
 pub type SyncBackend = Arc<Mutex<Backend>>;
@@ -147,6 +154,7 @@ pub type SyncBackend = Arc<Mutex<Backend>>;
 pub enum MogError {
     DuplicateKey,
     DuplicateClass,
+    DuplicateDomain,
     UnknownClass,
 }
 
