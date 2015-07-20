@@ -15,7 +15,6 @@ use mogilefsd::common::Backend;
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
 use mogilefsd::storage::iron::StorageHandler;
-use std::collections::HashMap;
 use std::default::Default;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
@@ -28,7 +27,7 @@ fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
 
-    let backend = Arc::new(Mutex::new(Backend(HashMap::new())));
+    let backend = Arc::new(Mutex::new(Backend::new()));
     let tracker = Tracker::new(backend.clone());
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
 

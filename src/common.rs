@@ -132,7 +132,7 @@ pub struct Backend {
 
 impl Backend {
     pub fn new() -> Backend {
-        Default::default()
+        Backend { files: HashMap::new() }
     }
 
     // pub fn add_domain(&mut self, name: &str) -> MogResult<&Domain> {
@@ -159,4 +159,3 @@ pub enum MogError {
 }
 
 pub type MogResult<T> = Result<T, MogError>;
-
