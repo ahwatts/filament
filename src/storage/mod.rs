@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Read, Write};
 use std::ops::{Deref, DerefMut};
-use super::common::{MogError, SyncBackend};
+use super::common::SyncBackend;
 use url::Url;
 
 pub use self::iron::StorageHandler;
@@ -43,22 +43,6 @@ impl Storage {
             Ok(None) => Err(StorageError::UnknownKey),
             Err(e) => Err(StorageError::from(e)),
         }
-
-        // let mut domain = try!{
-        //     backend.domain(domain_name)
-        //         .ok_or(StorageError::UnknownDomain(
-        //             format!("Unknown domain: {}", domain_name)))
-        // };
-        //
-        // match domain.file_mut(key) {
-        //     Some(file_info) => {
-        //         let mut content = vec![];
-        //         try!(io::copy(reader, &mut content));
-        //         file_info.content = Some(content);
-        //         Ok(())
-        //     },
-        //     None => Err(StorageError::UnknownKey)
-        // }
     }
 
     pub fn get_content<W: Write>(&self, domain_name: &str, key: &str, writer: &mut W) -> StorageResult<()> {
@@ -76,30 +60,8 @@ impl Storage {
                 }
             },
             Ok(None) => Err(StorageError::UnknownKey),
-            Err(MogError::UnknownDomain) => Err(StorageError::UnknownDomain),
             Err(e) => Err(StorageError::from(e)),
         }
-
-        // let mut domain = try!{
-        //     backend.domain(domain_name)
-        //         .ok_or(StorageError::UnknownDomain(
-        //             format!("Unknown domain: {}", domain_name)))
-        // };
-        //
-        // match domain.file(key) {
-        //     Some(ref file_info) => {
-        //         match file_info.content {
-        //             Some(ref reader) => {
-        //                 try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
-        //                 Ok(())
-        //             },
-        //             None => Err(StorageError::NoContent),
-        //         }
-        //     },
-        //     None => {
-        //         Err(StorageError::UnknownKey)
-        //     }
-        // }
     }
 }
 
