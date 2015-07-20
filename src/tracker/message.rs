@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::str;
-use super::{TrackerError, TrackerErrorKind, TrackerResult};
+use super::{TrackerError};
 use url::{form_urlencoded, percent_encoding};
 
 /// The different commands that the tracker implements.

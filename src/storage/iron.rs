@@ -62,14 +62,14 @@ impl StorageHandler {
 
 impl Handler for StorageHandler {
     fn handle(&self, request: &mut Request) -> IronResult<Response> {
-        // let dk = domain_and_key_from_path(&request.url.path);
+        let dk = domain_and_key_from_path(&request.url.path);
 
-        // if dk.is_err() {
-        //     return Ok(Response::with((Status::BadRequest, format!("{}\n", dk.unwrap_err()))));
-        // }
+        if dk.is_err() {
+            return Ok(Response::with((Status::BadRequest, format!("{}\n", dk.unwrap_err()))));
+        }
 
-        // let (domain, key) = dk.unwrap();
-        // info!("Storage request: {:?} domain = {} key = {} from {:?}", request.method, domain, key, request.remote_addr);
+        let (domain, key) = dk.unwrap();
+        info!("Storage request: {:?} domain = {} key = {} from {:?}", request.method, domain, key, request.remote_addr);
 
         match request.method {
             // Method::Get | Method::Head => self.handle_get(request, &domain, &key),

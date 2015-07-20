@@ -1,8 +1,7 @@
 use mio::{Sender, Token};
-use std::fmt::Debug;
 use std::sync::Arc;
 use super::notification::Notification;
-use super::super::{Tracker, Request, Response};
+use super::super::{Tracker, Request};
 use threadpool::ThreadPool;
 
 pub struct TrackerPool {
