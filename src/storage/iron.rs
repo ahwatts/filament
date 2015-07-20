@@ -1,11 +1,6 @@
-use iron::{Handler, IronError, IronResult, Request, Response};
-use iron::headers;
-use iron::method::Method;
-use iron::modifier::Set;
-use iron::modifiers::Header;
+use iron::{Handler, IronResult, Request, Response};
 use iron::status::Status;
-use std::error::Error;
-use super::{Storage, StorageError, StorageResult};
+use super::Storage;
 
 pub struct StorageHandler;
 // {
@@ -13,7 +8,7 @@ pub struct StorageHandler;
 // }
 
 impl StorageHandler {
-    pub fn new(storage: Storage) -> StorageHandler {
+    pub fn new(_: Storage) -> StorageHandler {
         StorageHandler
         // {
         //     store: storage,

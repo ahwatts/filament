@@ -44,7 +44,7 @@ impl Tracker {
 mod tests {
     use regex::Regex;
     use super::*;
-    use super::super::test_support::*;
+    use super::super::common::test_support::*;
 
     fn handler_fixture() -> Tracker {
         Tracker::new(sync_backend_fixture())
@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn dispatch_unknown_command() {
         let handler = handler_fixture();
-        let request = Message::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
+        let request = Request::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
         let result = handler.dispatch_command(&request);
         assert!(result.is_err());
         assert_eq!(TrackerErrorKind::UnknownCommand, result.unwrap_err().kind);
@@ -63,9 +63,10 @@ mod tests {
     fn handle_unknown_command() {
         let response_re = Regex::new("^ERR unknown_command [^ ]+\r\n").unwrap();
         let handler = handler_fixture();
-        let request = Message::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
+        let request = Request::from("this_command_doesnt_exist key1=val1&domain=foo".as_bytes());
         let response = handler.handle(request);
-        let response_line = response.render();
+        let response_buf = response.render();
+        let response_line = String::from_utf8_lossy(response_buf.as_ref());
         assert!(response_re.is_match(&response_line));
     }
 }

@@ -68,16 +68,11 @@ impl<'a> From<&'a [u8]> for Request {
 
 /// The response from the tracker.
 #[derive(Debug)]
-pub enum Response {
-    Ok(Vec<(String, String)>),
-    Err(TrackerError),
-}
+pub struct Response(Result<Vec<(String, String)>, TrackerError>);
 
 impl Response {
     pub fn render(&self) -> Vec<u8> {
-        use self::Response::*;
-
-        match *self {
+        match self.0 {
             Ok(ref args) => format!("OK {}\r\n", form_urlencoded::serialize(args)).into_bytes(),
             Err(ref err) => {
                 let encoded_description = percent_encoding::percent_encode(
@@ -87,10 +82,15 @@ impl Response {
             }
         }
     }
+
+    pub fn is_ok(&self) -> bool { self.0.is_ok() }
+    pub fn is_err(&self) -> bool { self.0.is_err() }
+    pub fn unwrap(self) -> Vec<(String, String)> { self.0.unwrap() }
+    pub fn unwrap_err(self) -> TrackerError { self.0.unwrap_err() }
 }
 
 impl From<TrackerError> for Response {
     fn from(err: TrackerError) -> Response {
-        Response::Err(err)
+        Response(Err(err))
     }
 }
