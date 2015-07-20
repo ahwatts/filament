@@ -22,17 +22,24 @@ impl Storage {
         }
     }
 
-    pub fn url_for_key(&self, key: &str) -> Url {
+    pub fn url_for_key(&self, domain: &str, key: &str) -> Url {
         let mut key_url = self.base_url.clone();
+        key_url.path_mut().unwrap().extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
         key_url.path_mut().unwrap().extend(key.split("/").map(|s| s.to_string()));
         key_url
     }
 
-    pub fn store_content<R: Read>(&self, key: &str, reader: &mut R) -> StorageResult<()> {
+    pub fn store_content<R: Read>(&self, domain_name: &str, key: &str, reader: &mut R) -> StorageResult<()> {
         let mut guard = try!(self.backend.lock());
         let backend = guard.deref_mut();
 
-        match backend.get_mut(key) {
+        let mut domain = try!{
+            backend.domain(domain_name)
+                .ok_or(StorageError::UnknownDomain(
+                    format!("Unknown domain: {}", domain_name)))
+        };
+
+        match domain.file_mut(key) {
             Some(file_info) => {
                 let mut content = vec![];
                 try!(io::copy(reader, &mut content));
@@ -43,11 +50,17 @@ impl Storage {
         }
     }
 
-    pub fn get_content<W: Write>(&self, key: &str, writer: &mut W) -> StorageResult<()> {
+    pub fn get_content<W: Write>(&self, domain_name: &str, key: &str, writer: &mut W) -> StorageResult<()> {
         let guard = try!(self.backend.lock());
         let backend = guard.deref();
 
-        match backend.get(key) {
+        let mut domain = try!{
+            backend.domain(domain_name)
+                .ok_or(StorageError::UnknownDomain(
+                    format!("Unknown domain: {}", domain_name)))
+        };
+
+        match domain.file(key) {
             Some(ref file_info) => {
                 match file_info.content {
                     Some(ref reader) => {

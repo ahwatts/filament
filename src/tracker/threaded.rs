@@ -2,7 +2,7 @@ use std::io::{self, Write, BufRead, BufReader};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::thread;
-use super::Tracker;
+use super::{Tracker, Request, Response};
 
 pub struct ThreadedListener {
     listener: TcpListener,
@@ -51,8 +51,8 @@ fn handle_connection(mut writer: TcpStream, tracker: Arc<Tracker>) -> Result<(),
         if line.last() == Some(&b'\r') {
             line.pop();
         }
-        let response = tracker.handle(line.as_ref());
-        try!(writer.write_all(response.render().as_bytes()));
+        let response = tracker.handle(Request::from(line.as_ref()));
+        try!(writer.write_all(&response.render()));
     }
 
     Ok(())

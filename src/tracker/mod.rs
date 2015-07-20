@@ -1,6 +1,6 @@
 use super::common::SyncBackend;
 
-pub use self::message::{Command, Message, MessageBody, ToMessage};
+pub use self::message::{Command, Request, Response};
 pub use self::error::{TrackerError, TrackerErrorKind, TrackerResult};
 
 pub mod message;
@@ -10,40 +10,32 @@ pub mod threaded;
 #[cfg(feature = "evented")] pub mod evented;
 
 /// The tracker object.
-pub struct Tracker {
-    backend: SyncBackend,
-}
+pub struct Tracker;
+// {
+//     backend: SyncBackend,
+// }
 
 impl Tracker {
-    pub fn new(backend: SyncBackend) -> Tracker {
-        Tracker {
-            backend: backend,
-        }
+    pub fn new(_: SyncBackend) -> Tracker {
+        Tracker
+        // {
+        //     backend: backend,
+        // }
     }
 
     /// Handle a request.
-    pub fn handle<R: ToMessage>(&self, request_in: R) -> Message {
-        let request = match request_in.to_message() {
-            Ok(msg) => msg,
-            Err(e) => {
-                error!("Error reading MogileFS request: {}", e);
-                return Message::from(e);
-            }
-        };
-
+    pub fn handle(&self, request: Request) -> Response {
         info!("request = {:?}", request);
         let response = self.dispatch_command(&request);
         info!("response = {:?}", response);
-
-        match response {
-            Ok(msg) => msg,
-            Err(e) => Message::from(e),
-        }
+        response
     }
 
-    fn dispatch_command(&self, request: &Message) -> TrackerResult<Message> {
+    fn dispatch_command(&self, request: &Request) -> Response {
         match request.op {
-            _ => Err(TrackerError::unknown_command(format!("because f*** you, that's why. (command: {:?})", request.op).as_ref())),
+            _ => Response::from(
+                TrackerError::unknown_command(
+                    &format!("because f*** you, that's why. (command: {:?})", request.op))),
         }
     }
 }

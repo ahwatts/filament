@@ -6,7 +6,7 @@ use self::tracker_pool::TrackerPool;
 use std::collections::HashMap;
 use std::net::{Shutdown, ToSocketAddrs};
 use std::rc::Rc;
-use super::Message;
+use super::{Request, Response};
 use super::Tracker;
 use super::super::ctrlc::CtrlC;
 
@@ -109,7 +109,7 @@ impl Handler {
         }
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Message) -> EventedResult<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Response) -> EventedResult<()> {
         match self.conns.get_mut(&token) {
             Some(conn) => conn.write_response(event_loop, response),
             None => Err(EventedError::UnknownConnection(token)),
@@ -222,7 +222,7 @@ impl Connection {
         match self.extract_line(&self.in_buf) {
             Some(line) => {
                 Buf::advance(&mut self.in_buf, line.len() + 2);
-                self.tracker.handle(line.as_ref(), self.token, event_loop.channel());
+                self.tracker.handle(Request::from(line.as_ref()), self.token, event_loop.channel());
                 // self.interest = Interest::writable() | Interest::hup() | Interest::error();
                 // debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
                 // try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
@@ -268,10 +268,10 @@ impl Connection {
         write_result.map(|_| ()).map_err(|e| EventedError::from(e))
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Message) -> EventedResult<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Response) -> EventedResult<()> {
         use std::io::Write;
 
-        try!(self.out_buf.write(response.render().as_bytes()));
+        try!(self.out_buf.write(&response.render()));
         self.interest = Interest::writable() | Interest::hup() | Interest::error();
         debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
         try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));

@@ -2,7 +2,7 @@ use mio::{Sender, Token};
 use std::fmt::Debug;
 use std::sync::Arc;
 use super::notification::Notification;
-use super::super::{Tracker, ToMessage};
+use super::super::{Tracker, Request, Response};
 use threadpool::ThreadPool;
 
 pub struct TrackerPool {
@@ -18,18 +18,9 @@ impl TrackerPool {
         }
     }
 
-    pub fn handle<T>(&self, to_request: T, token: Token, response_to: Sender<Notification>)
-        where T: ToMessage + Send + Debug
+    pub fn handle(&self, request: Request, token: Token, response_to: Sender<Notification>)
     {
         let tracker = self.tracker.clone();
-        let request = match to_request.to_message() {
-            Ok(msg) => msg,
-            Err(e) => {
-                error!("Error converting line to tracker message: {}", e);
-                return;
-            }
-        };
-
         self.thread_pool.execute(move|| {
             let response = tracker.handle(request);
             response_to.send(Notification::Response(token, response)).unwrap_or_else(|e| {

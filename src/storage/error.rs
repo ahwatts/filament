@@ -10,6 +10,8 @@ pub type StorageResult<T> = Result<T, StorageError>;
 pub enum StorageError {
     Io(io::Error),
     PoisonedMutex,
+    UnknownDomain(String),
+    UnknownClass,
     UnknownKey,
     NoContent,
 }
@@ -56,6 +58,8 @@ impl Error for StorageError {
         match *self {
             Io(ref io_err) => io_err.description(),
             PoisonedMutex => "Poisoned mutex",
+            UnknownDomain(ref d) => d,
+            UnknownClass => "Unknown class",
             UnknownKey => "Unknown key",
             NoContent => "No content",
         }

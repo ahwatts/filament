@@ -1,11 +1,11 @@
 use mio::Token;
-use super::super::Message;
+use super::super::Response;
 
 #[derive(Debug)]
 pub enum Notification {
     CloseConnection(Token),
     Shutdown,
-    Response(Token, Message),
+    Response(Token, Response),
 }
 
 impl Notification {
