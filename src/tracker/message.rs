@@ -5,7 +5,7 @@ use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
 /// The different commands that the tracker implements.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     CreateOpen,
     Noop,
@@ -18,6 +18,7 @@ impl Command {
         match bytes.map(|bs| str::from_utf8(bs)) {
             Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
             Some(Ok(string)) if string == "noop" => Ok(Noop),
+            Some(Ok(string)) if string == "" => Err(MogError::UnknownCommand(None)),
             Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
             Some(Err(utf8e)) => Err(MogError::Utf8(utf8e)),
             None => Err(MogError::UnknownCommand(None)),
@@ -87,5 +88,64 @@ impl From<MogResult<Response>> for Response {
             Ok(response) => response,
             Err(err) => Response(Err(err)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::super::error::MogError;
+
+    #[test]
+    fn command_from_no_bytes() {
+        assert!(matches!(Command::from_optional_bytes(None),
+                         Err(MogError::UnknownCommand(None))));
+
+        assert!(matches!(Command::from_optional_bytes(Some(b"")),
+                         Err(MogError::UnknownCommand(None))));
+    }
+
+    #[test]
+    fn unknown_command() {
+        assert!(matches!(Command::from_optional_bytes(Some(b"this_command_doesnt_exist")),
+                         Err(MogError::UnknownCommand(Some(ref s))) if s == "this_command_doesnt_exist"));
+    }
+
+    #[test]
+    fn known_command() {
+        assert!(matches!(Command::from_optional_bytes(Some(b"create_open")),
+                         Ok(Command::CreateOpen)));
+    }
+
+    #[test]
+    fn request_from_no_bytes() {
+        assert!(matches!(Request::from_bytes(b""),
+                Err(MogError::UnknownCommand(None))));
+    }
+
+    #[test]
+    fn request_with_unknown_command() {
+        assert!(matches!(Request::from_bytes("this_command_doesnt_exist key1=val1&domain=foo".as_bytes()),
+                         Err(MogError::UnknownCommand(Some(ref s))) if s == "this_command_doesnt_exist"));
+    }
+
+    #[test]
+    fn request_with_no_args() {
+        let request = Request::from_bytes(b"create_open");
+        assert!(request.is_ok());
+        let request = request.unwrap();
+        assert_eq!(Command::CreateOpen, request.op);
+        assert!(request.args.is_empty());
+    }
+
+    #[test]
+    fn request_with_args() {
+        let request = Request::from_bytes(b"create_open domain=foo&key=test/key/1");
+        assert!(request.is_ok());
+        let request = request.unwrap();
+        assert_eq!(Command::CreateOpen, request.op);
+        assert_eq!(2, request.args.len());
+        assert!(request.args.iter().find(|&&(ref k, ref v)| k == "domain" && v == "foo").is_some());
+        assert!(request.args.iter().find(|&&(ref k, ref v)| k == "key" && v == "test/key/1").is_some());
     }
 }
