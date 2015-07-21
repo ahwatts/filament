@@ -29,7 +29,6 @@ optional = true
 
 [dev-dependencies]
 matches = "0.1.2"
-regex = "0.1.40"
 
 [features]
 default = [ "evented" ]
