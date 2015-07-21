@@ -1,5 +1,4 @@
 use std::io::{self, Cursor, Read, Write};
-use std::ops::{Deref, DerefMut};
 use super::common::SyncBackend;
 use super::error::{MogError, MogResult};
 use url::Url;
@@ -28,39 +27,27 @@ impl Storage {
         key_url
     }
 
-    pub fn store_content<R: Read>(&self, domain_name: &str, key: &str, reader: &mut R) -> MogResult<()> {
-        let mut guard = try!(self.backend.lock());
-        let backend = guard.deref_mut();
+    pub fn store_content<R: Read>(&self, domain: &str, key: &str, reader: &mut R) -> MogResult<()> {
+        // We don't need the lock to do this part...
+        let mut content = vec![];
+        try!(io::copy(reader, &mut content));
 
-        match backend.file_mut(domain_name, key) {
-            Ok(Some(ref mut file_info)) => {
-                let mut content = vec![];
-                try!(io::copy(reader, &mut content));
-                file_info.content = Some(content);
-                Ok(())
-            },
-            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
-            Err(e) => Err(e),
-        }
+        self.backend.with_file_mut(domain, key, move|file_info| {
+            file_info.content = Some(content);
+            Ok(())
+        })
     }
 
-    pub fn get_content<W: Write>(&self, domain_name: &str, key: &str, writer: &mut W) -> MogResult<()> {
-        let guard = try!(self.backend.lock());
-        let backend = guard.deref();
-
-        match backend.file(domain_name, key) {
-            Ok(Some(ref file_info)) => {
-                match file_info.content {
-                    Some(ref reader) => {
-                        try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
-                        Ok(())
-                    },
-                    None => Err(MogError::NoContent(Some(key.to_string()))),
-                }
-            },
-            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
-            Err(e) => Err(e),
-        }
+    pub fn get_content<W: Write>(&self, domain: &str, key: &str, writer: &mut W) -> MogResult<()> {
+        self.backend.with_file(domain, key, move|file_info| {
+            match file_info.content {
+                Some(ref reader) => {
+                    try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
+                    Ok(())
+                },
+                None => Err(MogError::NoContent(Some(key.to_string()))),
+            }
+        })
     }
 }
 
@@ -119,29 +106,31 @@ mod tests {
     #[test]
     fn store_replace_content() {
         let storage = fixture();
-        let new_content: &'static [u8] = b"This is new test content";
+        let new_content = Vec::from("This is new test content");
 
-        storage.store_content(TEST_DOMAIN, TEST_KEY_1, &mut Cursor::new(new_content)).unwrap_or_else(|e| {
+        storage.store_content(TEST_DOMAIN, TEST_KEY_1, &mut Cursor::new(new_content.clone())).unwrap_or_else(|e| {
             panic!("Error storing content to {:?}: {}", TEST_KEY_1, e);
         });
 
-        let guard = storage.backend.lock().unwrap();
-        let content: &[u8] = guard.file(TEST_DOMAIN, TEST_KEY_1).unwrap().unwrap().content.as_ref().unwrap();
-        assert_eq!(new_content, content);
+        storage.backend.with_file(TEST_DOMAIN, TEST_KEY_1, move|file| {
+            assert_eq!(&new_content, file.content.as_ref().unwrap());
+            Ok(())
+        }).unwrap();
     }
 
     #[test]
     fn store_new_content() {
         let storage = fixture();
-        let new_content: &'static [u8] = b"This is new test content";
+        let new_content = Vec::from("This is new test content");
 
-        storage.store_content(TEST_DOMAIN, TEST_KEY_2, &mut Cursor::new(new_content)).unwrap_or_else(|e| {
+        storage.store_content(TEST_DOMAIN, TEST_KEY_2, &mut Cursor::new(new_content.clone())).unwrap_or_else(|e| {
             panic!("Error storing content to {:?}: {}", TEST_KEY_2, e);
         });
 
-        let guard = storage.backend.lock().unwrap();
-        let content: &[u8] = guard.file(TEST_DOMAIN, TEST_KEY_2).unwrap().unwrap().content.as_ref().unwrap();
-        assert_eq!(new_content, content);
+        storage.backend.with_file(TEST_DOMAIN, TEST_KEY_2, move|file| {
+            assert_eq!(&new_content, file.content.as_ref().unwrap());
+            Ok(())
+        }).unwrap();
     }
 
     #[test]

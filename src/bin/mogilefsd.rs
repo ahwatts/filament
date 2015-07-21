@@ -11,13 +11,12 @@ extern crate log;
 
 use argparse::ArgumentParser;
 use iron::{Chain, Iron, Protocol};
-use mogilefsd::common::Backend;
+use mogilefsd::common::{Backend, SyncBackend};
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
 use mogilefsd::storage::iron::StorageHandler;
 use std::default::Default;
 use std::net::Ipv4Addr;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use url::Url;
 
@@ -27,7 +26,7 @@ fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
 
-    let backend = Arc::new(Mutex::new(Backend::new()));
+    let backend = SyncBackend::new(Backend::new());
     let tracker = Tracker::new(backend.clone());
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
 

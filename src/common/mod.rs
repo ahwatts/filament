@@ -33,12 +33,39 @@ impl Backend {
     }
 }
 
-pub type SyncBackend = Arc<Mutex<Backend>>;
+#[derive(Clone, Debug)]
+pub struct SyncBackend(Arc<Mutex<Backend>>);
+
+impl SyncBackend {
+    pub fn new(backend: Backend) -> SyncBackend {
+        SyncBackend(Arc::new(Mutex::new(backend)))
+    }
+
+    pub fn with_file<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
+        where F: FnOnce(&FileInfo) -> MogResult<()>
+    {
+        let guard = try!(self.0.lock());
+        match guard.file(domain, key) {
+            Ok(Some(ref file_info)) => block(file_info),
+            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn with_file_mut<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
+        where F: FnOnce(&mut FileInfo) -> MogResult<()>
+    {
+        let mut guard = try!(self.0.lock());
+        match guard.file_mut(domain, key) {
+            Ok(Some(ref mut file_info)) => block(file_info),
+            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Err(e) => Err(e),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::super::error::MogError;
     use super::test_support::*;
 
     #[test]
@@ -104,7 +131,6 @@ mod tests {
 #[cfg(test)]
 pub mod test_support {
     use std::collections::HashMap;
-    use std::sync::{Arc, Mutex};
     use super::*;
 
     pub use super::model::test_support::*;
@@ -119,6 +145,6 @@ pub mod test_support {
     }
 
     pub fn sync_backend_fixture() -> SyncBackend {
-        Arc::new(Mutex::new(backend_fixture()))
+        SyncBackend::new(backend_fixture())
     }
 }
