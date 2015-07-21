@@ -191,19 +191,19 @@ mod tests {
     fn test_domain_remove_file() {
         let mut domain = domain_fixture();
 
-        {
+        {   // Remove test key 2.
             let remove_result = domain.remove_file(TEST_KEY_2);
             assert!(remove_result.is_some());
             let removed = remove_result.unwrap();
             assert_eq!(TEST_KEY_2, removed.key());
         }
 
-        {
+        {   // Make sure it's still not there.
             let get_result = domain.file(TEST_KEY_2);
             assert!(get_result.is_none());
         }
 
-        {
+        {   // And you can't remove it again.
             let remove_result_2 = domain.remove_file(TEST_KEY_2);
             assert!(remove_result_2.is_none());
         }
