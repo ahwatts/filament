@@ -69,6 +69,10 @@ impl Request {
 pub struct Response(MogResult<Vec<(String, String)>>);
 
 impl Response {
+    pub fn new(args: Vec<(String, String)>) -> Response {
+        Response(Ok(args))
+    }
+
     pub fn render(&self) -> Vec<u8> {
         match self.0 {
             Ok(ref args) => format!("OK {}\r\n", form_urlencoded::serialize(args)).into_bytes(),

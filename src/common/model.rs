@@ -49,12 +49,12 @@ pub struct FileInfo {
 }
 
 impl FileInfo {
-    pub fn new(key: &str) -> MogResult<FileInfo> {
-        Ok(FileInfo {
+    pub fn new(key: &str) -> FileInfo {
+        FileInfo {
             key: key.to_string(),
             content: None,
             size: None,
-        })
+        }
     }
 
     pub fn key(&self) -> &str {
@@ -125,7 +125,7 @@ mod tests {
         let content: Vec<u8> = b"New file content".iter().cloned().collect();
 
         {   // Add a new file to the domain.
-            let mut file = FileInfo::new(new_key).unwrap();
+            let mut file = FileInfo::new(new_key);
             file.content = Some(content.clone());
             file.size = Some(content.len());
             domain.add_file(new_key, file).unwrap();
@@ -141,7 +141,7 @@ mod tests {
         }
 
         {   // Try adding a duplicate key to the domain.
-            let file = FileInfo::new(TEST_KEY_1).unwrap();
+            let file = FileInfo::new(TEST_KEY_1);
             let result = domain.add_file(TEST_KEY_1, file);
             assert!(result.is_err());
             assert!(matches!(result.unwrap_err(), MogError::DuplicateKey(..)));

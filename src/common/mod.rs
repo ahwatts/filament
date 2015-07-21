@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use super::error::{MogError, MogResult};
+use super::storage::Storage;
+use url::Url;
 
 pub use self::model::{Domain, FileInfo};
 
@@ -20,16 +22,23 @@ impl Backend {
         }
     }
 
-    pub fn file(&self, domain_name: &str, key: &str) -> MogResult<Option<&FileInfo>> {
-        self.domains.get(domain_name)
-            .ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
+    pub fn file(&self, domain: &str, key: &str) -> MogResult<Option<&FileInfo>> {
+        self.domains.get(domain)
+            .ok_or(MogError::UnknownDomain(Some(domain.to_string())))
             .map(|d| d.file(key))
     }
 
-    pub fn file_mut(&mut self, domain_name: &str, key: &str) -> MogResult<Option<&mut FileInfo>> {
-        self.domains.get_mut(domain_name)
-            .ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
+    pub fn file_mut(&mut self, domain: &str, key: &str) -> MogResult<Option<&mut FileInfo>> {
+        self.domains.get_mut(domain)
+            .ok_or(MogError::UnknownDomain(Some(domain.to_string())))
             .map(|d| d.file_mut(key))
+    }
+
+    pub fn create_open(&mut self, domain_name: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+        let domain = try!(self.domains.get_mut(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string()))));
+        let file_info = FileInfo::new(key);
+        try!(domain.add_file(key, file_info));
+        Ok(vec![ storage.url_for_key(domain_name, key) ])
     }
 }
 
@@ -61,6 +70,10 @@ impl SyncBackend {
             Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
             Err(e) => Err(e),
         }
+    }
+
+    pub fn create_open(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+        try!(self.0.lock()).create_open(domain, key, storage)
     }
 }
 

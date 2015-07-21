@@ -27,8 +27,8 @@ fn main() {
     opts.parser().parse_args_or_exit();
 
     let backend = SyncBackend::new(Backend::new());
-    let tracker = Tracker::new(backend.clone());
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
+    let tracker = Tracker::new(backend.clone(), storage.clone());
 
     let storage_addr = opts.storage_addr();
     let storage_threads = opts.storage_threads;
