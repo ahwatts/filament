@@ -37,8 +37,14 @@ impl Tracker {
         match request.op {
             CreateDomain => self.create_domain(request),
             CreateOpen => self.create_open(request),
-            _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
+            CreateClose => self.create_close(request),
+            Noop => self.noop(request),
+            // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
         }
+    }
+
+    fn noop(&self, _request: &Request) -> MogResult<Response> {
+        Ok(Response::new(vec![]))
     }
 
     fn create_domain(&self, request: &Request) -> MogResult<Response> {
@@ -60,5 +66,13 @@ impl Tracker {
             response_args.push((format!("path_{}", i+1), url.to_string()));
         }
         Ok(Response::new(response_args))
+    }
+
+    fn create_close(&self, _request: &Request) -> MogResult<Response> {
+        // There actually are implementations of this on the backend,
+        // but they don't do anything at the moment, and there's not
+        // much point in writing code here if it's not going to be
+        // used. We'll just leave this blank for now.
+        Ok(Response::new(vec![]))
     }
 }

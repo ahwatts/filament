@@ -51,6 +51,12 @@ impl Backend {
         try!(domain.add_file(key, file_info));
         Ok(vec![ storage.url_for_key(domain_name, key) ])
     }
+
+    pub fn create_close(&mut self, _domain: &str, _key: &str, _path: &Url, _size: u64) -> MogResult<()> {
+        // There's really nothing to do here; we presumably could
+        // verify that the file was uploaded to the URL, but ehh.
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -89,6 +95,14 @@ impl SyncBackend {
 
     pub fn create_open(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
         try!(self.0.lock()).create_open(domain, key, storage)
+    }
+
+    pub fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
+        // There's nothing to do here. See the equivalent method on
+        // the actual backend. There's no need acquire the mutex and
+        // call it, since we're not going to be doing anything with
+        // it anyway.
+        Ok(())
     }
 }
 

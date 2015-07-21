@@ -9,6 +9,7 @@ use url::{form_urlencoded, percent_encoding};
 pub enum Command {
     CreateDomain,
     CreateOpen,
+    CreateClose,
     Noop,
 }
 
@@ -19,6 +20,7 @@ impl Command {
         match bytes.map(|bs| str::from_utf8(bs)) {
             Some(Ok(string)) if string == "create_domain" => Ok(CreateDomain),
             Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
+            Some(Ok(string)) if string == "create_close" => Ok(CreateClose),
             Some(Ok(string)) if string == "noop" => Ok(Noop),
             Some(Ok(string)) if string == "" => Err(MogError::UnknownCommand(None)),
             Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
@@ -35,6 +37,7 @@ impl Display for Command {
         let op_str = match *self {
             CreateDomain => "create_domain",
             CreateOpen => "create_open",
+            CreateClose => "create_close",
             Noop => "noop",
         };
 
