@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use super::error::{MogError, MogResult};
 
 #[derive(Debug)]
 pub struct Domain {
@@ -29,7 +30,7 @@ impl Domain {
 
     pub fn add_file(&mut self, key: &str, info: FileInfo) -> MogResult<&FileInfo> {
         if self.files.contains_key(key) {
-            Err(MogError::DuplicateKey)
+            Err(MogError::DuplicateKey(Some(key.to_string())))
         } else {
             self.files.insert(key.to_string(), info);
             Ok(self.file(key).unwrap())
@@ -78,33 +79,23 @@ impl Backend {
 
     pub fn file(&self, domain_name: &str, key: &str) -> MogResult<Option<&FileInfo>> {
         self.domains.get(domain_name)
-            .ok_or(MogError::UnknownDomain)
+            .ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
             .map(|d| d.file(key))
     }
 
     pub fn file_mut(&mut self, domain_name: &str, key: &str) -> MogResult<Option<&mut FileInfo>> {
         self.domains.get_mut(domain_name)
-            .ok_or(MogError::UnknownDomain)
+            .ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
             .map(|d| d.file_mut(key))
     }
 }
 
 pub type SyncBackend = Arc<Mutex<Backend>>;
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum MogError {
-    DuplicateKey,
-    DuplicateClass,
-    DuplicateDomain,
-    UnknownClass,
-    UnknownDomain,
-}
-
-pub type MogResult<T> = Result<T, MogError>;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::error::MogError;
     use super::test_support::*;
 
     #[test]
@@ -183,7 +174,7 @@ mod tests {
             let file = FileInfo::new(TEST_KEY_1).unwrap();
             let result = domain.add_file(TEST_KEY_1, file);
             assert!(result.is_err());
-            assert_eq!(MogError::DuplicateKey, result.unwrap_err());
+            assert!(matches!(result.unwrap_err(), MogError::DuplicateKey(..)));
         }
     }
 

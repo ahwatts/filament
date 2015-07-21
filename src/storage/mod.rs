@@ -1,12 +1,11 @@
 use std::io::{self, Cursor, Read, Write};
 use std::ops::{Deref, DerefMut};
 use super::common::SyncBackend;
+use super::error::{MogError, MogResult};
 use url::Url;
 
 pub use self::iron::StorageHandler;
-pub use self::error::{StorageError, StorageResult};
 
-pub mod error;
 pub mod iron;
 
 pub struct Storage {
@@ -29,7 +28,7 @@ impl Storage {
         key_url
     }
 
-    pub fn store_content<R: Read>(&self, domain_name: &str, key: &str, reader: &mut R) -> StorageResult<()> {
+    pub fn store_content<R: Read>(&self, domain_name: &str, key: &str, reader: &mut R) -> MogResult<()> {
         let mut guard = try!(self.backend.lock());
         let backend = guard.deref_mut();
 
@@ -40,12 +39,12 @@ impl Storage {
                 file_info.content = Some(content);
                 Ok(())
             },
-            Ok(None) => Err(StorageError::UnknownKey),
-            Err(e) => Err(StorageError::from(e)),
+            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Err(e) => Err(e),
         }
     }
 
-    pub fn get_content<W: Write>(&self, domain_name: &str, key: &str, writer: &mut W) -> StorageResult<()> {
+    pub fn get_content<W: Write>(&self, domain_name: &str, key: &str, writer: &mut W) -> MogResult<()> {
         let guard = try!(self.backend.lock());
         let backend = guard.deref();
 
@@ -56,11 +55,11 @@ impl Storage {
                         try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
                         Ok(())
                     },
-                    None => Err(StorageError::NoContent),
+                    None => Err(MogError::NoContent(Some(key.to_string()))),
                 }
             },
-            Ok(None) => Err(StorageError::UnknownKey),
-            Err(e) => Err(StorageError::from(e)),
+            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Err(e) => Err(e),
         }
     }
 }
@@ -69,6 +68,7 @@ impl Storage {
 mod tests {
     use std::io::Cursor;
     use super::*;
+    use super::super::error::MogError;
     use super::super::common::test_support::*;
     use url::Url;
 
@@ -102,7 +102,8 @@ mod tests {
     fn get_content_unknown_key() {
         let storage = fixture();
         let mut content = vec![];
-        assert_eq!(StorageError::UnknownKey, storage.get_content(TEST_DOMAIN, "test/key/3", &mut content).unwrap_err());
+        assert!( matches!(storage.get_content(TEST_DOMAIN, "test/key/3", &mut content).unwrap_err(),
+                          MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
         assert!(content.is_empty());
     }
 
@@ -110,7 +111,8 @@ mod tests {
     fn get_content_no_content() {
         let storage = fixture();
         let mut content = vec![];
-        assert_eq!(StorageError::NoContent, storage.get_content(TEST_DOMAIN, TEST_KEY_2, &mut content).unwrap_err());
+        assert!(matches!(storage.get_content(TEST_DOMAIN, TEST_KEY_2, &mut content).unwrap_err(),
+                         MogError::NoContent(Some(ref k)) if k == TEST_KEY_2));
         assert!(content.is_empty());
     }
 
@@ -146,6 +148,7 @@ mod tests {
     fn store_content_to_unknown_key() {
         let storage = fixture();
         let new_content: &'static [u8] = b"This is new test content";
-        assert_eq!(StorageError::UnknownKey, storage.store_content(TEST_DOMAIN, "test/key/3", &mut Cursor::new(new_content)).unwrap_err());
+        assert!(matches!(storage.store_content(TEST_DOMAIN, "test/key/3", &mut Cursor::new(new_content)).unwrap_err(),
+                         MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
     }
 }

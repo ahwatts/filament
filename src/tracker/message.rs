@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::str;
-use super::{TrackerError};
+use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
 /// The different commands that the tracker implements.
@@ -10,6 +9,20 @@ use url::{form_urlencoded, percent_encoding};
 pub enum Command {
     CreateOpen,
     Noop,
+}
+
+impl Command {
+    pub fn from_optional_bytes(bytes: Option<&[u8]>) -> MogResult<Command> {
+        use self::Command::*;
+
+        match bytes.map(|bs| str::from_utf8(bs)) {
+            Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
+            Some(Ok(string)) if string == "noop" => Ok(Noop),
+            Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
+            Some(Err(utf8e)) => Err(MogError::Utf8(utf8e)),
+            None => Err(MogError::UnknownCommand(None)),
+        }
+    }
 }
 
 impl Display for Command {
@@ -25,22 +38,6 @@ impl Display for Command {
     }
 }
 
-impl<'a> From<&'a str> for Command {
-    fn from(string: &'a str) -> Command {
-        use self::Command::*;
-        match string {
-            "create_open" => CreateOpen,
-            _ => Noop,
-        }
-    }
-}
-
-impl<'a> From<Option<&'a [u8]>> for Command {
-    fn from(bytes: Option<&'a [u8]>) -> Command {
-        Command::from(str::from_utf8(bytes.unwrap_or(b"")).unwrap_or(""))
-    }
-}
-
 /// A request to the MogileFS tracker.
 #[derive(Debug)]
 pub struct Request {
@@ -49,6 +46,16 @@ pub struct Request {
 }
 
 impl Request {
+    pub fn from_bytes(bytes: &[u8]) -> MogResult<Request> {
+        let mut toks = bytes.split(|&c| c == b' ');
+        let command = try!(Command::from_optional_bytes(toks.next()));
+
+        Ok(Request {
+            op: command,
+            args: form_urlencoded::parse(toks.next().unwrap_or(b"")),
+        })
+    }
+
     pub fn args_hash<'a>(&'a self) -> HashMap<&'a str, &'a str> {
         self.args.iter().fold(HashMap::new(), |mut m, &(ref k, ref v)| {
             *m.entry(k).or_insert(v) = v; m
@@ -56,19 +63,9 @@ impl Request {
     }
 }
 
-impl<'a> From<&'a [u8]> for Request {
-    fn from(bytes: &[u8]) -> Request {
-        let mut toks = bytes.split(|&c| c == b' ');
-        Request {
-            op: Command::from(toks.next()),
-            args: form_urlencoded::parse(toks.next().unwrap_or(b"")),
-        }
-    }
-}
-
 /// The response from the tracker.
 #[derive(Debug)]
-pub struct Response(Result<Vec<(String, String)>, TrackerError>);
+pub struct Response(MogResult<Vec<(String, String)>>);
 
 impl Response {
     pub fn render(&self) -> Vec<u8> {
@@ -76,21 +73,19 @@ impl Response {
             Ok(ref args) => format!("OK {}\r\n", form_urlencoded::serialize(args)).into_bytes(),
             Err(ref err) => {
                 let encoded_description = percent_encoding::percent_encode(
-                    err.description().as_bytes(),
+                    format!("{}", err).as_bytes(),
                     percent_encoding::FORM_URLENCODED_ENCODE_SET);
-                format!("ERR {} {}\r\n", err.kind, encoded_description).into_bytes()
+                format!("ERR {} {}\r\n", err.error_kind(), encoded_description).into_bytes()
             }
         }
     }
-
-    pub fn is_ok(&self) -> bool { self.0.is_ok() }
-    pub fn is_err(&self) -> bool { self.0.is_err() }
-    pub fn unwrap(self) -> Vec<(String, String)> { self.0.unwrap() }
-    pub fn unwrap_err(self) -> TrackerError { self.0.unwrap_err() }
 }
 
-impl From<TrackerError> for Response {
-    fn from(err: TrackerError) -> Response {
-        Response(Err(err))
+impl From<MogResult<Response>> for Response {
+    fn from(result: MogResult<Response>) -> Response {
+        match result {
+            Ok(response) => response,
+            Err(err) => Response(Err(err)),
+        }
     }
 }
