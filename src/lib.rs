@@ -15,6 +15,5 @@ pub mod common;
 pub mod error;
 pub mod tracker;
 pub mod storage;
-pub mod strings;
 
 #[cfg(feature = "evented")] pub mod ctrlc;
