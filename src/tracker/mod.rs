@@ -25,8 +25,14 @@ impl Tracker {
     }
 
     fn dispatch_command(&self, request: &Request) -> MogResult<Response> {
+        use self::message::Command::*;
+
         match request.op {
+            // CreateOpen => self.create_open(request),
             _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
         }
     }
+
+    // fn create_open(&self, request: &Request) -> MogResult<Response> {
+    // }
 }
