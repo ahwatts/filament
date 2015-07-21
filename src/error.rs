@@ -32,6 +32,7 @@ impl MogError {
 
         match *self {
             UnknownCommand(..) => "unknown_command",
+            DuplicateDomain(..) => "domain_exists",
             _ => "other_error",
         }
     }
@@ -61,7 +62,7 @@ impl Display for MogError {
         match *self {
             Io(ref io_err) => write!(f, "{}", io_err),
             Utf8(ref utf8_err) => write!(f, "{}", utf8_err),
-            DuplicateDomain(ref d) => write!(f, "Duplicate domain: {:?}", d),
+            DuplicateDomain(ref d) => write!(f, "That domain already exists: {:?}", d),
             DuplicateClass(ref d) => write!(f, "Duplicate class: {:?}", d),
             DuplicateKey(ref d) => write!(f, "Duplicate key: {:?}", d),
             UnknownDomain(ref d) => write!(f, "Unknown domain: {:?}", d),

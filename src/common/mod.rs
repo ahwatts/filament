@@ -34,6 +34,17 @@ impl Backend {
             .map(|d| d.file_mut(key))
     }
 
+
+    pub fn create_domain(&mut self, domain_name: &str) -> MogResult<()> {
+        if self.domains.contains_key(domain_name) {
+            Err(MogError::DuplicateDomain(Some(domain_name.to_string())))
+        } else {
+            let domain = Domain::new(domain_name);
+            self.domains.insert(domain_name.to_string(), domain);
+            Ok(())
+        }
+    }
+
     pub fn create_open(&mut self, domain_name: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
         let domain = try!(self.domains.get_mut(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string()))));
         let file_info = FileInfo::new(key);
@@ -70,6 +81,10 @@ impl SyncBackend {
             Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
             Err(e) => Err(e),
         }
+    }
+
+    pub fn create_domain(&self, domain: &str) -> MogResult<()> {
+        try!(self.0.lock()).create_domain(domain)
     }
 
     pub fn create_open(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {

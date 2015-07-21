@@ -35,9 +35,17 @@ impl Tracker {
         use self::message::Command::*;
 
         match request.op {
+            CreateDomain => self.create_domain(request),
             CreateOpen => self.create_open(request),
             _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
         }
+    }
+
+    fn create_domain(&self, request: &Request) -> MogResult<Response> {
+        let args = request.args_hash();
+        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        try!(self.backend.create_domain(domain));
+        Ok(Response::new(vec![ ("domain".to_string(), domain.to_string()) ]))
     }
 
     fn create_open(&self, request: &Request) -> MogResult<Response> {
@@ -48,6 +56,7 @@ impl Tracker {
         let mut response_args = vec![];
         response_args.push(("dev_count".to_string(), urls.len().to_string()));
         for (i, url) in urls.iter().enumerate() {
+            response_args.push((format!("devid_{}", i+1), (i+1).to_string()));
             response_args.push((format!("path_{}", i+1), url.to_string()));
         }
         Ok(Response::new(response_args))

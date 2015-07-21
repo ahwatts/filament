@@ -7,6 +7,7 @@ use url::{form_urlencoded, percent_encoding};
 /// The different commands that the tracker implements.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
+    CreateDomain,
     CreateOpen,
     Noop,
 }
@@ -16,6 +17,7 @@ impl Command {
         use self::Command::*;
 
         match bytes.map(|bs| str::from_utf8(bs)) {
+            Some(Ok(string)) if string == "create_domain" => Ok(CreateDomain),
             Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
             Some(Ok(string)) if string == "noop" => Ok(Noop),
             Some(Ok(string)) if string == "" => Err(MogError::UnknownCommand(None)),
@@ -31,6 +33,7 @@ impl Display for Command {
         use self::Command::*;
 
         let op_str = match *self {
+            CreateDomain => "create_domain",
             CreateOpen => "create_open",
             Noop => "noop",
         };
