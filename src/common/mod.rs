@@ -122,7 +122,7 @@ impl SyncBackend {
 #[cfg(test)]
 mod tests {
     use super::super::error::MogError;
-    use super::test_support::*;
+    use super::super::test_support::*;
 
     #[test]
     fn backend_get_file() {
@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn test_backend_create_domain() {
+    fn backend_create_domain() {
         let mut backend = backend_fixture();
 
         let create_result = backend.create_domain("test_domain_2");
@@ -185,14 +185,19 @@ mod tests {
             matches!(create_dup_result, Err(MogError::DuplicateDomain(Some(ref d))) if d == TEST_DOMAIN),
             "Create duplicate domain result was {:?}", create_dup_result);
     }
+
+    // #[test]
+    // fn backend_create_open() {
+    //     let mut backend = backend_fixture();
+    //     let co_result = backend.create_open(TEST)
+    // }
 }
 
 #[cfg(test)]
 pub mod test_support {
     use std::collections::HashMap;
     use super::*;
-
-    pub use super::model::test_support::*;
+    use super::model::test_support::*;
 
     pub fn backend_fixture() -> Backend {
         let mut backend = Backend {

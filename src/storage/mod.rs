@@ -55,19 +55,12 @@ impl Storage {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use super::*;
     use super::super::error::MogError;
-    use super::super::common::test_support::*;
-    use url::Url;
-
-    fn fixture() -> Storage {
-        let base_url = Url::parse(&format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH)).unwrap();
-        Storage::new(sync_backend_fixture(), base_url)
-    }
+    use super::super::test_support::*;
 
     #[test]
     fn url_for_key() {
-        let storage = fixture();
+        let storage = storage_fixture();
         assert_eq!(
             format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1),
             storage.url_for_key(TEST_DOMAIN, TEST_KEY_1).serialize());
@@ -75,7 +68,7 @@ mod tests {
 
     #[test]
     fn get_content() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let mut content = vec![];
 
         storage.get_content(TEST_DOMAIN, TEST_KEY_1, &mut content).unwrap_or_else(|e| {
@@ -88,7 +81,7 @@ mod tests {
 
     #[test]
     fn get_content_unknown_key() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let mut content = vec![];
         assert!( matches!(storage.get_content(TEST_DOMAIN, "test/key/3", &mut content).unwrap_err(),
                           MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
@@ -97,7 +90,7 @@ mod tests {
 
     #[test]
     fn get_content_no_content() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let mut content = vec![];
         assert!(matches!(storage.get_content(TEST_DOMAIN, TEST_KEY_2, &mut content).unwrap_err(),
                          MogError::NoContent(Some(ref k)) if k == TEST_KEY_2));
@@ -106,7 +99,7 @@ mod tests {
 
     #[test]
     fn store_replace_content() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let new_content = Vec::from("This is new test content");
 
         storage.store_content(TEST_DOMAIN, TEST_KEY_1, &mut Cursor::new(new_content.clone())).unwrap_or_else(|e| {
@@ -121,7 +114,7 @@ mod tests {
 
     #[test]
     fn store_new_content() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let new_content = Vec::from("This is new test content");
 
         storage.store_content(TEST_DOMAIN, TEST_KEY_2, &mut Cursor::new(new_content.clone())).unwrap_or_else(|e| {
@@ -136,9 +129,24 @@ mod tests {
 
     #[test]
     fn store_content_to_unknown_key() {
-        let storage = fixture();
+        let storage = storage_fixture();
         let new_content: &'static [u8] = b"This is new test content";
         assert!(matches!(storage.store_content(TEST_DOMAIN, "test/key/3", &mut Cursor::new(new_content)).unwrap_err(),
                          MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
+    }
+}
+
+#[cfg(test)]
+pub mod test_support {
+    use super::*;
+    use super::super::common::test_support::sync_backend_fixture;
+    use url::Url;
+
+    pub static TEST_HOST: &'static str = "test.host";
+    pub static TEST_BASE_PATH: &'static str = "base_path";
+
+    pub fn storage_fixture() -> Storage {
+        let base_url = Url::parse(&format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH)).unwrap();
+        Storage::new(sync_backend_fixture(), base_url)
     }
 }

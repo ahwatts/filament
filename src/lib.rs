@@ -16,3 +16,10 @@ pub mod tracker;
 pub mod storage;
 
 #[cfg(feature = "evented")] pub mod ctrlc;
+
+#[cfg(test)]
+pub mod test_support {
+    pub use super::common::test_support::*;
+    pub use super::common::model::test_support::*;
+    pub use super::storage::test_support::*;
+}

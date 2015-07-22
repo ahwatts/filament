@@ -87,18 +87,18 @@ impl FileInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::test_support::*;
+    use super::super::super::test_support::*;
     use super::super::super::error::MogError;
 
     #[test]
-    fn test_create_domain() {
+    fn create_domain() {
         let domain = Domain::new("test_domain_2");
         assert_eq!("test_domain_2", domain.name());
         assert!(domain.files.is_empty());
     }
 
     #[test]
-    fn test_domain_get_file() {
+    fn domain_get_file() {
         let mut domain = domain_fixture();
 
         {   // immutable, file present
@@ -125,7 +125,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_get_mut_file() {
+    fn domain_get_mut_file() {
         let mut domain = domain_fixture();
         let new_content: Vec<u8> = b"Different content".iter().cloned().collect();
 
@@ -141,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_list_files() {
+    fn domain_list_files() {
         let domain = domain_fixture();
         let mut files = domain.files();
 
@@ -157,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_add_file() {
+    fn domain_add_file() {
         let mut domain = domain_fixture();
         let new_key = "test/key/3";
         let content: Vec<u8> = b"New file content".iter().cloned().collect();
@@ -187,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_remove_file() {
+    fn domain_remove_file() {
         let mut domain = domain_fixture();
 
         {   // Remove test key 2.
@@ -214,14 +214,9 @@ pub mod test_support {
     use super::*;
 
     pub static TEST_DOMAIN: &'static str = "test_domain";
-
-    pub static TEST_HOST: &'static str = "test.host";
-    pub static TEST_BASE_PATH: &'static str = "base_path";
-
     pub static TEST_KEY_1: &'static str = "test/key/1";
-    pub static TEST_CONTENT_1: &'static [u8] = b"This is test content";
-
     pub static TEST_KEY_2: &'static str = "test/key/2";
+    pub static TEST_CONTENT_1: &'static [u8] = b"This is test content";
 
     pub fn domain_fixture() -> Domain {
         let mut domain = Domain::new(TEST_DOMAIN);
