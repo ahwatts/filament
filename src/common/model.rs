@@ -1,17 +1,19 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::collections::btree_map;
+use std::iter::Iterator;
 use super::super::error::{MogError, MogResult};
 
 #[derive(Debug)]
 pub struct Domain {
     name: String,
-    files: HashMap<String, FileInfo>,
+    files: BTreeMap<String, FileInfo>,
 }
 
 impl Domain {
     pub fn new(name: &str) -> Domain {
         Domain {
             name: name.to_string(),
-            files: HashMap::new(),
+            files: BTreeMap::new(),
         }
     }
 
@@ -27,6 +29,10 @@ impl Domain {
         self.files.get_mut(key)
     }
 
+    pub fn files<'a>(&'a self) -> Files<'a> {
+        Files { inner: self.files.iter(), }
+    }
+
     pub fn add_file(&mut self, key: &str, info: FileInfo) -> MogResult<&FileInfo> {
         if self.files.contains_key(key) {
             Err(MogError::DuplicateKey(Some(key.to_string())))
@@ -38,6 +44,22 @@ impl Domain {
 
     pub fn remove_file(&mut self, key: &str) -> Option<FileInfo> {
         self.files.remove(key)
+    }
+}
+
+pub struct Files<'a> {
+    inner: btree_map::Iter<'a, String, FileInfo>,
+}
+
+impl<'a> Iterator for Files<'a> {
+    type Item = (&'a str, &'a FileInfo);
+
+    fn next(&mut self) -> Option<(&'a str, &'a FileInfo)> {
+        self.inner.next().map(|(k, v)| (k.as_ref(), v))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }
 
@@ -119,6 +141,22 @@ mod tests {
     }
 
     #[test]
+    fn test_domain_list_files() {
+        let domain = domain_fixture();
+        let mut files = domain.files();
+
+        let file_1 = files.next();
+        assert_eq!(Some(TEST_KEY_1), file_1.map(|(k, _)| k));
+        assert_eq!(Some(TEST_KEY_1), file_1.map(|(_, fi)| fi.key()));
+
+        let file_2 = files.next();
+        assert_eq!(Some(TEST_KEY_2), file_2.map(|(k, _)| k));
+        assert_eq!(Some(TEST_KEY_2), file_2.map(|(_, fi)| fi.key()));
+
+        assert!(files.next().is_none());
+    }
+
+    #[test]
     fn test_domain_add_file() {
         let mut domain = domain_fixture();
         let new_key = "test/key/3";
@@ -145,6 +183,28 @@ mod tests {
             let result = domain.add_file(TEST_KEY_1, file);
             assert!(result.is_err());
             assert!(matches!(result.unwrap_err(), MogError::DuplicateKey(..)));
+        }
+    }
+
+    #[test]
+    fn test_domain_remove_file() {
+        let mut domain = domain_fixture();
+
+        {   // Remove test key 2.
+            let remove_result = domain.remove_file(TEST_KEY_2);
+            assert!(remove_result.is_some());
+            let removed = remove_result.unwrap();
+            assert_eq!(TEST_KEY_2, removed.key());
+        }
+
+        {   // Make sure it's still not there.
+            let get_result = domain.file(TEST_KEY_2);
+            assert!(get_result.is_none());
+        }
+
+        {   // And you can't remove it again.
+            let remove_result_2 = domain.remove_file(TEST_KEY_2);
+            assert!(remove_result_2.is_none());
         }
     }
 }

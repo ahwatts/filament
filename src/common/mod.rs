@@ -11,29 +11,22 @@ pub mod model;
 #[derive(Debug, Default)]
 pub struct Backend {
     domains: HashMap<String, Domain>,
-    // files: HashMap<String, FileInfo>,
 }
 
 impl Backend {
     pub fn new() -> Backend {
         Backend {
             domains: HashMap::new(),
-            // files: HashMap::new()
         }
     }
 
     pub fn file(&self, domain: &str, key: &str) -> MogResult<Option<&FileInfo>> {
-        self.domains.get(domain)
-            .ok_or(MogError::UnknownDomain(Some(domain.to_string())))
-            .map(|d| d.file(key))
+        self.domain(domain).map(|d| d.file(key))
     }
 
     pub fn file_mut(&mut self, domain: &str, key: &str) -> MogResult<Option<&mut FileInfo>> {
-        self.domains.get_mut(domain)
-            .ok_or(MogError::UnknownDomain(Some(domain.to_string())))
-            .map(|d| d.file_mut(key))
+        self.domain_mut(domain).map(|d| d.file_mut(key))
     }
-
 
     pub fn create_domain(&mut self, domain_name: &str) -> MogResult<()> {
         if self.domains.contains_key(domain_name) {
@@ -46,7 +39,7 @@ impl Backend {
     }
 
     pub fn create_open(&mut self, domain_name: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
-        let domain = try!(self.domains.get_mut(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string()))));
+        let domain = try!(self.domain_mut(domain_name));
         let file_info = FileInfo::new(key);
         try!(domain.add_file(key, file_info));
         Ok(vec![ storage.url_for_key(domain_name, key) ])
@@ -56,6 +49,22 @@ impl Backend {
         // There's really nothing to do here; we presumably could
         // verify that the file was uploaded to the URL, but ehh.
         Ok(())
+    }
+
+    pub fn list_keys(&mut self, domain_name: &str, after_key: &str, limit: usize) -> MogResult<Vec<String>> {
+        Ok(try!(self.domain(domain_name)).files()
+            .skip_while(|&(k, _)| k <= after_key)
+            .take(limit)
+            .map(|(k, _)| k.to_string())
+            .collect())
+    }
+
+    fn domain(&self, domain_name: &str) -> MogResult<&Domain> {
+        self.domains.get(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
+    }
+
+    fn domain_mut(&mut self, domain_name: &str) -> MogResult<&mut Domain> {
+        self.domains.get_mut(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
     }
 }
 
@@ -104,69 +113,77 @@ impl SyncBackend {
         // it anyway.
         Ok(())
     }
+
+    pub fn list_keys(&self, domain: &str, after_key: &str, limit: usize) -> MogResult<Vec<String>> {
+        try!(self.0.lock()).list_keys(domain, after_key, limit)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::error::MogError;
     use super::test_support::*;
-
-    #[test]
-    fn test_domain_remove_file() {
-        let mut domain = domain_fixture();
-
-        {   // Remove test key 2.
-            let remove_result = domain.remove_file(TEST_KEY_2);
-            assert!(remove_result.is_some());
-            let removed = remove_result.unwrap();
-            assert_eq!(TEST_KEY_2, removed.key());
-        }
-
-        {   // Make sure it's still not there.
-            let get_result = domain.file(TEST_KEY_2);
-            assert!(get_result.is_none());
-        }
-
-        {   // And you can't remove it again.
-            let remove_result_2 = domain.remove_file(TEST_KEY_2);
-            assert!(remove_result_2.is_none());
-        }
-    }
 
     #[test]
     fn backend_get_file() {
         let mut backend = backend_fixture();
 
-        {   // immutable, file present
-            match backend.file(TEST_DOMAIN, TEST_KEY_1) {
-                Ok(Some(file)) => {
-                    assert_eq!(TEST_KEY_1, file.key());
-                },
-                v @ _ => panic!("Bad return for getting present file immutably: {:?}", v),
-            }
+        {
+            let file = backend.file(TEST_DOMAIN, TEST_KEY_1);
+            assert!(
+                matches!(file, Ok(Some(ref f)) if f.key() == TEST_KEY_1),
+                "Immutable present file was {:?}", file);
         }
 
-        {   // immutable, file not present
-            match backend.file(TEST_DOMAIN, "test/key/3") {
-                Ok(None) => {},
-                v @ _ => panic!("Bad return for getting missing file immutably: {:?}", v),
-            }
+        {
+            let file = backend.file(TEST_DOMAIN, "test/key/3");
+            assert!(
+                matches!(file, Ok(None)),
+                "Immutable missing file was {:?}", file);
         }
 
-        {   // mutable, file present
-            match backend.file_mut(TEST_DOMAIN, TEST_KEY_1) {
-                Ok(Some(file)) => {
-                    assert_eq!(TEST_KEY_1, file.key());
-                },
-                v @ _ => panic!("Bad return for getting present file mutably: {:?}", v),
-            }
+        {
+            let file = backend.file_mut(TEST_DOMAIN, TEST_KEY_1);
+            assert!(
+                matches!(file, Ok(Some(ref f)) if f.key() == TEST_KEY_1),
+                "Mutable present file was {:?}", file);
         }
 
-        {   // mutable, file not present
-            match backend.file_mut(TEST_DOMAIN, "test/key/3") {
-                Ok(None) => {},
-                v @ _ => panic!("Bad return for getting missing file mutably: {:?}", v),
-            }
+        {
+            let file = backend.file_mut(TEST_DOMAIN, "test/key/3");
+            assert!(
+                matches!(file, Ok(None)),
+                "Mutable missing file was {:?}", file);
         }
+
+        {
+            let file = backend.file("test_domain_2", TEST_KEY_1);
+            assert!(
+                matches!(file, Err(MogError::UnknownDomain(Some(ref d))) if d == "test_domain_2"),
+                "Immutable file from nonexistent domain was {:?}", file);
+        }
+
+        {
+            let file = backend.file_mut("test_domain_2", TEST_KEY_1);
+            assert!(
+                matches!(file, Err(MogError::UnknownDomain(Some(ref d))) if d == "test_domain_2"),
+                "Mutable file from nonexistent domain was {:?}", file);
+        }
+    }
+
+    #[test]
+    fn test_backend_create_domain() {
+        let mut backend = backend_fixture();
+
+        let create_result = backend.create_domain("test_domain_2");
+        assert!(create_result.is_ok(), "Create new domain result was {:?}", create_result);
+
+        assert!(backend.domains.contains_key("test_domain_2"));
+
+        let create_dup_result = backend.create_domain(TEST_DOMAIN);
+        assert!(
+            matches!(create_dup_result, Err(MogError::DuplicateDomain(Some(ref d))) if d == TEST_DOMAIN),
+            "Create duplicate domain result was {:?}", create_dup_result);
     }
 }
 
