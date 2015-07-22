@@ -10,6 +10,7 @@ pub enum Command {
     CreateDomain,
     CreateOpen,
     CreateClose,
+    ListKeys,
     Noop,
 }
 
@@ -21,6 +22,7 @@ impl Command {
             Some(Ok(string)) if string == "create_domain" => Ok(CreateDomain),
             Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
             Some(Ok(string)) if string == "create_close" => Ok(CreateClose),
+            Some(Ok(string)) if string == "list_keys" => Ok(ListKeys),
             Some(Ok(string)) if string == "noop" => Ok(Noop),
             Some(Ok(string)) if string == "" => Err(MogError::UnknownCommand(None)),
             Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
@@ -38,6 +40,7 @@ impl Display for Command {
             CreateDomain => "create_domain",
             CreateOpen => "create_open",
             CreateClose => "create_close",
+            ListKeys => "list_keys",
             Noop => "noop",
         };
 

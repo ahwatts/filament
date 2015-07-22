@@ -38,6 +38,7 @@ impl Tracker {
             CreateDomain => self.create_domain(request),
             CreateOpen => self.create_open(request),
             CreateClose => self.create_close(request),
+            ListKeys => self.list_keys(request),
             Noop => self.noop(request),
             // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
         }
@@ -74,5 +75,23 @@ impl Tracker {
         // much point in writing code here if it's not going to be
         // used. We'll just leave this blank for now.
         Ok(Response::new(vec![]))
+    }
+
+    fn list_keys(&self, request: &Request) -> MogResult<Response> {
+        let args = request.args_hash();
+        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        let limit = args.get("limit").map(|lim| usize::from_str_radix(lim, 10).unwrap_or(1000));
+        let after = args.get("after").map(|a| *a);
+        let keys = try!(self.backend.list_keys(domain, None, after, limit));
+
+        let mut response_args = vec![ ("key_count".to_string(), keys.len().to_string()) ];
+        for (i, key) in keys.iter().enumerate() {
+            response_args.push((format!("key_{}", i+1), key.to_string()));
+            if i == keys.len() - 1 {
+                response_args.push(("next_after".to_string(), key.to_string()));
+            }
+        }
+
+        Ok(Response::new(response_args))
     }
 }
