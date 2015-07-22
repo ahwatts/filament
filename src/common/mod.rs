@@ -186,11 +186,43 @@ mod tests {
             "Create duplicate domain result was {:?}", create_dup_result);
     }
 
-    // #[test]
-    // fn backend_create_open() {
-    //     let mut backend = backend_fixture();
-    //     let co_result = backend.create_open(TEST)
-    // }
+    #[test]
+    fn backend_create_open() {
+        use super::super::storage::Storage;
+        use url::Url;
+
+        let sync_backend = sync_backend_fixture();
+        let storage = Storage::new(
+            sync_backend.clone(),
+            Url::parse(format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH).as_ref()).unwrap());
+
+        {
+            let mut backend = sync_backend.0.lock().unwrap();
+            let co_result = backend.create_open(TEST_DOMAIN, "test/key/3", &storage);
+            assert!(co_result.is_ok());
+            let urls = co_result.unwrap();
+            assert_eq!(1, urls.len());
+            assert_eq!(
+                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, "test/key/3").as_ref()).unwrap(),
+                urls[0]);
+        }
+
+        {
+            let mut backend = sync_backend.0.lock().unwrap();
+            let co_result = backend.create_open(TEST_DOMAIN, TEST_KEY_1, &storage);
+            assert!(
+                matches!(co_result, Err(MogError::DuplicateKey(Some(ref k))) if k == TEST_KEY_1),
+                "Create open with duplicate key result was {:?}", co_result);
+        }
+
+        {
+            let mut backend = sync_backend.0.lock().unwrap();
+            let co_result = backend.create_open("test_domain_2", "test/key/3", &storage);
+            assert!(
+                matches!(co_result, Err(MogError::UnknownDomain(Some(ref k))) if k == "test_domain_2"),
+                "Create open with unknown domain result was {:?}", co_result);
+        }
+    }
 }
 
 #[cfg(test)]
