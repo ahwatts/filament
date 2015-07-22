@@ -51,7 +51,9 @@ impl Backend {
         Ok(())
     }
 
-    pub fn list_keys(&mut self, domain_name: &str, after_key: &str, limit: usize) -> MogResult<Vec<String>> {
+    pub fn list_keys(&self, domain_name: &str, _prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
+        let after_key = after_key.unwrap_or("");
+        let limit = limit.unwrap_or(1000);
         Ok(try!(self.domain(domain_name)).files()
             .skip_while(|&(k, _)| k <= after_key)
             .take(limit)
@@ -114,8 +116,8 @@ impl SyncBackend {
         Ok(())
     }
 
-    pub fn list_keys(&self, domain: &str, after_key: &str, limit: usize) -> MogResult<Vec<String>> {
-        try!(self.0.lock()).list_keys(domain, after_key, limit)
+    pub fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
+        try!(self.0.lock()).list_keys(domain, prefix, after_key, limit)
     }
 }
 
@@ -208,6 +210,16 @@ mod tests {
         }
 
         {
+            let backend = sync_backend.0.lock().unwrap();
+            let file = backend.file(TEST_DOMAIN, "test/key/3");
+            assert!(matches!(file, Ok(Some(..))), "Create opened file was {:?}", file);
+            let file = file.unwrap().unwrap();
+            assert_eq!("test/key/3", file.key());
+            assert!(file.content.is_none());
+            assert!(file.size.is_none());
+        }
+
+        {
             let mut backend = sync_backend.0.lock().unwrap();
             let co_result = backend.create_open(TEST_DOMAIN, TEST_KEY_1, &storage);
             assert!(
@@ -223,6 +235,38 @@ mod tests {
                 "Create open with unknown domain result was {:?}", co_result);
         }
     }
+
+    #[test]
+    fn domain_list_keys() {
+        let backend = backend_fixture();
+        let list_result = backend.list_keys(TEST_DOMAIN, None, None, None);
+        assert!(list_result.is_ok());
+        assert_eq!(vec![ TEST_KEY_1, TEST_KEY_2 ], list_result.unwrap());
+    }
+
+    #[test]
+    fn domain_list_keys_limit() {
+        let backend = full_backend_fixture();
+        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10));
+        assert!(list_result.is_ok());
+        let list = list_result.unwrap();
+        assert_eq!(10, list.len());
+        assert!(list[0] < list[9]);
+    }
+
+    #[test]
+    fn domain_list_keys_after() {
+        let backend = full_backend_fixture();
+        let first_list = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10)).unwrap();
+        let after_key = first_list.iter().last().unwrap();
+
+        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, Some(after_key), Some(10));
+        assert!(list_result.is_ok());
+        let list = list_result.unwrap();
+        assert_eq!(10, list.len());
+        assert!(after_key < &list[0]);
+        assert!(list[0] < list[9]);
+    }
 }
 
 #[cfg(test)]
@@ -236,6 +280,15 @@ pub mod test_support {
             domains: HashMap::new(),
         };
         let domain = domain_fixture();
+        backend.domains.insert(domain.name().to_string(), domain);
+        backend
+    }
+
+    pub fn full_backend_fixture() -> Backend {
+        let mut backend = Backend {
+            domains: HashMap::new(),
+        };
+        let domain = full_domain_fixture();
         backend.domains.insert(domain.name().to_string(), domain);
         backend
     }

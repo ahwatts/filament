@@ -218,10 +218,37 @@ pub mod test_support {
     pub static TEST_KEY_2: &'static str = "test/key/2";
     pub static TEST_CONTENT_1: &'static [u8] = b"This is test content";
 
+    pub static TEST_FULL_DOMAIN: &'static str = "test_full_domain";
+    pub static TEST_KEY_PREFIX_1: &'static str = "foo/prefix";
+    pub static TEST_KEY_PREFIX_2: &'static str = "bar/prefix";
+    pub static TEST_PREFIX_COUNT: u32 = 100;
+
     pub fn domain_fixture() -> Domain {
         let mut domain = Domain::new(TEST_DOMAIN);
         domain.files.insert(TEST_KEY_1.to_string(), file_1_fixture());
         domain.files.insert(TEST_KEY_2.to_string(), file_2_fixture());
+        domain
+    }
+
+    pub fn full_domain_fixture() -> Domain {
+        let mut domain = Domain::new(TEST_FULL_DOMAIN);
+        for i in (0..TEST_PREFIX_COUNT) {
+            let key_p1 = format!("{}/key/{}", TEST_KEY_PREFIX_1, i+1);
+            let key_p2 = format!("{}/key/{}", TEST_KEY_PREFIX_2, i+1);
+
+            domain.files.insert(key_p1.clone(), FileInfo {
+                key: key_p1,
+                content: None,
+                size: None,
+            });
+
+            domain.files.insert(key_p2.clone(), FileInfo {
+                key: key_p2,
+                content: None,
+                size: None,
+            });
+        }
+
         domain
     }
 
