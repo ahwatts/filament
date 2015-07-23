@@ -30,10 +30,14 @@ fn main() {
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
 
+    backend.create_domain("rn_test_public").unwrap();
+    backend.create_domain("rn_test_private").unwrap();
+
     let storage_addr = opts.storage_addr();
     let storage_threads = opts.storage_threads;
     thread::spawn(move|| {
         let iron = Iron::new(Chain::new(StorageHandler::new(storage)));
+        println!("Storage server (Iron) listening on {:?}", storage_addr);
         iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
     });
 
@@ -53,6 +57,7 @@ fn run(opts: &Options, tracker: Tracker) {
         panic!("Error creating evented listener on {:?}: {}", opts.tracker_addr(), e);
     });
 
+    println!("Tracker (evented) listening on {:?}", opts.tracker_addr());
     listener.run().unwrap_or_else(|e| {
         panic!("Error running evented listener: {}", e);
     });
@@ -70,6 +75,7 @@ fn run(opts: &Options, tracker: Tracker) {
         panic!("Error creating threaded listener on {:?}: {}", opts.tracker_addr(), e);
     });
 
+    println!("Tracker (threaded) listening on {:?}", opts.tracker_addr());
     listener.run();
 }
 

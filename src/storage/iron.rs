@@ -65,6 +65,10 @@ impl Handler for StorageHandler {
         let dk = domain_and_key_from_path(&request.url.path);
 
         if dk.is_err() {
+            info!("BAD Storage request: {:?} {:?} (body = {} bytes) from {:?}",
+                  request.method, request.url,
+                  request.headers.get::<headers::ContentLength>().map(|h| h.deref()).unwrap_or(&0),
+                  request.remote_addr);
             return Ok(Response::with((Status::BadRequest, format!("{}\n", dk.unwrap_err()))));
         }
 

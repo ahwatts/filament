@@ -4,7 +4,7 @@ version = "0.1.0"
 dependencies = [
  "argparse 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "iron 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
+ "iron 0.1.20 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -108,7 +108,7 @@ dependencies = [
 [[package]]
 name = "iron"
 version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/ahwatts/iron.git?branch=bug/http_10#b577c714888f1994a8de25d81933f860677657cf"
 dependencies = [
  "conduit-mime-types 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "error 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
