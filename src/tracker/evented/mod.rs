@@ -1,4 +1,4 @@
-use mio::buf::{Buf, RingBuf};
+use mio::buf::{Buf, MutBuf, ByteBuf, MutByteBuf};
 use mio::tcp::{self, TcpListener, TcpStream};
 use mio::{self, EventLoop, Interest, NonBlock, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
 use self::notification::Notification;
@@ -185,8 +185,8 @@ impl mio::Handler for Handler {
 struct Connection {
     sock: NonBlock<TcpStream>,
     token: Token,
-    in_buf: RingBuf,
-    out_buf: RingBuf,
+    in_buf: Option<MutByteBuf>,
+    out_buf: Option<MutByteBuf>,
     interest: Interest,
     tracker: Rc<TrackerPool>,
 }
@@ -196,15 +196,16 @@ impl Connection {
         Connection {
             sock: sock,
             token: token,
-            in_buf: RingBuf::new(2048),
-            out_buf: RingBuf::new(2048),
+            in_buf: Some(ByteBuf::mut_with_capacity(2048)),
+            out_buf: Some(ByteBuf::mut_with_capacity(2048)),
             interest: Interest::readable() | Interest::hup() | Interest::error(),
             tracker: tracker,
         }
     }
 
     fn readable(&mut self, event_loop: &mut EventLoop<Handler>, hint: ReadHint) -> EventedResult<()> {
-        let read_result = self.sock.read(&mut self.in_buf);
+        let mut mut_buf = self.in_buf.take().unwrap();
+        let read_result = self.sock.read(&mut mut_buf);
 
         match read_result {
             Ok(Some(n)) => {
@@ -218,12 +219,19 @@ impl Connection {
             }
         }
 
-        match self.extract_line(&self.in_buf) {
+        let mut buf = mut_buf.flip();
+        debug!("in_buf = {:?}", String::from_utf8_lossy(buf.bytes()));
+
+        match self.extract_line(&buf) {
             Some(line) => {
-                Buf::advance(&mut self.in_buf, line.len() + 2);
+                let mut cleared = buf.flip();
+                cleared.clear();
+                self.in_buf = Some(cleared);
                 self.tracker.handle(line, self.token, event_loop.channel());
             },
-            None => {}
+            None => {
+                self.in_buf = Some(buf.resume());
+            }
         }
 
         if hint.is_hup() | hint.is_error() {
@@ -234,7 +242,8 @@ impl Connection {
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
-        let write_result = self.sock.write(&mut self.out_buf);
+        let mut buf = self.out_buf.take().unwrap().flip();
+        let write_result = self.sock.write(&mut buf);
 
         match write_result {
             Ok(Some(n)) => {
@@ -251,11 +260,15 @@ impl Connection {
         // We should probably only switch back to readable if we've
         // written a newline, but for now we'll just assume that the
         // response gets written to the buffer in toto.
-        if Buf::has_remaining(&self.out_buf) {
+        if Buf::has_remaining(&buf) {
+            self.out_buf = Some(buf.resume());
             self.interest = Interest::writable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         } else {
+            let mut cleared = buf.flip();
+            cleared.clear();
+            self.out_buf = Some(cleared);
             self.interest = Interest::readable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
@@ -267,7 +280,13 @@ impl Connection {
     fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Response) -> EventedResult<()> {
         use std::io::Write;
 
-        try!(self.out_buf.write(&response.render()));
+        let mut mut_buf = self.out_buf.take().unwrap();
+        let write_result = mut_buf.write(&response.render());
+        self.out_buf = Some(mut_buf);
+        if write_result.is_err() {
+            return Err(EventedError::from(write_result.unwrap_err()));
+        }
+
         self.interest = Interest::writable() | Interest::hup() | Interest::error();
         debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
         try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
