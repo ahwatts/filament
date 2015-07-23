@@ -49,9 +49,7 @@ fn handle_connection(mut writer: TcpStream, tracker: Arc<Tracker>) -> Result<(),
     for line in reader.split(b'\n') {
         let mut line = try!(line);
         if line.last() == Some(&b'\r') { line.pop(); }
-
-        let response_result = Request::from_bytes(line.as_ref()).and_then(|req| tracker.handle(req));
-        let response = Response::from(response_result);
+        let response = Response::from(tracker.handle_bytes(line.as_ref()));
         try!(writer.write_all(&response.render()));
     }
 

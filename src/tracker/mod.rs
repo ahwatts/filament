@@ -24,14 +24,15 @@ impl Tracker {
     }
 
     /// Handle a request.
-    pub fn handle(&self, request: Request) -> MogResult<Response> {
-        info!("request = {:?}", request);
-        let response = self.dispatch_command(&request);
-        info!("response = {:?}", response);
-        response
+    pub fn handle_bytes(&self, request_bytes: &[u8]) -> MogResult<Response> {
+        let request_result = Request::from_bytes(request_bytes);
+        info!("request = {:?}", request_result);
+        let response_result = request_result.and_then(|req| self.handle(&req));
+        info!("response = {:?}", response_result);
+        response_result
     }
 
-    fn dispatch_command(&self, request: &Request) -> MogResult<Response> {
+    pub fn handle(&self, request: &Request) -> MogResult<Response> {
         use self::message::Command::*;
 
         match request.op {

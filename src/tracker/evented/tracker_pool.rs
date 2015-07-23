@@ -20,8 +20,7 @@ impl TrackerPool {
     pub fn handle(&self, request_line: Vec<u8>, token: Token, response_to: Sender<Notification>) {
         let tracker = self.tracker.clone();
         self.thread_pool.execute(move|| {
-            let response_result = Request::from_bytes(request_line.as_ref()).and_then(|req| tracker.handle(req));
-            let response = Response::from(response_result);
+            let response = Response::from(tracker.handle_bytes(request_line.as_ref()));
             response_to.send(Notification::Response(token, response)).unwrap_or_else(|e| {
                 error!("Error sending response to event loop connection {:?}: {:?}", token, e);
             });
