@@ -11,6 +11,7 @@ pub enum Command {
 
     CreateOpen,
     CreateClose,
+    GetPaths,
     Delete,
     ListKeys,
 
@@ -26,8 +27,9 @@ impl Command {
 
             Some(Ok(string)) if string == "create_open" => Ok(CreateOpen),
             Some(Ok(string)) if string == "create_close" => Ok(CreateClose),
-            Some(Ok(string)) if string == "list_keys" => Ok(ListKeys),
+            Some(Ok(string)) if string == "get_paths" => Ok(GetPaths),
             Some(Ok(string)) if string == "delete" => Ok(Delete),
+            Some(Ok(string)) if string == "list_keys" => Ok(ListKeys),
 
             Some(Ok(string)) if string == "noop" => Ok(Noop),
 
@@ -48,8 +50,9 @@ impl Display for Command {
 
             CreateOpen => "create_open",
             CreateClose => "create_close",
-            ListKeys => "list_keys",
+            GetPaths => "get_paths",
             Delete => "delete",
+            ListKeys => "list_keys",
 
             Noop => "noop",
         };

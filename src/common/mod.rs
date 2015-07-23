@@ -51,6 +51,12 @@ impl Backend {
         Ok(())
     }
 
+    pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+        self.domain(domain)
+            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(Some(key.to_string()))))
+            .map(|_| vec![ storage.url_for_key(domain, key) ])
+    }
+
     pub fn delete(&mut self, domain: &str, key: &str) -> MogResult<()> {
         try!(self.domain_mut(domain))
             .remove_file(key)
@@ -122,6 +128,10 @@ impl SyncBackend {
         // call it, since we're not going to be doing anything with
         // it anyway.
         Ok(())
+    }
+
+    pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+        try!(self.0.lock()).get_paths(domain, key, storage)
     }
 
     pub fn delete(&self, domain: &str, key: &str) -> MogResult<()> {

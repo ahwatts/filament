@@ -39,8 +39,9 @@ impl Tracker {
 
             CreateOpen => self.create_open(request),
             CreateClose => self.create_close(request),
-            ListKeys => self.list_keys(request),
+            GetPaths => self.get_paths(request),
             Delete => self.delete(request),
+            ListKeys => self.list_keys(request),
 
             Noop => self.noop(request),
             // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
@@ -78,6 +79,21 @@ impl Tracker {
         // much point in writing code here if it's not going to be
         // used. We'll just leave this blank for now.
         Ok(Response::new(vec![]))
+    }
+
+    // request = "get_paths domain=rn_development_private&key=Song/512428/image&noverify=1&zone=\r\n"
+    // response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/000/0000000109.fid\r\n"
+    fn get_paths(&self, request: &Request) -> MogResult<Response> {
+        let args = request.args_hash();
+        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        let key = try!(args.get("key").ok_or(MogError::UnknownKey(None)));
+
+        let paths = try!(self.backend.get_paths(domain, key, &self.storage));
+        let mut response_args = vec![ ("paths".to_string(), paths.len().to_string()) ];
+        for (i, url) in paths.iter().enumerate() {
+            response_args.push((format!("path{}", i+1), url.to_string()));
+        }
+        Ok(Response::new(response_args))
     }
 
     fn delete(&self, request: &Request) -> MogResult<Response> {
