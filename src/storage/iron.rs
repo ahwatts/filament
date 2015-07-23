@@ -20,7 +20,7 @@ impl StorageHandler {
         }
     }
 
-    fn handle_get(&self, request: &Request, domain: &str, key: &str) -> IronResult<Response> {
+    fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
         let mut content = vec![];
         match self.store.get_content(domain, key, &mut content) {
             Ok(_) => {},
@@ -36,14 +36,7 @@ impl StorageHandler {
             },
         };
 
-        let mut response = Response::with((Status::Ok,));
-        response = response.set(Header(headers::ContentLength(content.len() as u64)));
-
-        if request.method == Method::Get {
-            response = response.set(content);
-        }
-
-        Ok(response)
+        Ok(Response::with((Status::Ok, content)))
     }
 
     fn handle_put(&self, request: &mut Request, domain: &str, key: &str) -> IronResult<Response> {
