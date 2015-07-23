@@ -46,7 +46,7 @@ impl Storage {
                     try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
                     Ok(())
                 },
-                None => Err(MogError::NoContent(Some(key.to_string()))),
+                None => Err(MogError::NoContent(key.to_string())),
             }
         })
     }
@@ -84,7 +84,7 @@ mod tests {
         let storage = storage_fixture();
         let mut content = vec![];
         assert!( matches!(storage.get_content(TEST_DOMAIN, "test/key/3", &mut content).unwrap_err(),
-                          MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
+                          MogError::UnknownKey(ref k) if k == "test/key/3"));
         assert!(content.is_empty());
     }
 
@@ -93,7 +93,7 @@ mod tests {
         let storage = storage_fixture();
         let mut content = vec![];
         assert!(matches!(storage.get_content(TEST_DOMAIN, TEST_KEY_2, &mut content).unwrap_err(),
-                         MogError::NoContent(Some(ref k)) if k == TEST_KEY_2));
+                         MogError::NoContent(ref k) if k == TEST_KEY_2));
         assert!(content.is_empty());
     }
 
@@ -132,7 +132,7 @@ mod tests {
         let storage = storage_fixture();
         let new_content: &'static [u8] = b"This is new test content";
         assert!(matches!(storage.store_content(TEST_DOMAIN, "test/key/3", &mut Cursor::new(new_content)).unwrap_err(),
-                         MogError::UnknownKey(Some(ref k)) if k == "test/key/3"));
+                         MogError::UnknownKey(ref k) if k == "test/key/3"));
     }
 }
 

@@ -30,7 +30,7 @@ impl Backend {
 
     pub fn create_domain(&mut self, domain_name: &str) -> MogResult<()> {
         if self.domains.contains_key(domain_name) {
-            Err(MogError::DuplicateDomain(Some(domain_name.to_string())))
+            Err(MogError::DomainExists(domain_name.to_string()))
         } else {
             let domain = Domain::new(domain_name);
             self.domains.insert(domain_name.to_string(), domain);
@@ -53,7 +53,7 @@ impl Backend {
 
     pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
         self.domain(domain)
-            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(Some(key.to_string()))))
+            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
             .map(|_| vec![ storage.url_for_key(domain, key) ])
     }
 
@@ -61,8 +61,12 @@ impl Backend {
         try!(self.domain_mut(domain))
             .remove_file(key)
             .map(|_| ())
-            .ok_or(MogError::UnknownKey(Some(key.to_string())))
+            .ok_or(MogError::UnknownKey(key.to_string()))
     }
+
+    // pub fn rename(&mut self, domain: &str, from: &str, to: &str) -> MogResult<()> {
+    //     let domain = try!(self.domain_mut(domain));
+    // }
 
     pub fn list_keys(&self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         let after_key = after_key.unwrap_or("");
@@ -76,11 +80,11 @@ impl Backend {
     }
 
     fn domain(&self, domain_name: &str) -> MogResult<&Domain> {
-        self.domains.get(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
+        self.domains.get(domain_name).ok_or(MogError::UnregDomain(domain_name.to_string()))
     }
 
     fn domain_mut(&mut self, domain_name: &str) -> MogResult<&mut Domain> {
-        self.domains.get_mut(domain_name).ok_or(MogError::UnknownDomain(Some(domain_name.to_string())))
+        self.domains.get_mut(domain_name).ok_or(MogError::UnregDomain(domain_name.to_string()))
     }
 }
 
@@ -98,7 +102,7 @@ impl SyncBackend {
         let guard = try!(self.0.lock());
         match guard.file(domain, key) {
             Ok(Some(ref file_info)) => block(file_info),
-            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Ok(None) => Err(MogError::UnknownKey(key.to_string())),
             Err(e) => Err(e),
         }
     }
@@ -109,7 +113,7 @@ impl SyncBackend {
         let mut guard = try!(self.0.lock());
         match guard.file_mut(domain, key) {
             Ok(Some(ref mut file_info)) => block(file_info),
-            Ok(None) => Err(MogError::UnknownKey(Some(key.to_string()))),
+            Ok(None) => Err(MogError::UnknownKey(key.to_string())),
             Err(e) => Err(e),
         }
     }
@@ -183,14 +187,14 @@ mod tests {
         {
             let file = backend.file("test_domain_2", TEST_KEY_1);
             assert!(
-                matches!(file, Err(MogError::UnknownDomain(Some(ref d))) if d == "test_domain_2"),
+                matches!(file, Err(MogError::UnregDomain(ref d)) if d == "test_domain_2"),
                 "Immutable file from nonexistent domain was {:?}", file);
         }
 
         {
             let file = backend.file_mut("test_domain_2", TEST_KEY_1);
             assert!(
-                matches!(file, Err(MogError::UnknownDomain(Some(ref d))) if d == "test_domain_2"),
+                matches!(file, Err(MogError::UnregDomain(ref d)) if d == "test_domain_2"),
                 "Mutable file from nonexistent domain was {:?}", file);
         }
     }
@@ -206,7 +210,7 @@ mod tests {
 
         let create_dup_result = backend.create_domain(TEST_DOMAIN);
         assert!(
-            matches!(create_dup_result, Err(MogError::DuplicateDomain(Some(ref d))) if d == TEST_DOMAIN),
+            matches!(create_dup_result, Err(MogError::DomainExists(ref d)) if d == TEST_DOMAIN),
             "Create duplicate domain result was {:?}", create_dup_result);
     }
 
@@ -244,16 +248,19 @@ mod tests {
         {
             let mut backend = sync_backend.0.lock().unwrap();
             let co_result = backend.create_open(TEST_DOMAIN, TEST_KEY_1, &storage);
-            assert!(
-                matches!(co_result, Err(MogError::DuplicateKey(Some(ref k))) if k == TEST_KEY_1),
-                "Create open with duplicate key result was {:?}", co_result);
+            assert!(co_result.is_ok(), "Create open with duplicate key result was {:?}", co_result);
+            let urls = co_result.unwrap();
+            assert_eq!(1, urls.len());
+            assert_eq!(
+                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1).as_ref()).unwrap(),
+                urls[0]);
         }
 
         {
             let mut backend = sync_backend.0.lock().unwrap();
             let co_result = backend.create_open("test_domain_2", "test/key/3", &storage);
             assert!(
-                matches!(co_result, Err(MogError::UnknownDomain(Some(ref k))) if k == "test_domain_2"),
+                matches!(co_result, Err(MogError::UnregDomain(ref k)) if k == "test_domain_2"),
                 "Create open with unknown domain result was {:?}", co_result);
         }
     }
@@ -313,7 +320,7 @@ mod tests {
 
         {
             let delete_result_2 = backend.delete(TEST_DOMAIN, TEST_KEY_1);
-            assert!(matches!(delete_result_2, Err(MogError::UnknownKey(Some(ref k))) if k == TEST_KEY_1))
+            assert!(matches!(delete_result_2, Err(MogError::UnknownKey(ref k)) if k == TEST_KEY_1))
         }
     }
 }

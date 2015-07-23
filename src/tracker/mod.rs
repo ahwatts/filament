@@ -54,15 +54,15 @@ impl Tracker {
 
     fn create_domain(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
         try!(self.backend.create_domain(domain));
         Ok(Response::new(vec![ ("domain".to_string(), domain.to_string()) ]))
     }
 
     fn create_open(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
-        let key = try!(args.get("key").ok_or(MogError::UnknownKey(None)));
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+        let key = try!(args.get("key").ok_or(MogError::NoKey));
         let urls = try!(self.backend.create_open(domain, key, &self.storage));
         let mut response_args = vec![];
         response_args.push(("dev_count".to_string(), urls.len().to_string()));
@@ -85,8 +85,8 @@ impl Tracker {
     // response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/000/0000000109.fid\r\n"
     fn get_paths(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
-        let key = try!(args.get("key").ok_or(MogError::UnknownKey(None)));
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+        let key = try!(args.get("key").ok_or(MogError::NoKey));
 
         let paths = try!(self.backend.get_paths(domain, key, &self.storage));
         let mut response_args = vec![ ("paths".to_string(), paths.len().to_string()) ];
@@ -96,17 +96,24 @@ impl Tracker {
         Ok(Response::new(response_args))
     }
 
+    // request = "rename domain=rn_development_private&from_key=Song/512428/image&to_key=Song/512428/image/1\r\n"
+    // response = "OK \r\n"
+    // request = "rename domain=rn_development_private&from_key=Song/9381/image&to_key=Song/512428/image/1\r\n"
+    // response = "ERR key_exists Target+key+name+already+exists%3B+can%27t+overwrite.\r\n"
+    // request = "rename domain=rn_development_private&from_key=Song/512428/image&to_key=Song/512428/image/1\r\n"
+    // response = "ERR unknown_key unknown_key\r\n"
+
     fn delete(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
-        let key = try!(args.get("key").ok_or(MogError::UnknownKey(None)));
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+        let key = try!(args.get("key").ok_or(MogError::NoKey));
         try!(self.backend.delete(domain, key));
         Ok(Response::new(vec![]))
     }
 
     fn list_keys(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
         let limit = args.get("limit").map(|lim| usize::from_str_radix(lim, 10).unwrap_or(1000));
         let after = args.get("after").map(|a| *a);
         let keys = try!(self.backend.list_keys(domain, None, after, limit));

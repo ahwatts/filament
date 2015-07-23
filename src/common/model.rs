@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map;
 use std::iter::Iterator;
-use super::super::error::{MogError, MogResult};
+#[allow(unused_imports)] use super::super::error::{MogError, MogResult};
 
 #[derive(Debug)]
 pub struct Domain {
@@ -34,12 +34,8 @@ impl Domain {
     }
 
     pub fn add_file(&mut self, key: &str, info: FileInfo) -> MogResult<&FileInfo> {
-        if self.files.contains_key(key) {
-            Err(MogError::DuplicateKey(Some(key.to_string())))
-        } else {
-            self.files.insert(key.to_string(), info);
-            Ok(self.file(key).unwrap())
-        }
+        self.files.insert(key.to_string(), info);
+        Ok(self.file(key).unwrap())
     }
 
     pub fn remove_file(&mut self, key: &str) -> Option<FileInfo> {
@@ -88,7 +84,7 @@ impl FileInfo {
 mod tests {
     use super::*;
     use super::super::super::test_support::*;
-    use super::super::super::error::MogError;
+    #[allow(unused_imports)] use super::super::super::error::MogError;
 
     #[test]
     fn create_domain() {
@@ -178,11 +174,14 @@ mod tests {
             assert_eq!(Some(&content.len()), file.size.as_ref());
         }
 
-        {   // Try adding a duplicate key to the domain.
+        {   // Try adding a duplicate key to the domain, which should create a new empty file.
             let file = FileInfo::new(TEST_KEY_1);
             let result = domain.add_file(TEST_KEY_1, file);
-            assert!(result.is_err());
-            assert!(matches!(result.unwrap_err(), MogError::DuplicateKey(..)));
+            assert!(result.is_ok());
+            let file = result.unwrap();
+            assert_eq!(TEST_KEY_1, file.key());
+            assert_eq!(None, file.content);
+            assert_eq!(None, file.size);
         }
     }
 
