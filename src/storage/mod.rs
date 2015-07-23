@@ -23,8 +23,11 @@ impl Storage {
 
     pub fn url_for_key(&self, domain: &str, key: &str) -> Url {
         let mut key_url = self.base_url.clone();
-        key_url.path_mut().unwrap().extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
-        key_url.path_mut().unwrap().extend(key.split("/").map(|s| s.to_string()));
+        let mut new_path = Vec::from(key_url.path().unwrap());
+        new_path.extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
+        new_path.extend(key.split("/").map(|s| s.to_string()));
+        new_path = new_path.into_iter().skip_while(|p| p == "").collect();
+        *key_url.path_mut().unwrap() = new_path;
         key_url
     }
 
