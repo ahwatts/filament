@@ -204,9 +204,9 @@ impl Connection {
     }
 
     fn readable(&mut self, event_loop: &mut EventLoop<Handler>, hint: ReadHint) -> EventedResult<()> {
+        // Pull in_buf out of self and write the current socket data in to it.
         let mut mut_buf = self.in_buf.take().unwrap();
         let read_result = self.sock.read(&mut mut_buf);
-
         match read_result {
             Ok(Some(n)) => {
                 debug!("Read {} bytes from {:?}", n, self.token);
@@ -219,32 +219,37 @@ impl Connection {
             }
         }
 
-        let mut buf = mut_buf.flip();
-        debug!("in_buf = {:?}", String::from_utf8_lossy(buf.bytes()));
-
+        // Flip the buffer over to readable and see if we read a line.
+        let buf = mut_buf.flip();
         match self.extract_line(&buf) {
             Some(line) => {
+                // Clear the buffer and put it back in to self.
                 let mut cleared = buf.flip();
                 cleared.clear();
                 self.in_buf = Some(cleared);
                 self.tracker.handle(line, self.token, event_loop.channel());
             },
             None => {
+                // Put the buffer back in to self without clearing it.
                 self.in_buf = Some(buf.resume());
             }
         }
 
-        if hint.is_hup() | hint.is_error() {
+        // If the other end has closed the connection or there's a
+        // socket error, shut down this connection.
+        if hint.is_hup() || hint.is_error() {
             try!(event_loop.channel().send(Notification::close_connection(self.token)));
         }
 
+        // Return the result of the read.
         read_result.map(|_| ()).map_err(|e| EventedError::from(e))
     }
 
     fn writable(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
+        // Pull out_buf out of self, flip it to readable, and read its
+        // data out to the socket.
         let mut buf = self.out_buf.take().unwrap().flip();
         let write_result = self.sock.write(&mut buf);
-
         match write_result {
             Ok(Some(n)) => {
                 debug!("Wrote {} bytes to {:?}", n, self.token);
@@ -257,15 +262,23 @@ impl Connection {
             }
         }
 
-        // We should probably only switch back to readable if we've
-        // written a newline, but for now we'll just assume that the
-        // response gets written to the buffer in toto.
-        if Buf::has_remaining(&buf) {
+        // See if there's any more data left in out_buf that we
+        // haven't sent to the socket. We should probably only switch
+        // back to readable if we've written a newline, but for now
+        // we'll just assume that the response gets written to the
+        // buffer in toto.
+        if buf.has_remaining() {
+            // Flip the buffer back to writable without clearing it,
+            // stow it back in self, and tell the event loop we're
+            // still interested in writing to the socket.
             self.out_buf = Some(buf.resume());
             self.interest = Interest::writable() | Interest::hup() | Interest::error();
             debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         } else {
+            // Flip the buffer back to writable, clear it, stow it,
+            // and tell the event loop that we're waiting for data
+            // again.
             let mut cleared = buf.flip();
             cleared.clear();
             self.out_buf = Some(cleared);
@@ -274,12 +287,14 @@ impl Connection {
             try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
         }
 
+        // Return the result of the write.
         write_result.map(|_| ()).map_err(|e| EventedError::from(e))
     }
 
     fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Response) -> EventedResult<()> {
         use std::io::Write;
 
+        // Pull out_buf out of self and write the response to it.
         let mut mut_buf = self.out_buf.take().unwrap();
         let write_result = mut_buf.write(&response.render());
         self.out_buf = Some(mut_buf);
@@ -287,6 +302,8 @@ impl Connection {
             return Err(EventedError::from(write_result.unwrap_err()));
         }
 
+        // Tell the event loop that we're now interested in writing
+        // data the next time the socket becomes available.
         self.interest = Interest::writable() | Interest::hup() | Interest::error();
         debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
         try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
