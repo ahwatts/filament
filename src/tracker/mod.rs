@@ -36,9 +36,12 @@ impl Tracker {
 
         match request.op {
             CreateDomain => self.create_domain(request),
+
             CreateOpen => self.create_open(request),
             CreateClose => self.create_close(request),
             ListKeys => self.list_keys(request),
+            Delete => self.delete(request),
+
             Noop => self.noop(request),
             // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
         }
@@ -74,6 +77,14 @@ impl Tracker {
         // but they don't do anything at the moment, and there's not
         // much point in writing code here if it's not going to be
         // used. We'll just leave this blank for now.
+        Ok(Response::new(vec![]))
+    }
+
+    fn delete(&self, request: &Request) -> MogResult<Response> {
+        let args = request.args_hash();
+        let domain = try!(args.get("domain").ok_or(MogError::UnknownDomain(None)));
+        let key = try!(args.get("key").ok_or(MogError::UnknownKey(None)));
+        try!(self.backend.delete(domain, key));
         Ok(Response::new(vec![]))
     }
 

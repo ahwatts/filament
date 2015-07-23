@@ -51,6 +51,13 @@ impl Backend {
         Ok(())
     }
 
+    pub fn delete(&mut self, domain: &str, key: &str) -> MogResult<()> {
+        try!(self.domain_mut(domain))
+            .remove_file(key)
+            .map(|_| ())
+            .ok_or(MogError::UnknownKey(Some(key.to_string())))
+    }
+
     pub fn list_keys(&self, domain_name: &str, _prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         let after_key = after_key.unwrap_or("");
         let limit = limit.unwrap_or(1000);
@@ -114,6 +121,10 @@ impl SyncBackend {
         // call it, since we're not going to be doing anything with
         // it anyway.
         Ok(())
+    }
+
+    pub fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
+        try!(self.0.lock()).delete(domain, key)
     }
 
     pub fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
