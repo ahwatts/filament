@@ -58,11 +58,12 @@ impl Backend {
             .ok_or(MogError::UnknownKey(Some(key.to_string())))
     }
 
-    pub fn list_keys(&self, domain_name: &str, _prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
+    pub fn list_keys(&self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         let after_key = after_key.unwrap_or("");
+        let prefix = prefix.unwrap_or("");
         let limit = limit.unwrap_or(1000);
         Ok(try!(self.domain(domain_name)).files()
-            .skip_while(|&(k, _)| k <= after_key)
+            .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
             .take(limit)
             .map(|(k, _)| k.to_string())
             .collect())
@@ -271,12 +272,22 @@ mod tests {
         let first_list = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10)).unwrap();
         let after_key = first_list.iter().last().unwrap();
 
-        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, Some(after_key), Some(10));
+        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, Some(after_key), None);
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
-        assert_eq!(10, list.len());
         assert!(after_key < &list[0]);
-        assert!(list[0] < list[9]);
+        assert!(&list[0] < list.iter().last().unwrap());
+    }
+
+    #[test]
+    fn test_domain_list_keys_prefix() {
+        let backend = full_backend_fixture();
+        let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_1), None, None);
+        assert!(list_result.is_ok());
+        let list = list_result.unwrap();
+        for key in list.iter() {
+            assert!(key.starts_with(TEST_KEY_PREFIX_1), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_1);
+        }
     }
 }
 
