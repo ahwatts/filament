@@ -1,8 +1,6 @@
 use iron::{Handler, IronError, IronResult, Request, Response};
 use iron::headers;
 use iron::method::Method;
-use iron::modifier::Set;
-use iron::modifiers::Header;
 use iron::status::Status;
 use std::error::Error;
 use std::ops::Deref;
