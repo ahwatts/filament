@@ -280,13 +280,30 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_list_keys_prefix() {
+    fn domain_list_keys_prefix() {
         let backend = full_backend_fixture();
         let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_1), None, None);
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
         for key in list.iter() {
             assert!(key.starts_with(TEST_KEY_PREFIX_1), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_1);
+        }
+    }
+
+    #[test]
+    fn domain_delete_key() {
+        let mut backend = backend_fixture();
+
+        {
+            let delete_result = backend.delete(TEST_DOMAIN, TEST_KEY_1);
+            assert!(matches!(delete_result, Ok(())));
+        }
+
+        assert!(backend.domains[TEST_DOMAIN].file(TEST_KEY_1).is_none());
+
+        {
+            let delete_result_2 = backend.delete(TEST_DOMAIN, TEST_KEY_1);
+            assert!(matches!(delete_result_2, Err(MogError::UnknownKey(Some(ref k))) if k == TEST_KEY_1))
         }
     }
 }
