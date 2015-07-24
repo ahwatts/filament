@@ -64,9 +64,9 @@ impl Backend {
             .ok_or(MogError::UnknownKey(key.to_string()))
     }
 
-    // pub fn rename(&mut self, domain: &str, from: &str, to: &str) -> MogResult<()> {
-    //     let domain = try!(self.domain_mut(domain));
-    // }
+    pub fn rename(&mut self, domain: &str, from: &str, to: &str) -> MogResult<()> {
+        self.domain_mut(domain).and_then(|d| d.rename(from, to))
+    }
 
     pub fn list_keys(&self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         let after_key = after_key.unwrap_or("");
@@ -140,6 +140,10 @@ impl SyncBackend {
 
     pub fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
         try!(self.0.lock()).delete(domain, key)
+    }
+
+    pub fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()> {
+        try!(self.0.lock()).rename(domain, from, to)
     }
 
     pub fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {

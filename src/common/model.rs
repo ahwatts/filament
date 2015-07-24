@@ -42,8 +42,18 @@ impl Domain {
         self.files.remove(key)
     }
 
-    // pub fn rename(&mut self, from: &str, to: &str) -> MogResult<()> {
-    // }
+    pub fn rename(&mut self, from: &str, to: &str) -> MogResult<()> {
+        if self.files.contains_key(to) {
+            Err(MogError::KeyExists(to.to_string()))
+        } else if !self.files.contains_key(from) {
+            Err(MogError::UnknownKey(from.to_string()))
+        } else {
+            let mut file_info = self.files.remove(from).unwrap();
+            file_info.key = to.to_string();
+            self.files.insert(to.to_string(), file_info);
+            Ok(())
+        }
+    }
 }
 
 pub struct Files<'a> {

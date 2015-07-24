@@ -13,6 +13,7 @@ pub enum Command {
     CreateClose,
     GetPaths,
     FileInfo,
+    Rename,
     Delete,
     ListKeys,
 
@@ -30,6 +31,7 @@ impl Command {
             Some(Ok(string)) if string == "create_close" => Ok(CreateClose),
             Some(Ok(string)) if string == "get_paths" => Ok(GetPaths),
             Some(Ok(string)) if string == "file_info" => Ok(FileInfo),
+            Some(Ok(string)) if string == "rename" => Ok(Rename),
             Some(Ok(string)) if string == "delete" => Ok(Delete),
             Some(Ok(string)) if string == "list_keys" => Ok(ListKeys),
 
@@ -54,6 +56,7 @@ impl Display for Command {
             CreateClose => "create_close",
             GetPaths => "get_paths",
             FileInfo => "file_info",
+            Rename => "rename",
             Delete => "delete",
             ListKeys => "list_keys",
 

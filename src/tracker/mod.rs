@@ -42,6 +42,7 @@ impl Tracker {
             CreateClose => self.create_close(request),
             GetPaths => self.get_paths(request),
             FileInfo => self.file_info(request),
+            Rename => self.rename(request),
             Delete => self.delete(request),
             ListKeys => self.list_keys(request),
 
@@ -116,6 +117,14 @@ impl Tracker {
     // response = "ERR key_exists Target+key+name+already+exists%3B+can%27t+overwrite.\r\n"
     // request = "rename domain=rn_development_private&from_key=Song/512428/image&to_key=Song/512428/image/1\r\n"
     // response = "ERR unknown_key unknown_key\r\n"
+    fn rename(&self, request: &Request) -> MogResult<Response> {
+        let args = request.args_hash();
+        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+        let from = try!(args.get("from_key").ok_or(MogError::NoKey));
+        let to = try!(args.get("to_key").ok_or(MogError::NoKey));
+        try!(self.backend.rename(domain, from, to));
+        Ok(Response::new(vec![]))
+    }
 
     fn delete(&self, request: &Request) -> MogResult<Response> {
         let (domain, key) = try!(domain_and_key(request));
