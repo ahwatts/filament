@@ -1,6 +1,8 @@
+use std::default::Default;
 use std::io::{self, Cursor, Read, Write};
 use super::common::SyncBackend;
 use super::error::{MogError, MogResult};
+use time::{self, Tm};
 use url::Url;
 
 pub use self::iron::StorageHandler;
@@ -31,6 +33,18 @@ impl Storage {
         key_url
     }
 
+    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<FileMetadata> {
+        let mut rv: FileMetadata = Default::default();
+
+        try!(self.backend.with_file(domain, key, |file_info| {
+            rv.size = file_info.size;
+            rv.mtime = file_info.mtime;
+            Ok(())
+        }));
+
+        Ok(rv)
+    }
+
     pub fn store_content<R: Read>(&self, domain: &str, key: &str, reader: &mut R) -> MogResult<()> {
         // We don't need the lock to do this part...
         let mut content = vec![];
@@ -39,6 +53,7 @@ impl Storage {
         self.backend.with_file_mut(domain, key, move|file_info| {
             file_info.size = Some(content.len());
             file_info.content = Some(content);
+            file_info.mtime = Some(time::now_utc());
             Ok(())
         })
     }
@@ -54,6 +69,12 @@ impl Storage {
             }
         })
     }
+}
+
+#[derive(Default, Debug)]
+pub struct FileMetadata {
+    pub size: Option<usize>,
+    pub mtime: Option<Tm>,
 }
 
 #[cfg(test)]

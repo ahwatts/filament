@@ -1,3 +1,5 @@
+use iron::IronError;
+use iron::status::Status;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -61,6 +63,26 @@ impl From<io::Error> for MogError {
 impl From<Utf8Error> for MogError {
     fn from(utf8_err: Utf8Error) -> MogError {
         MogError::Utf8(utf8_err)
+    }
+}
+
+impl From<MogError> for IronError {
+    fn from(err: MogError) -> IronError {
+        use self::MogError::*;
+
+        let modifier = match &err {
+            &UnknownKey(ref k) => {
+                (Status::NotFound, format!("Unknown key: {:?}\n", k))
+            },
+            &NoContent(ref k) => {
+                (Status::NotFound, format!("No content key: {:?}\n", k))
+            },
+            e @ _ => {
+                (Status::InternalServerError, format!("{}\n", e.description()))
+            }
+        };
+
+        IronError::new(err, modifier)
     }
 }
 

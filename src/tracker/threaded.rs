@@ -2,6 +2,8 @@ use std::io::{self, Write, BufRead, BufReader};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::thread;
+
+#[allow(unused_imports)]
 use super::{Tracker, Request, Response};
 
 pub struct ThreadedListener {

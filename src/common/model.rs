@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map;
 use std::iter::Iterator;
+use time::Tm;
 #[allow(unused_imports)] use super::super::error::{MogError, MogResult};
 
 #[derive(Debug)]
@@ -77,6 +78,7 @@ pub struct FileInfo {
     key: String,
     pub content: Option<Vec<u8>>,
     pub size: Option<usize>,
+    pub mtime: Option<Tm>,
 }
 
 impl FileInfo {
@@ -85,6 +87,7 @@ impl FileInfo {
             key: key.to_string(),
             content: None,
             size: None,
+            mtime: None,
         }
     }
 
@@ -224,6 +227,7 @@ mod tests {
 #[cfg(test)]
 pub mod test_support {
     use super::*;
+    use time;
 
     pub static TEST_DOMAIN: &'static str = "test_domain";
     pub static TEST_KEY_1: &'static str = "test/key/1";
@@ -252,12 +256,14 @@ pub mod test_support {
                 key: key_p1,
                 content: None,
                 size: None,
+                mtime: None,
             });
 
             domain.files.insert(key_p2.clone(), FileInfo {
                 key: key_p2,
                 content: None,
                 size: None,
+                mtime: None,
             });
         }
 
@@ -269,6 +275,7 @@ pub mod test_support {
             key: TEST_KEY_1.to_string(),
             content: Some(Vec::from(TEST_CONTENT_1)),
             size: Some(TEST_CONTENT_1.len()),
+            mtime: Some(time::now_utc()),
         }
     }
 
@@ -277,6 +284,7 @@ pub mod test_support {
             key: TEST_KEY_2.to_string(),
             content: None,
             size: None,
+            mtime: None,
         }
     }
 }

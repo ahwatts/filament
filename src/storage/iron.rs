@@ -1,6 +1,7 @@
 use iron::{Handler, IronError, IronResult, Request, Response};
 use iron::headers;
 use iron::method::Method;
+use iron::modifiers::Header;
 use iron::status::Status;
 use std::error::Error;
 use std::ops::Deref;
@@ -19,22 +20,14 @@ impl StorageHandler {
     }
 
     fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
+        let metadata = try!(self.store.file_metadata(domain, key));
         let mut content = vec![];
-        match self.store.get_content(domain, key, &mut content) {
-            Ok(_) => {},
-            Err(MogError::UnknownKey(ref k)) => {
-                return Ok(Response::with((Status::NotFound, format!("Unknown key: {:?}\n", k))));
-            },
-            Err(MogError::NoContent(ref k)) => {
-                return Ok(Response::with((Status::NotFound, format!("No content for key: {:?}\n", k))));
-            },
-            Err(e) => {
-                let modifier = (Status::InternalServerError, format!("{}\n", e.description()));
-                return Err(IronError::new(e, modifier));
-            },
-        };
-
-        Ok(Response::with((Status::Ok, content)))
+        try!(self.store.get_content(domain, key, &mut content));
+        Ok(Response::with((
+            Status::Ok,
+            Header(headers::LastModified(headers::HttpDate(metadata.mtime.unwrap()))),
+            Header(headers::ContentLength(metadata.size.unwrap() as u64)),
+            content,)))
     }
 
     fn handle_put(&self, request: &mut Request, domain: &str, key: &str) -> IronResult<Response> {

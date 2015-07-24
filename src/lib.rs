@@ -1,5 +1,6 @@
 extern crate iron;
 extern crate libc;
+extern crate time;
 extern crate url;
 
 #[cfg(feature = "evented")] extern crate mio;

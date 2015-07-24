@@ -1,8 +1,10 @@
 use mio::{Sender, Token};
 use std::sync::Arc;
 use super::notification::Notification;
-use super::super::{Tracker, Request, Response};
 use threadpool::ThreadPool;
+
+#[allow(unused_imports)]
+use super::super::{Tracker, Request, Response};
 
 pub struct TrackerPool {
     thread_pool: ThreadPool,
