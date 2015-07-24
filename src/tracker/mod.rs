@@ -41,6 +41,7 @@ impl Tracker {
             CreateOpen => self.create_open(request),
             CreateClose => self.create_close(request),
             GetPaths => self.get_paths(request),
+            FileInfo => self.file_info(request),
             Delete => self.delete(request),
             ListKeys => self.list_keys(request),
 
@@ -61,9 +62,7 @@ impl Tracker {
     }
 
     fn create_open(&self, request: &Request) -> MogResult<Response> {
-        let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.get("key").ok_or(MogError::NoKey));
+        let (domain, key) = try!(domain_and_key(request));
         let urls = try!(self.backend.create_open(domain, key, &self.storage));
         let mut response_args = vec![];
         response_args.push(("dev_count".to_string(), urls.len().to_string()));
@@ -85,15 +84,29 @@ impl Tracker {
     // request = "get_paths domain=rn_development_private&key=Song/512428/image&noverify=1&zone=\r\n"
     // response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/000/0000000109.fid\r\n"
     fn get_paths(&self, request: &Request) -> MogResult<Response> {
-        let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.get("key").ok_or(MogError::NoKey));
-
+        let (domain, key) = try!(domain_and_key(request));
         let paths = try!(self.backend.get_paths(domain, key, &self.storage));
         let mut response_args = vec![ ("paths".to_string(), paths.len().to_string()) ];
         for (i, url) in paths.iter().enumerate() {
             response_args.push((format!("path{}", i+1), url.to_string()));
         }
+        Ok(Response::new(response_args))
+    }
+
+    // request = "file_info domain=rn_development_private&key=Song/23198312/image\r\n"
+    // response = "OK length=4142596&class=song_replicated&devcount=1&key=Song/23198312/image&fid=264&domain=rn_development_private\r\n"
+    fn file_info(&self, request: &Request) -> MogResult<Response> {
+        let (domain, key) = try!(domain_and_key(request));
+        let mut response_args = vec!{
+            ("domain".to_string(), domain.to_string()),
+            ("key".to_string(), key.to_string()),
+        };
+
+        try!(self.backend.with_file(domain, key, |file_info| {
+            response_args.push(("length".to_string(), file_info.size.unwrap_or(0).to_string()));
+            Ok(())
+        }));
+
         Ok(Response::new(response_args))
     }
 
@@ -105,9 +118,7 @@ impl Tracker {
     // response = "ERR unknown_key unknown_key\r\n"
 
     fn delete(&self, request: &Request) -> MogResult<Response> {
-        let args = request.args_hash();
-        let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.get("key").ok_or(MogError::NoKey));
+        let (domain, key) = try!(domain_and_key(request));
         try!(self.backend.delete(domain, key));
         Ok(Response::new(vec![]))
     }
@@ -129,4 +140,11 @@ impl Tracker {
 
         Ok(Response::new(response_args))
     }
+}
+
+fn domain_and_key(request: &Request) -> MogResult<(&str, &str)> {
+    let args = request.args_hash();
+    let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+    let key = try!(args.get("key").ok_or(MogError::NoKey));
+    Ok((domain, key))
 }

@@ -41,6 +41,9 @@ impl Domain {
     pub fn remove_file(&mut self, key: &str) -> Option<FileInfo> {
         self.files.remove(key)
     }
+
+    // pub fn rename(&mut self, from: &str, to: &str) -> MogResult<()> {
+    // }
 }
 
 pub struct Files<'a> {

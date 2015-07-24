@@ -37,6 +37,7 @@ impl Storage {
         try!(io::copy(reader, &mut content));
 
         self.backend.with_file_mut(domain, key, move|file_info| {
+            file_info.size = Some(content.len());
             file_info.content = Some(content);
             Ok(())
         })
