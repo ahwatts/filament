@@ -1,4 +1,3 @@
-use std::default::Default;
 use std::io::{self, Cursor, Read, Write};
 use super::common::SyncBackend;
 use super::error::{MogError, MogResult};
@@ -34,15 +33,23 @@ impl Storage {
     }
 
     pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<FileMetadata> {
-        let mut rv: FileMetadata = Default::default();
+        let mut rv = FileMetadata {
+            size: 0,
+            mtime: time::now_utc(),
+        };
 
-        try!(self.backend.with_file(domain, key, |file_info| {
-            rv.size = file_info.size;
-            rv.mtime = file_info.mtime;
-            Ok(())
-        }));
-
-        Ok(rv)
+        self.backend.with_file(domain, key, |file_info| {
+            match (file_info.size, file_info.mtime) {
+                (Some(size), Some(mtime)) => {
+                    rv.size = size;
+                    rv.mtime = mtime;
+                    Ok(())
+                },
+                _ => {
+                    Err(MogError::NoContent(key.to_string()))
+                }
+            }
+        }).and(Ok(rv))
     }
 
     pub fn store_content<R: Read>(&self, domain: &str, key: &str, reader: &mut R) -> MogResult<()> {
@@ -65,16 +72,18 @@ impl Storage {
                     try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
                     Ok(())
                 },
-                None => Err(MogError::NoContent(key.to_string())),
+                None => {
+                    Err(MogError::NoContent(key.to_string()))
+                }
             }
         })
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct FileMetadata {
-    pub size: Option<usize>,
-    pub mtime: Option<Tm>,
+    pub size: usize,
+    pub mtime: Tm,
 }
 
 #[cfg(test)]

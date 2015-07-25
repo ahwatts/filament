@@ -25,8 +25,8 @@ impl StorageHandler {
         try!(self.store.get_content(domain, key, &mut content));
         Ok(Response::with((
             Status::Ok,
-            Header(headers::LastModified(headers::HttpDate(metadata.mtime.unwrap()))),
-            Header(headers::ContentLength(metadata.size.unwrap() as u64)),
+            Header(headers::LastModified(headers::HttpDate(metadata.mtime))),
+            Header(headers::ContentLength(metadata.size as u64)),
             content,)))
     }
 
