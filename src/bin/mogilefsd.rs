@@ -1,13 +1,12 @@
 #![cfg_attr(test, allow(dead_code))]
 
 extern crate argparse;
-extern crate env_logger;
 extern crate iron;
 extern crate mogilefsd;
 extern crate url;
 
-#[macro_use]
-extern crate log;
+#[cfg(feature = "logging")]
+extern crate env_logger;
 
 use argparse::ArgumentParser;
 use iron::{Chain, Iron, Protocol};
@@ -21,7 +20,7 @@ use std::thread;
 use url::Url;
 
 fn main() {
-    env_logger::init().unwrap();
+    init_logging();
 
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
@@ -77,6 +76,15 @@ fn run(opts: &Options, tracker: Tracker) {
 
     println!("Tracker (threaded) listening on {:?}", opts.tracker_addr());
     listener.run();
+}
+
+#[cfg(feature = "logging")]
+fn init_logging() {
+    env_logger::init().unwrap();
+}
+
+#[cfg(not(feature = "logging"))]
+fn init_logging() {
 }
 
 #[derive(Debug)]
