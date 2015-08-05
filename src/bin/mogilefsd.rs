@@ -19,11 +19,37 @@ use std::net::Ipv4Addr;
 use std::thread;
 use url::Url;
 
-fn main() {
-    init_logging();
+#[allow(dead_code)]
+enum TrackerIoType {
+    Threaded,
+    Evented,
+}
 
+#[allow(dead_code)]
+enum LoggingType {
+    Printlns,
+    LogCrate,
+}
+
+fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
+
+    // TODO: These should probably be options at some point.
+    let tracker_io = TrackerIoType::Evented;
+    let log_type = LoggingType::LogCrate;
+
+    // Rust's conditional compilation stuff is a little awkward.
+    match log_type {
+        // If the log crate was chosen AND the log crate feature was
+        // enabled.
+        #[cfg(feature = "logging")]
+        LoggingType::LogCrate => env_logger::init().unwrap(),
+
+        // If printlns was chosen, or the log crate feature was not
+        // enabled.
+        _ => {},
+    }
 
     let backend = SyncBackend::new(Backend::new());
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
@@ -40,11 +66,18 @@ fn main() {
         iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
     });
 
-    run(&opts, tracker);
+    match tracker_io {
+        // If evented was chosen, and evented was built-in.
+        #[cfg(feature = "evented")]
+        TrackerIoType::Evented => run_evented(&opts, tracker),
+
+        // If threaded was chosen, or evented was not built-in.
+        _ => run_threaded(&opts, tracker),
+    }
 }
 
 #[cfg(feature = "evented")]
-fn run(opts: &Options, tracker: Tracker) {
+fn run_evented(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
@@ -62,8 +95,7 @@ fn run(opts: &Options, tracker: Tracker) {
     });
 }
 
-#[cfg(not(feature = "evented"))]
-fn run(opts: &Options, tracker: Tracker) {
+fn run_threaded(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
@@ -76,15 +108,6 @@ fn run(opts: &Options, tracker: Tracker) {
 
     println!("Tracker (threaded) listening on {:?}", opts.tracker_addr());
     listener.run();
-}
-
-#[cfg(feature = "logging")]
-fn init_logging() {
-    env_logger::init().unwrap();
-}
-
-#[cfg(not(feature = "logging"))]
-fn init_logging() {
 }
 
 #[derive(Debug)]
