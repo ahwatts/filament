@@ -40,6 +40,6 @@ optional = true
 matches = "0.1"
 
 [features]
-default = [ "evented", "logging" ]
+default = [ "logging" ]
 evented = [ "mio", "threadpool" ]
 logging = [ "env_logger", "log" ]
