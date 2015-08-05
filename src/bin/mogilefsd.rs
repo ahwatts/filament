@@ -55,8 +55,8 @@ fn main() {
     let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
 
-    backend.create_domain("rn_test_public").unwrap();
-    backend.create_domain("rn_test_private").unwrap();
+    // backend.create_domain("rn_test_public").unwrap();
+    // backend.create_domain("rn_test_private").unwrap();
 
     let storage_addr = opts.storage_addr();
     let storage_threads = opts.storage_threads;
