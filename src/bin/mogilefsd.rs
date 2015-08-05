@@ -31,9 +31,18 @@ enum LoggingType {
     LogCrate,
 }
 
+static VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+
 fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
+
+    if opts.show_version {
+        println!("mogilefsd-rs version {} commit {}",
+                 VERSION.unwrap_or("unknown"),
+                 include_str!("../../git-revision"));
+        return;
+    }
 
     // TODO: These should probably be options at some point.
     let tracker_io = TrackerIoType::Evented;
@@ -120,6 +129,8 @@ struct Options {
     storage_port: u16,
     storage_threads: usize,
     storage_base_url: Url,
+
+    show_version: bool,
 }
 
 impl Default for Options {
@@ -133,6 +144,8 @@ impl Default for Options {
             storage_port: 7502,
             storage_threads: 4,
             storage_base_url: Url::parse("http://127.0.0.1:7502").unwrap(),
+
+            show_version: false,
         }
     }
 }
@@ -176,6 +189,11 @@ impl Options {
             &[ "--storage-base-url" ],
             argparse::Store,
             "The base URL that the storage server should report.");
+
+        parser.refer(&mut self.show_version).add_option(
+            &[ "-v", "--version" ],
+            argparse::StoreConst(true),
+            "Show the version and quit.");
 
         parser
     }
