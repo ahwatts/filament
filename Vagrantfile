@@ -66,8 +66,11 @@ Vagrant.configure(2) do |config|
     common_centos_config(c6)
   end
 
-  config.vm.define "centos7" do |c7|
-    c7.vm.box = "chef/centos-7.0"
-    common_centos_config(c7)
-  end
+  # Due to the GLIBC 2.14 memcpy / memmove scandal, we should probably
+  # just build on CentOS 6, so that we don't get the Bad Symbol.
+
+  # config.vm.define "centos7" do |c7|
+  #   c7.vm.box = "chef/centos-7.0"
+  #   common_centos_config(c7)
+  # end
 end
