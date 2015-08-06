@@ -43,6 +43,7 @@ impl Tracker {
             GetPaths => self.get_paths(request),
             FileInfo => self.file_info(request),
             Rename => self.rename(request),
+            UpdateClass => self.updateclass(request),
             Delete => self.delete(request),
             ListKeys => self.list_keys(request),
 
@@ -123,6 +124,11 @@ impl Tracker {
         let from = try!(args.get("from_key").ok_or(MogError::NoKey));
         let to = try!(args.get("to_key").ok_or(MogError::NoKey));
         try!(self.backend.rename(domain, from, to));
+        Ok(Response::new(vec![]))
+    }
+
+    fn updateclass(&self, _request: &Request) -> MogResult<Response> {
+        // We don't support classes at the moment; just smile and nod.
         Ok(Response::new(vec![]))
     }
 
