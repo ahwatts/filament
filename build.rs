@@ -10,7 +10,7 @@ fn main() {
         .unwrap_or_else(|e| {
             panic!("Failed to execute git rev-parse: {}", e);
         });
-
+    let git_rev = String::from_utf8_lossy(&git_rev_output.stdout);
     let mut rev_file = File::create("git-revision").unwrap();
-    write!(rev_file, "{}", String::from_utf8_lossy(&git_rev_output.stdout).trim_right()).unwrap();
+    rev_file.write_all(git_rev.trim_right().as_bytes()).unwrap();
 }

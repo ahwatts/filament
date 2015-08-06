@@ -32,15 +32,14 @@ enum LoggingType {
 }
 
 static VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+static GIT_COMMIT: &'static str = include_str!("../../git-revision");
 
 fn main() {
     let mut opts: Options = Default::default();
     opts.parser().parse_args_or_exit();
 
     if opts.show_version {
-        println!("mogilefsd-rs version {} commit {}",
-                 VERSION.unwrap_or("unknown"),
-                 include_str!("../../git-revision"));
+        println!("mogilefsd-rs version {} commit {}", VERSION.unwrap_or("unknown"), GIT_COMMIT);
         return;
     }
 
