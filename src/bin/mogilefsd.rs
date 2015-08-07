@@ -1,47 +1,43 @@
 #![cfg_attr(test, allow(dead_code))]
 
-extern crate argparse;
+extern crate docopt;
 extern crate iron;
 extern crate mogilefsd;
+extern crate rustc_serialize;
 extern crate url;
 
 #[cfg(feature = "logging")]
 extern crate env_logger;
 
-use argparse::ArgumentParser;
+#[macro_use]
+extern crate lazy_static;
+
+use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
 use mogilefsd::common::{Backend, SyncBackend};
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
 use mogilefsd::storage::iron::StorageHandler;
-use std::default::Default;
-use std::net::Ipv4Addr;
+use rustc_serialize::{Decodable, Decoder};
+use std::net::SocketAddr;
 use std::thread;
 use url::Url;
 
-#[allow(dead_code)]
-enum TrackerIoType {
-    Threaded,
-    Evented,
-}
-
-#[allow(dead_code)]
-enum LoggingType {
-    Printlns,
-    LogCrate,
-}
-
-static VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 static GIT_COMMIT: &'static str = include_str!("../../git-revision");
 
-fn main() {
-    let mut opts: Options = Default::default();
-    opts.parser().parse_args_or_exit();
+lazy_static!{
+    static ref FULL_VERSION: String =
+        format!("mogilefsd-rs version {} commit {}",
+                VERSION_NUM.unwrap_or("unknown"), GIT_COMMIT);
+}
 
-    if opts.show_version {
-        println!("mogilefsd-rs version {} commit {}", VERSION.unwrap_or("unknown"), GIT_COMMIT);
-        return;
-    }
+fn main() {
+    let opts: Options = Docopt::new(USAGE)
+        .and_then(|d| d.version(Some(FULL_VERSION.to_string())).decode())
+        .unwrap_or_else(|e| e.exit());
+
+    println!("opts = {:?}", opts);
 
     // TODO: These should probably be options at some point.
     let tracker_io = TrackerIoType::Evented;
@@ -60,14 +56,14 @@ fn main() {
     }
 
     let backend = SyncBackend::new(Backend::new());
-    let storage = Storage::new(backend.clone(), opts.storage_base_url.clone());
+    let storage = Storage::new(backend.clone(), opts.flag_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
 
     // backend.create_domain("rn_test_public").unwrap();
     // backend.create_domain("rn_test_private").unwrap();
 
-    let storage_addr = opts.storage_addr();
-    let storage_threads = opts.storage_threads;
+    let storage_addr = opts.flag_storage_ip.0.clone();
+    let storage_threads = opts.flag_storage_threads;
     thread::spawn(move|| {
         let iron = Iron::new(Chain::new(StorageHandler::new(storage)));
         println!("Storage server (Iron) listening on {:?}", storage_addr);
@@ -100,108 +96,82 @@ fn run_evented(opts: &Options, tracker: Tracker) {
     println!("Tracker (evented) listening on {:?}", opts.tracker_addr());
     listener.run().unwrap_or_else(|e| {
         panic!("Error running evented listener: {}", e);
-    });
+     });
 }
 
 fn run_threaded(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
-        opts.tracker_addr(),
+        opts.flag_tracker_ip.0,
         tracker);
 
     let listener = listener_result.unwrap_or_else(|e| {
-        panic!("Error creating threaded listener on {:?}: {}", opts.tracker_addr(), e);
+        panic!("Error creating threaded listener on {:?}: {}", opts.flag_tracker_ip.0, e);
     });
 
-    println!("Tracker (threaded) listening on {:?}", opts.tracker_addr());
+    println!("Tracker (threaded) listening on {:?}", opts.flag_tracker_ip.0);
     listener.run();
 }
 
-#[derive(Debug)]
+static USAGE: &'static str = "
+A quasi-workalike for the MogileFS tracker daemon.
+
+Usage:
+  mogilefsd [options]
+
+General Options:
+  -h, --help                 Print this help message.
+  -v, --version              Print the version information.
+
+Tracker Options:
+  --tracker-ip=IP            The ip:port for the tracker to listen on. [default: 0.0.0.0:7002]
+  -t N, --tracker-threads=N  How many tracker threads to run.          [default: 4]
+  -i T, --tracker-io=T       Which I/O model the tracker should use.   [default: Threaded]
+                             (can be Threaded or Evented)
+
+Storage Options:
+  --storage-ip=IP            The ip:port for the storage server to listen on. [default: 0.0.0.0:7503]
+  -s N, --storage-threads=N  How many storage threads to run.                 [default: 4]
+  -u URL, --base-url=URL     The base URL for the storage server.             [default: http://127.0.0.1:7503/]
+";
+
+#[derive(Debug, RustcDecodable)]
 struct Options {
-    tracker_ip: Ipv4Addr,
-    tracker_port: u16,
-    tracker_threads: usize,
+    flag_tracker_ip: WrapSocketAddr,
+    flag_tracker_threads: usize,
+    flag_tracker_io: TrackerIoType,
 
-    storage_ip: Ipv4Addr,
-    storage_port: u16,
-    storage_threads: usize,
-    storage_base_url: Url,
-
-    show_version: bool,
+    flag_storage_ip: WrapSocketAddr,
+    flag_storage_threads: usize,
+    flag_base_url: Url,
 }
 
-impl Default for Options {
-    fn default() -> Options {
-        Options {
-            tracker_ip: Ipv4Addr::new(0, 0, 0, 0),
-            tracker_port: 7002,
-            tracker_threads: 4,
+// Need to wrap SocketAddr with our own type so that we can implement
+// RustcDecodable for it.
+#[derive(Debug)]
+struct WrapSocketAddr(SocketAddr);
 
-            storage_ip: Ipv4Addr::new(0, 0, 0, 0),
-            storage_port: 7502,
-            storage_threads: 4,
-            storage_base_url: Url::parse("http://127.0.0.1:7502").unwrap(),
-
-            show_version: false,
-        }
+impl Decodable for WrapSocketAddr {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        use std::str::FromStr;
+        let addr_str = try!(d.read_str());
+        SocketAddr::from_str(&addr_str)
+            .map(|a| WrapSocketAddr(a))
+            .map_err(|e| d.error(format!("Error parsing address {:?}: {:?}",
+                                         addr_str, e).as_ref()))
     }
 }
 
-impl Options {
-    fn parser(&mut self) -> ArgumentParser {
-        let mut parser = ArgumentParser::new();
-        parser.set_description("A partial clone for the MogileFS tracker daemon.");
+#[derive(Debug, RustcDecodable)]
+enum TrackerIoType {
+    Threaded,
+    Evented,
+}
 
-        parser.refer(&mut self.tracker_ip).add_option(
-            &[ "--tracker-ip" ],
-            argparse::Store,
-            "The host IP for the tracker to listen on.");
+enum LoggingType {
+    LogCrate,
 
-        parser.refer(&mut self.tracker_port).add_option(
-            &[ "--tracker-port" ],
-            argparse::Store,
-            "The port for the tracker to listen on.");
-
-        parser.refer(&mut self.tracker_threads).add_option(
-            &[ "--tracker-threads" ],
-            argparse::Store,
-            "How many threads the tracker should run.");
-
-        parser.refer(&mut self.storage_ip).add_option(
-            &[ "--storage-ip" ],
-            argparse::Store,
-            "The host IP for the storage server to listen on.");
-
-        parser.refer(&mut self.storage_port).add_option(
-            &[ "--storage-port" ],
-            argparse::Store,
-            "The port for the storage server to listen on.");
-
-        parser.refer(&mut self.storage_threads).add_option(
-            &[ "--storage-threads" ],
-            argparse::Store,
-            "How many threads the storage server should run.");
-
-        parser.refer(&mut self.storage_base_url).add_option(
-            &[ "--storage-base-url" ],
-            argparse::Store,
-            "The base URL that the storage server should report.");
-
-        parser.refer(&mut self.show_version).add_option(
-            &[ "-v", "--version" ],
-            argparse::StoreConst(true),
-            "Show the version and quit.");
-
-        parser
-    }
-
-    fn tracker_addr(&self) -> (Ipv4Addr, u16) {
-        (self.tracker_ip, self.tracker_port)
-    }
-
-    fn storage_addr(&self) -> (Ipv4Addr, u16) {
-        (self.storage_ip, self.storage_port)
-    }
+    #[allow(dead_code)]
+    Printlns,
 }
