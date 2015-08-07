@@ -9,14 +9,14 @@ name = "mogilefsd"
 doc = false
 
 [dependencies]
-argparse = "*"
-lazy_static = "0.1.*"
-libc = "0.1"
-time = "0.1"
-url = "0.2"
+argparse = "~0.2.0"
+lazy_static = "~0.1.14"
+libc = "~0.1.8"
+time = "~0.1.32"
+url = "~0.2.36"
 
 [dependencies.env_logger]
-version = "0.3"
+version = "~0.3.1"
 optional = true
 
 [dependencies.iron]
@@ -26,19 +26,19 @@ branch = "bug/http_10"
 default-features = false
 
 [dependencies.log]
-version = "0.3"
+version = "~0.3.1"
 optional = true
 
 [dependencies.mio]
-version = "0.3"
+version = "~0.3.5"
 optional = true
 
 [dependencies.threadpool]
-version = "0.1"
+version = "~0.1.4"
 optional = true
 
 [dev-dependencies]
-matches = "0.1"
+matches = "~0.1.2"
 
 [features]
 default = [ "logging" ]
