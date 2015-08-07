@@ -1,16 +1,14 @@
 #![cfg_attr(test, allow(dead_code))]
 
 extern crate docopt;
+extern crate env_logger;
 extern crate iron;
 extern crate mogilefsd;
 extern crate rustc_serialize;
 extern crate url;
 
-#[cfg(feature = "logging")]
-extern crate env_logger;
-
-#[macro_use]
-extern crate lazy_static;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate log;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
@@ -33,34 +31,18 @@ lazy_static!{
 }
 
 fn main() {
+    env_logger::init().unwrap();
+
     let opts: Options = Docopt::new(USAGE)
         .and_then(|d| d.version(Some(FULL_VERSION.to_string())).decode())
         .unwrap_or_else(|e| e.exit());
-
-    println!("opts = {:?}", opts);
+    debug!("opts = {:?}", opts);
 
     // TODO: These should probably be options at some point.
     let tracker_io = TrackerIoType::Evented;
-    let log_type = LoggingType::LogCrate;
-
-    // Rust's conditional compilation stuff is a little awkward.
-    match log_type {
-        // If the log crate was chosen AND the log crate feature was
-        // enabled.
-        #[cfg(feature = "logging")]
-        LoggingType::LogCrate => env_logger::init().unwrap(),
-
-        // If printlns was chosen, or the log crate feature was not
-        // enabled.
-        _ => {},
-    }
-
     let backend = SyncBackend::new(Backend::new());
     let storage = Storage::new(backend.clone(), opts.flag_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
-
-    // backend.create_domain("rn_test_public").unwrap();
-    // backend.create_domain("rn_test_private").unwrap();
 
     let storage_addr = opts.flag_storage_ip.0.clone();
     let storage_threads = opts.flag_storage_threads;
@@ -71,29 +53,24 @@ fn main() {
     });
 
     match tracker_io {
-        // If evented was chosen, and evented was built-in.
-        #[cfg(feature = "evented")]
         TrackerIoType::Evented => run_evented(&opts, tracker),
-
-        // If threaded was chosen, or evented was not built-in.
-        _ => run_threaded(&opts, tracker),
+        TrackerIoType::Threaded => run_threaded(&opts, tracker),
     }
 }
 
-#[cfg(feature = "evented")]
 fn run_evented(opts: &Options, tracker: Tracker) {
     use mogilefsd::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
-        opts.tracker_addr(),
+        opts.flag_tracker_ip.0,
         tracker,
-        opts.tracker_threads);
+        opts.flag_tracker_threads);
 
     let mut listener = listener_result.unwrap_or_else(|e| {
-        panic!("Error creating evented listener on {:?}: {}", opts.tracker_addr(), e);
+        panic!("Error creating evented listener on {:?}: {}", opts.flag_tracker_ip.0, e);
     });
 
-    println!("Tracker (evented) listening on {:?}", opts.tracker_addr());
+    println!("Tracker (evented) listening on {:?}", opts.flag_tracker_ip.0);
     listener.run().unwrap_or_else(|e| {
         panic!("Error running evented listener: {}", e);
      });
@@ -167,11 +144,4 @@ impl Decodable for WrapSocketAddr {
 enum TrackerIoType {
     Threaded,
     Evented,
-}
-
-enum LoggingType {
-    LogCrate,
-
-    #[allow(dead_code)]
-    Printlns,
 }

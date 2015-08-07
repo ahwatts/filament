@@ -4,10 +4,9 @@ use super::storage::Storage;
 
 pub use self::message::{Command, Request, Response};
 
+pub mod evented;
 pub mod message;
 pub mod threaded;
-
-#[cfg(feature = "evented")] pub mod evented;
 
 /// The tracker object.
 pub struct Tracker {
