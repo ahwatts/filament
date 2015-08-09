@@ -38,8 +38,6 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
-    // TODO: These should probably be options at some point.
-    let tracker_io = TrackerIoType::Evented;
     let backend = SyncBackend::new(Backend::new());
     let storage = Storage::new(backend.clone(), opts.flag_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
@@ -52,7 +50,7 @@ fn main() {
         iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
     });
 
-    match tracker_io {
+    match opts.flag_tracker_io {
         TrackerIoType::Evented => run_evented(&opts, tracker),
         TrackerIoType::Threaded => run_threaded(&opts, tracker),
     }
