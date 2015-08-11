@@ -11,16 +11,18 @@ pub mod model;
 #[derive(Debug, Default)]
 pub struct Backend {
     domains: HashMap<String, Domain>,
+    empty_domain: Domain,
 }
 
 impl Backend {
     pub fn new() -> Backend {
         Backend {
             domains: HashMap::new(),
+            empty_domain: Domain::new(""),
         }
     }
 
-    pub fn file(&mut self, domain: &str, key: &str) -> MogResult<Option<&FileInfo>> {
+    pub fn file(&self, domain: &str, key: &str) -> MogResult<Option<&FileInfo>> {
         self.domain(domain).map(|d| d.file(key))
     }
 
@@ -51,7 +53,7 @@ impl Backend {
         Ok(())
     }
 
-    pub fn get_paths(&mut self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+    pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
         self.domain(domain)
             .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
             .map(|_| vec![ storage.url_for_key(domain, key) ])
@@ -68,7 +70,7 @@ impl Backend {
         self.domain_mut(domain).and_then(|d| d.rename(from, to))
     }
 
-    pub fn list_keys(&mut self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
+    pub fn list_keys(&self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         let after_key = after_key.unwrap_or("");
         let prefix = prefix.unwrap_or("");
         let limit = limit.unwrap_or(1000);
@@ -79,9 +81,9 @@ impl Backend {
             .collect())
     }
 
-    fn domain(&mut self, domain_name: &str) -> MogResult<&Domain> {
+    fn domain(&self, domain_name: &str) -> MogResult<&Domain> {
         // self.domains.get(domain_name).ok_or(MogError::UnregDomain(domain_name.to_string()))
-        Ok(self.domains.entry(domain_name.to_string()).or_insert(Domain::new(domain_name)))
+        Ok(self.domains.get(domain_name).unwrap_or(&self.empty_domain))
     }
 
     fn domain_mut(&mut self, domain_name: &str) -> MogResult<&mut Domain> {
@@ -101,7 +103,7 @@ impl SyncBackend {
     pub fn with_file<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
         where F: FnOnce(&FileInfo) -> MogResult<()>
     {
-        let mut guard = try!(self.0.lock());
+        let guard = try!(self.0.lock());
         match guard.file(domain, key) {
             Ok(Some(ref file_info)) => block(file_info),
             Ok(None) => Err(MogError::UnknownKey(key.to_string())),
@@ -242,7 +244,7 @@ mod tests {
         }
 
         {
-            let mut backend = sync_backend.0.lock().unwrap();
+            let backend = sync_backend.0.lock().unwrap();
             let file = backend.file(TEST_DOMAIN, "test/key/3");
             assert!(matches!(file, Ok(Some(..))), "Create opened file was {:?}", file);
             let file = file.unwrap().unwrap();
@@ -273,7 +275,7 @@ mod tests {
 
     #[test]
     fn domain_list_keys() {
-        let mut backend = backend_fixture();
+        let backend = backend_fixture();
         let list_result = backend.list_keys(TEST_DOMAIN, None, None, None);
         assert!(list_result.is_ok());
         assert_eq!(vec![ TEST_KEY_1, TEST_KEY_2 ], list_result.unwrap());
@@ -281,7 +283,7 @@ mod tests {
 
     #[test]
     fn domain_list_keys_limit() {
-        let mut backend = full_backend_fixture();
+        let backend = full_backend_fixture();
         let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10));
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
@@ -291,7 +293,7 @@ mod tests {
 
     #[test]
     fn domain_list_keys_after() {
-        let mut backend = full_backend_fixture();
+        let backend = full_backend_fixture();
         let first_list = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10)).unwrap();
         let after_key = first_list.iter().last().unwrap();
 
@@ -304,7 +306,7 @@ mod tests {
 
     #[test]
     fn domain_list_keys_prefix() {
-        let mut backend = full_backend_fixture();
+        let backend = full_backend_fixture();
         let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_1), None, None);
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
@@ -340,6 +342,7 @@ pub mod test_support {
     pub fn backend_fixture() -> Backend {
         let mut backend = Backend {
             domains: HashMap::new(),
+            empty_domain: Domain::new(""),
         };
         let domain = domain_fixture();
         backend.domains.insert(domain.name().to_string(), domain);
@@ -349,6 +352,7 @@ pub mod test_support {
     pub fn full_backend_fixture() -> Backend {
         let mut backend = Backend {
             domains: HashMap::new(),
+            empty_domain: Domain::new(""),
         };
         let domain = full_domain_fixture();
         backend.domains.insert(domain.name().to_string(), domain);

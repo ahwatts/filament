@@ -4,7 +4,7 @@ use std::iter::Iterator;
 use time::Tm;
 #[allow(unused_imports)] use super::super::error::{MogError, MogResult};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Domain {
     name: String,
     files: BTreeMap<String, FileInfo>,
