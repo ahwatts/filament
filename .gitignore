@@ -1,3 +1,4 @@
 /target/
 /.vagrant/
 /git-revision
+/dist
