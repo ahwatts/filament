@@ -4,7 +4,7 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::str::Utf8Error;
-use std::sync::{MutexGuard, PoisonError};
+use std::sync::{RwLockReadGuard, RwLockWriteGuard, PoisonError};
 use super::common::Backend;
 
 pub type MogResult<T> = Result<T, MogError>;
@@ -48,8 +48,14 @@ impl MogError {
     }
 }
 
-impl<'a> From<PoisonError<MutexGuard<'a, Backend>>> for MogError {
-    fn from (_: PoisonError<MutexGuard<'a, Backend>>) -> MogError {
+impl<'a> From<PoisonError<RwLockReadGuard<'a, Backend>>> for MogError {
+    fn from (_: PoisonError<RwLockReadGuard<'a, Backend>>) -> MogError {
+        MogError::PoisonedMutex
+    }
+}
+
+impl<'a> From<PoisonError<RwLockWriteGuard<'a, Backend>>> for MogError {
+    fn from (_: PoisonError<RwLockWriteGuard<'a, Backend>>) -> MogError {
         MogError::PoisonedMutex
     }
 }

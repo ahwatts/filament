@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use super::error::{MogError, MogResult};
 use super::storage::Storage;
 use url::Url;
@@ -93,17 +93,17 @@ impl Backend {
 }
 
 #[derive(Clone, Debug)]
-pub struct SyncBackend(Arc<Mutex<Backend>>);
+pub struct SyncBackend(Arc<RwLock<Backend>>);
 
 impl SyncBackend {
     pub fn new(backend: Backend) -> SyncBackend {
-        SyncBackend(Arc::new(Mutex::new(backend)))
+        SyncBackend(Arc::new(RwLock::new(backend)))
     }
 
     pub fn with_file<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
         where F: FnOnce(&FileInfo) -> MogResult<()>
     {
-        let guard = try!(self.0.lock());
+        let guard = try!(self.0.read());
         match guard.file(domain, key) {
             Ok(Some(ref file_info)) => block(file_info),
             Ok(None) => Err(MogError::UnknownKey(key.to_string())),
@@ -114,7 +114,7 @@ impl SyncBackend {
     pub fn with_file_mut<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
         where F: FnOnce(&mut FileInfo) -> MogResult<()>
     {
-        let mut guard = try!(self.0.lock());
+        let mut guard = try!(self.0.write());
         match guard.file_mut(domain, key) {
             Ok(Some(ref mut file_info)) => block(file_info),
             Ok(None) => Err(MogError::UnknownKey(key.to_string())),
@@ -123,11 +123,11 @@ impl SyncBackend {
     }
 
     pub fn create_domain(&self, domain: &str) -> MogResult<()> {
-        try!(self.0.lock()).create_domain(domain)
+        try!(self.0.write()).create_domain(domain)
     }
 
     pub fn create_open(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
-        try!(self.0.lock()).create_open(domain, key, storage)
+        try!(self.0.write()).create_open(domain, key, storage)
     }
 
     pub fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
@@ -139,19 +139,19 @@ impl SyncBackend {
     }
 
     pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
-        try!(self.0.lock()).get_paths(domain, key, storage)
+        try!(self.0.read()).get_paths(domain, key, storage)
     }
 
     pub fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
-        try!(self.0.lock()).delete(domain, key)
+        try!(self.0.write()).delete(domain, key)
     }
 
     pub fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()> {
-        try!(self.0.lock()).rename(domain, from, to)
+        try!(self.0.write()).rename(domain, from, to)
     }
 
     pub fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
-        try!(self.0.lock()).list_keys(domain, prefix, after_key, limit)
+        try!(self.0.read()).list_keys(domain, prefix, after_key, limit)
     }
 }
 
@@ -233,7 +233,7 @@ mod tests {
             Url::parse(format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH).as_ref()).unwrap());
 
         {
-            let mut backend = sync_backend.0.lock().unwrap();
+            let mut backend = sync_backend.0.write().unwrap();
             let co_result = backend.create_open(TEST_DOMAIN, "test/key/3", &storage);
             assert!(co_result.is_ok());
             let urls = co_result.unwrap();
@@ -244,7 +244,7 @@ mod tests {
         }
 
         {
-            let backend = sync_backend.0.lock().unwrap();
+            let backend = sync_backend.0.read().unwrap();
             let file = backend.file(TEST_DOMAIN, "test/key/3");
             assert!(matches!(file, Ok(Some(..))), "Create opened file was {:?}", file);
             let file = file.unwrap().unwrap();
@@ -254,7 +254,7 @@ mod tests {
         }
 
         {
-            let mut backend = sync_backend.0.lock().unwrap();
+            let mut backend = sync_backend.0.write().unwrap();
             let co_result = backend.create_open(TEST_DOMAIN, TEST_KEY_1, &storage);
             assert!(co_result.is_ok(), "Create open with duplicate key result was {:?}", co_result);
             let urls = co_result.unwrap();
