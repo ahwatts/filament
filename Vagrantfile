@@ -1,7 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-RUST_VERSION = "1.1.0"
+RUST_VERSION = "1.2.0"
 
 GUEST_ADDITIONS_PATH =
   case RbConfig::CONFIG["host_os"]
