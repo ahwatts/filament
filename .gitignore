@@ -2,3 +2,4 @@
 /.vagrant/
 /git-revision
 /dist
+.DS_Store
