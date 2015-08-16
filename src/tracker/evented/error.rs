@@ -13,6 +13,8 @@ pub enum EventedError {
     NoListenAddr,
     StreamNotReady,
     UnknownConnection(Token),
+    TooManyConnections,
+    Closed,
 }
 
 impl Error for EventedError {
@@ -24,7 +26,9 @@ impl Error for EventedError {
             FullNotifyQueue => "Notification queue is full",
             NoListenAddr => "Unable to determine address on which to listen",
             StreamNotReady => "Stream is not ready",
-            UnknownConnection(_) => "Unknown connection"
+            UnknownConnection(_) => "Unknown connection",
+            TooManyConnections => "Too many connections",
+            Closed => "Notification channel has been closed",
         }
     }
 }
@@ -52,6 +56,7 @@ impl From<NotifyError<Notification>> for EventedError {
         match not_err {
             NotifyError::Io(io_err) => EventedError::IoError(io_err),
             NotifyError::Full(_) => EventedError::FullNotifyQueue,
+            NotifyError::Closed(_) => EventedError::Closed,
         }
     }
 }

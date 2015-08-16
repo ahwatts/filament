@@ -62,7 +62,7 @@ fn run_evented(opts: &Options, tracker: Tracker) {
     let listener_result = EventedListener::new(
         opts.flag_tracker_ip.0,
         tracker,
-        opts.flag_tracker_threads);
+        1024, opts.flag_tracker_threads);
 
     let mut listener = listener_result.unwrap_or_else(|e| {
         panic!("Error creating evented listener on {:?}: {}", opts.flag_tracker_ip.0, e);

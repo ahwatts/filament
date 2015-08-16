@@ -1,13 +1,13 @@
-use mio::buf::{Buf, MutBuf, ByteBuf, MutByteBuf};
-use mio::tcp::{self, TcpListener, TcpStream};
-use mio::{self, EventLoop, Interest, NonBlock, PollOpt, ReadHint, Socket, Token, TryRead, TryWrite};
+use mio::tcp::{Shutdown, TcpListener, TcpStream};
+use mio::util::Slab;
+use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
-use std::collections::HashMap;
-use std::net::{Shutdown, ToSocketAddrs};
+use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
+use std::net::ToSocketAddrs;
 use std::rc::Rc;
-use super::{Tracker, Response};
 use super::super::ctrlc::CtrlC;
+use super::{Tracker, Response};
 
 pub use self::error::{EventedError, EventedResult};
 
@@ -15,27 +15,26 @@ pub mod error;
 mod notification;
 mod tracker_pool;
 
+static CRLF: &'static [u8] = &[ b'\r', b'\n' ];
+
 pub struct EventedListener {
     event_loop: EventLoop<Handler>,
     handler: Handler,
 }
 
 impl EventedListener {
-    pub fn new<T>(addr: T, tracker: Tracker, threads: usize) -> EventedResult<EventedListener>
+    pub fn new<T>(addr: T, tracker: Tracker, max_conns: usize, threads: usize) -> EventedResult<EventedListener>
         where T: ToSocketAddrs
     {
         Ok(EventedListener {
             event_loop: try!(EventLoop::new()),
-            handler: try!(Handler::new(addr, TrackerPool::new(tracker, threads))),
+            handler: try!(Handler::new(addr, max_conns, TrackerPool::new(tracker, threads))),
         })
     }
 
     pub fn run(&mut self) -> EventedResult<()> {
-        try!{
-            self.event_loop.register_opt(
-                &self.handler.server, self.handler.token,
-                Interest::all(), PollOpt::edge())
-        }
+        // Register the server socket with the event loop.
+        try!(self.event_loop.register(&self.handler.listener, self.handler.token));
 
         // register a handler for ctrl+c.
         let notify_channel = self.event_loop.channel();
@@ -50,28 +49,22 @@ impl EventedListener {
 }
 
 struct Handler {
-    server: NonBlock<TcpListener>,
+    listener: TcpListener,
     token: Token,
-    conns: HashMap<Token, Connection>,
-    last_token: Token,
+    conns: Slab<Connection>,
     tracker: Rc<TrackerPool>,
 }
 
 impl Handler {
-    pub fn new<T: ToSocketAddrs>(sock_addr: T, pool: TrackerPool) -> EventedResult<Handler> {
+    pub fn new<T: ToSocketAddrs>(sock_addr: T, max_conns: usize, pool: TrackerPool) -> EventedResult<Handler> {
         let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(EventedError::NoListenAddr));
         let token = Token(0);
-
-        let socket = try!(tcp::v4());
-        try!(socket.set_reuseaddr(true));
-        try!(socket.bind(&sock_addr));
-        let server = try!(socket.listen(256));
+        let listener = try!(TcpListener::bind(&sock_addr));
 
         let handler = Handler {
-            server: server,
+            listener: listener,
             token: token,
-            conns: HashMap::new(),
-            last_token: token,
+            conns: Slab::new_starting_at(Token(1), max_conns),
             tracker: Rc::new(pool),
         };
 
@@ -79,21 +72,34 @@ impl Handler {
     }
 
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> EventedResult<()> {
-        let stream = try!(try!(self.server.accept()).ok_or(EventedError::StreamNotReady));
-        let conn = Connection::new(stream, Token(self.last_token.as_usize() + 1), self.tracker.clone());
-        info!("New connection {:?} from {:?}", conn.token, conn.sock.peer_addr());
-        debug!("Registering {:?} as {:?} / edge", conn.token, conn.interest);
-        try!(event_loop.register_opt(&conn.sock, conn.token, conn.interest, PollOpt::edge()));
-        self.last_token = conn.token;
-        self.conns.insert(conn.token, conn);
-        Ok(())
+        match self.listener.accept() {
+            Ok(Some(stream)) => {
+                let tracker = self.tracker.clone();
+                self.conns
+                    .insert_with(|token| Connection::new(stream, token, tracker))
+                    .ok_or(EventedError::TooManyConnections)
+                    .and_then(|token| {
+                        event_loop.register_opt(
+                            &self.conns[token].stream, token,
+                            EventSet::readable(),
+                            PollOpt::edge() | PollOpt::oneshot())
+                            .map_err(|e| EventedError::from(e))
+                    })
+            },
+            Ok(None) => {
+                Err(EventedError::StreamNotReady)
+            },
+            Err(e) => {
+                Err(EventedError::from(e))
+            }
+        }
     }
 
     fn shutdown(&mut self, event_loop: &mut EventLoop<Self>) {
-        let keys: Vec<Token> = self.conns.keys().cloned().collect();
+        let tokens: Vec<Token> = self.conns.iter().map(|c| c.token.clone()).collect();
 
-        for t in keys.iter() {
-            self.close_connection(event_loop, *t).unwrap_or_else(|e| {
+        for &t in tokens.iter() {
+            self.close_connection(event_loop, t).unwrap_or_else(|e| {
                 warn!("Error closing down connection {:?}: {}", t, e);
             });
         }
@@ -102,14 +108,14 @@ impl Handler {
     }
 
     fn close_connection(&mut self, event_loop: &mut EventLoop<Self>, token: Token) -> EventedResult<()> {
-        match self.conns.remove(&token) {
+        match self.conns.remove(token) {
             Some(conn) => conn.shutdown(event_loop),
             None => Err(EventedError::UnknownConnection(token)),
         }
     }
 
     fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Response) -> EventedResult<()> {
-        match self.conns.get_mut(&token) {
+        match self.conns.get_mut(token) {
             Some(conn) => conn.write_response(event_loop, response),
             None => Err(EventedError::UnknownConnection(token)),
         }
@@ -120,35 +126,40 @@ impl mio::Handler for Handler {
     type Timeout = usize;
     type Message = Notification;
 
-    fn readable(&mut self, event_loop: &mut EventLoop<Self>, token: Token, hint: ReadHint) {
+    fn ready(&mut self, event_loop: &mut EventLoop<Self>, token: Token, events: EventSet) {
         match token {
             t if t == self.token => {
-                self.accept(event_loop).unwrap_or_else(|e| {
-                    error!("Error accepting connection: {} (hint: {:?})", e, hint);
-                });
+                if events.is_readable() {
+                    self.accept(event_loop).unwrap_or_else(|e| {
+                        error!("Error accepting connection: {}", e);
+                    });
+                } else {
+                    error!("Unknown event type {:?} on server socket.", events);
+                }
             },
-            t if self.conns.contains_key(&t) => {
-                let conn = self.conns.get_mut(&t).unwrap();
-                conn.readable(event_loop, hint).unwrap_or_else(|e| {
-                    error!("Error handling readable event for connection {:?}: {}", t, e);
-                });
-            },
-            _ => {
-                warn!("Readable event for unknown connection {:?}", token);
-            }
-        }
-    }
+            t if self.conns.contains(t) => {
+                let mut did_something = false;
 
-    fn writable(&mut self, event_loop: &mut EventLoop<Self>, token: Token) {
-        match token {
-            t if self.conns.contains_key(&t) => {
-                let conn = self.conns.get_mut(&t).unwrap();
-                conn.writable(event_loop).unwrap_or_else(|e| {
-                    error!("Error handling writable event for connection {:?}: {}", t, e);
-                });
-            }
+                if events.is_readable() {
+                    self.conns[token].read(event_loop).unwrap_or_else(|e| {
+                        error!("Error handling readable event for conection {:?}: {}", token, e);
+                    });
+                    did_something = true;
+                }
+
+                if events.is_writable() {
+                    self.conns[token].write(event_loop).unwrap_or_else(|e| {
+                        error!("Error handling writable event for conection {:?}: {}", token, e);
+                    });
+                    did_something = true;
+                }
+
+                if !did_something {
+                    warn!("Nothing to do for event {:?} for connection {:?}", events, token);
+                }
+            },
             _ => {
-                warn!("Writable event for unknown connection: {:?}", token);
+                warn!("Ready event for unknown connection: {:?}", token);
             }
         }
     }
@@ -183,159 +194,162 @@ impl mio::Handler for Handler {
 }
 
 struct Connection {
-    sock: NonBlock<TcpStream>,
+    stream: TcpStream,
     token: Token,
-    in_buf: Option<MutByteBuf>,
-    out_buf: Option<MutByteBuf>,
-    interest: Interest,
+    in_buf: Vec<u8>,
+    out_buf: Vec<u8>,
     tracker: Rc<TrackerPool>,
+    current: Option<Vec<u8>>,
 }
 
 impl Connection {
-    pub fn new(sock: NonBlock<TcpStream>, token: Token, tracker: Rc<TrackerPool>) -> Connection {
+    pub fn new(stream: TcpStream, token: Token, tracker: Rc<TrackerPool>) -> Connection {
         Connection {
-            sock: sock,
+            stream: stream,
             token: token,
-            in_buf: Some(ByteBuf::mut_with_capacity(2048)),
-            out_buf: Some(ByteBuf::mut_with_capacity(2048)),
-            interest: Interest::readable() | Interest::hup() | Interest::error(),
+            in_buf: Vec::new(),
+            out_buf: Vec::new(),
             tracker: tracker,
+            current: None,
         }
     }
 
-    fn readable(&mut self, event_loop: &mut EventLoop<Handler>, hint: ReadHint) -> EventedResult<()> {
-        // Pull in_buf out of self and write the current socket data in to it.
-        let mut mut_buf = self.in_buf.take().unwrap();
-        let read_result = self.sock.read(&mut mut_buf);
-        match read_result {
+    fn read(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
+        // Write the current socket data to in_buf.
+        let result = match self.stream.try_read_buf(&mut self.in_buf) {
             Ok(Some(n)) => {
                 debug!("Read {} bytes from {:?}", n, self.token);
+                self.maybe_dispatch_request(event_loop);
+                Ok(())
             },
             Ok(None) => {
                 debug!("No more bytes to read from {:?}", self.token);
+                Ok(())
             },
-            Err(ref e) => {
-                debug!("Error reading from {:?}: {}", self.token, e);
+            Err(e) => {
+                Err(EventedError::from(e))
             }
-        }
+        };
 
-        // Flip the buffer over to readable and see if we read a line.
-        let buf = mut_buf.flip();
-        match self.extract_line(&buf) {
-            Some(line) => {
-                // Clear the buffer and put it back in to self.
-                let mut cleared = buf.flip();
-                cleared.clear();
-                self.in_buf = Some(cleared);
-                self.tracker.handle(line, self.token, event_loop.channel());
-            },
-            None => {
-                // Put the buffer back in to self without clearing it.
-                self.in_buf = Some(buf.resume());
-            }
-        }
-
-        // If the other end has closed the connection or there's a
-        // socket error, shut down this connection.
-        if hint.is_hup() || hint.is_error() {
-            try!(event_loop.channel().send(Notification::close_connection(self.token)));
-        }
-
-        // Return the result of the read.
-        read_result.map(|_| ()).map_err(|e| EventedError::from(e))
+        let interest = EventSet::readable() | EventSet::hup() | EventSet::error();
+        let poll_opt = PollOpt::edge() | PollOpt::oneshot();
+        debug!("Registering {:?} as {:?} / {:?}", self.token, interest, poll_opt);
+        try!(event_loop.reregister(&self.stream, self.token, interest, poll_opt));
+        result
     }
 
-    fn writable(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
-        // Pull out_buf out of self, flip it to readable, and read its
-        // data out to the socket.
-        let mut buf = self.out_buf.take().unwrap().flip();
-        let write_result = self.sock.write(&mut buf);
-        match write_result {
-            Ok(Some(n)) => {
-                debug!("Wrote {} bytes to {:?}", n, self.token);
-            },
-            Ok(None) => {
-                debug!("Not ready to write to {:?}", self.token);
-            },
-            Err(ref e) => {
-                error!("Error writing to {:?}: {}", self.token, e);
-            }
-        }
+    fn write(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
+        let mut rest = vec![];
 
-        // See if there's any more data left in out_buf that we
-        // haven't sent to the socket. We should probably only switch
-        // back to readable if we've written a newline, but for now
-        // we'll just assume that the response gets written to the
-        // buffer in toto.
-        if buf.has_remaining() {
-            // Flip the buffer back to writable without clearing it,
-            // stow it back in self, and tell the event loop we're
-            // still interested in writing to the socket.
-            self.out_buf = Some(buf.resume());
-            self.interest = Interest::writable() | Interest::hup() | Interest::error();
-            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
-            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        let result = {
+            let mut reader = Cursor::new(self.out_buf.as_ref());
+            let result = match self.stream.try_write_buf(&mut reader) {
+                Ok(Some(n)) => {
+                    debug!("Wrote {} bytes to {:?}", n, self.token);
+                    Ok(())
+                },
+                Ok(None) => {
+                    debug!("Not ready to write to {:?}", self.token);
+                    Ok(())
+                },
+                Err(e) => {
+                    Err(EventedError::from(e))
+                }
+            };
+
+            reader.read_to_end(&mut rest).unwrap();
+            result
+        };
+
+        self.out_buf = rest;
+
+        if self.out_buf.is_empty() {
+            let interest = EventSet::readable() | EventSet::hup() | EventSet::error();
+            let poll_opt = PollOpt::edge() | PollOpt::oneshot();
+            debug!("Registering {:?} as {:?} / {:?}", self.token, interest, poll_opt);
+            try!(event_loop.reregister(&self.stream, self.token, interest, poll_opt));
         } else {
-            // Flip the buffer back to writable, clear it, stow it,
-            // and tell the event loop that we're waiting for data
-            // again.
-            let mut cleared = buf.flip();
-            cleared.clear();
-            self.out_buf = Some(cleared);
-            self.interest = Interest::readable() | Interest::hup() | Interest::error();
-            debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
-            try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+            let interest = EventSet::writable() | EventSet::hup() | EventSet::error();
+            let poll_opt = PollOpt::edge() | PollOpt::oneshot();
+            debug!("Registering {:?} as {:?} / {:?}", self.token, interest, poll_opt);
+            try!(event_loop.reregister(&self.stream, self.token, interest, poll_opt));
         }
 
-        // Return the result of the write.
-        write_result.map(|_| ()).map_err(|e| EventedError::from(e))
+        result
+    }
+
+    fn maybe_dispatch_request(&mut self, event_loop: &mut EventLoop<Handler>) {
+        if self.current.is_none() && self.in_buf.windows(2).position(|x| x == CRLF).is_some() {
+            let mut request = vec![];
+            let mut rest = vec![];
+
+            {
+                // There should be no way this can go wrong; we're reading
+                // from and writing to Vecs.
+                let mut reader = BufReader::new(Cursor::new(self.in_buf.as_ref()));
+                read_until_mb(&mut reader, CRLF, &mut request).unwrap();
+                reader.read_to_end(&mut rest).unwrap();
+            }
+
+            self.current = Some(request.clone());
+            self.in_buf = rest;
+            self.tracker.handle(request, self.token, event_loop.channel());
+        }
     }
 
     fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Response) -> EventedResult<()> {
-        use std::io::Write;
-
-        // Pull out_buf out of self and write the response to it.
-        let mut mut_buf = self.out_buf.take().unwrap();
-        let write_result = mut_buf.write(&response.render());
-        self.out_buf = Some(mut_buf);
-        if write_result.is_err() {
-            return Err(EventedError::from(write_result.unwrap_err()));
-        }
+        self.out_buf.write(&response.render()).unwrap();
 
         // Tell the event loop that we're now interested in writing
         // data the next time the socket becomes available.
-        self.interest = Interest::writable() | Interest::hup() | Interest::error();
-        debug!("Registering {:?} as {:?} / edge", self.token, self.interest);
-        try!(event_loop.reregister(&self.sock, self.token, self.interest, PollOpt::edge()));
+        let interest = EventSet::writable() | EventSet::hup() | EventSet::error();
+        let poll_opt = PollOpt::edge() | PollOpt::oneshot();
+        debug!("Registering {:?} as {:?} / {:?}", self.token, interest, poll_opt);
+        try!(event_loop.reregister(&self.stream, self.token, interest, poll_opt));
         Ok(())
     }
 
-    fn shutdown(self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
-        use std::io::Write;
-
-        info!("Shutting down {:?} from {:?}", self.token, self.sock.peer_addr());
+    fn shutdown(mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
+        info!("Shutting down {:?} from {:?}", self.token, self.stream.peer_addr());
         debug!("Deregistering {:?}", self.token);
-        try!(event_loop.deregister(&self.sock));
+        try!(event_loop.deregister(&self.stream));
 
-        let mut unwrapped = self.sock.unwrap();
-        try!(unwrapped.flush());
-        try!(unwrapped.shutdown(Shutdown::Both));
+        try!(self.stream.flush());
+        try!(self.stream.shutdown(Shutdown::Both));
 
         Ok(())
     }
+}
 
-    fn extract_line<T: Buf>(&self, buf: &T) -> Option<Vec<u8>> {
-        let bytes = buf.bytes();
-        let mut line = None;
+/// A version of the standard library's read_until() function that
+/// supports a multibyte delimiter.
+fn read_until_mb<R: BufRead + ?Sized>(r: &mut R, delim: &[u8], buf: &mut Vec<u8>) -> io::Result<usize> {
+    use std::io::ErrorKind;
 
-        for (i, w) in bytes.windows(2).enumerate() {
-            if w == &[ b'\r', b'\n' ] {
-                line = Some(Vec::from(&bytes[0..i]));
-                break;
+    let mut read = 0;
+    loop {
+        let (done, used) = {
+            let available = match r.fill_buf() {
+                Ok(n) => n,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e)
+            };
+            match available.windows(delim.len()).position(|x| x == delim) {
+                Some(i) => {
+                    buf.extend(&available[..i + delim.len()]);
+                    (true, i + delim.len())
+                }
+                None => {
+                    buf.extend(available);
+                    (false, available.len())
+                }
             }
+        };
+        r.consume(used);
+        read += used;
+        if done || used == 0 {
+            return Ok(read);
         }
-
-        line
     }
 }
 
