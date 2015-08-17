@@ -6,8 +6,8 @@ use self::tracker_pool::TrackerPool;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
-use super::super::ctrlc::CtrlC;
-use super::{Tracker, Response};
+use super::super::super::ctrlc::CtrlC;
+use super::super::super::tracker::{Tracker, Response};
 
 pub use self::error::{EventedError, EventedResult};
 
@@ -383,9 +383,9 @@ mod tests {
     use std::thread::{self, JoinHandle};
     use super::*;
     use super::notification::Notification;
-    use super::super::Tracker;
-    use super::super::super::storage::Storage;
-    use super::super::super::common::test_support::*;
+    use super::super::super::super::tracker::Tracker;
+    use super::super::super::super::storage::Storage;
+    use super::super::super::super::common::test_support::*;
     use url::Url;
 
     fn fixture_server() -> EventedListener {

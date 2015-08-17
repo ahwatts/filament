@@ -4,7 +4,6 @@ use super::storage::Storage;
 
 pub use self::message::{Command, Request, Response};
 
-pub mod evented;
 pub mod message;
 
 /// The tracker object.

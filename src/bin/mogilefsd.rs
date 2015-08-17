@@ -57,7 +57,7 @@ fn main() {
 }
 
 fn run_evented(opts: &Options, tracker: Tracker) {
-    use mogilefsd::tracker::evented::EventedListener;
+    use mogilefsd::net::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
         opts.flag_tracker_ip.0,
