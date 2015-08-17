@@ -301,8 +301,6 @@ impl Connection {
     }
 
     fn maybe_dispatch_request(&mut self, event_loop: &mut EventLoop<Handler>) {
-        debug!("in_buf = {:?} ({:?})", self.in_buf, String::from_utf8_lossy(&self.in_buf));
-
         if self.current.is_none() && self.in_buf.windows(2).position(|x| x == CRLF).is_some() {
             let mut request = vec![];
             let mut rest = vec![];
@@ -315,10 +313,11 @@ impl Connection {
                 reader.read_to_end(&mut rest).unwrap();
             }
 
-            debug!("request = {:?} rest = {:?}",
-                   String::from_utf8_lossy(&request),
-                   String::from_utf8_lossy(&rest));
+            // Cut the delimiter off of the request.
+            let len = request.len();
+            request = request.into_iter().take(len - 2).collect();
 
+            // Ship it off to the tracker code.
             self.current = Some(request.clone());
             self.in_buf = rest;
             self.tracker.handle(request, self.token, event_loop.channel());
