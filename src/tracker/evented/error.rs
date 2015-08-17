@@ -8,13 +8,13 @@ pub type EventedResult<T> = Result<T, EventedError>;
 
 #[derive(Debug)]
 pub enum EventedError {
-    IoError(io::Error),
+    ClosedNotifyQueue,
     FullNotifyQueue,
+    IoError(io::Error),
     NoListenAddr,
     StreamNotReady,
-    UnknownConnection(Token),
     TooManyConnections,
-    Closed,
+    UnknownConnection(Token),
 }
 
 impl Error for EventedError {
@@ -28,7 +28,7 @@ impl Error for EventedError {
             StreamNotReady => "Stream is not ready",
             UnknownConnection(_) => "Unknown connection",
             TooManyConnections => "Too many connections",
-            Closed => "Notification channel has been closed",
+            ClosedNotifyQueue => "Notification channel has been closed",
         }
     }
 }
@@ -56,7 +56,7 @@ impl From<NotifyError<Notification>> for EventedError {
         match not_err {
             NotifyError::Io(io_err) => EventedError::IoError(io_err),
             NotifyError::Full(_) => EventedError::FullNotifyQueue,
-            NotifyError::Closed(_) => EventedError::Closed,
+            NotifyError::Closed(_) => EventedError::ClosedNotifyQueue,
         }
     }
 }

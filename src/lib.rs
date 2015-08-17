@@ -12,6 +12,9 @@ extern crate url;
 #[macro_use]
 extern crate matches;
 
+#[cfg(test)]
+extern crate regex;
+
 pub mod common;
 pub mod ctrlc;
 pub mod error;
