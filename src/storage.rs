@@ -1,5 +1,5 @@
 use std::io::{self, Cursor, Read, Write};
-use super::common::SyncBackend;
+use super::mem::SyncMemBackend;
 use super::error::{MogError, MogResult};
 use time::{self, Tm};
 use url::Url;
@@ -7,11 +7,11 @@ use url::Url;
 #[derive(Clone, Debug)]
 pub struct Storage {
     pub base_url: Url,
-    backend: SyncBackend,
+    backend: SyncMemBackend,
 }
 
 impl Storage {
-    pub fn new(backend: SyncBackend, base_url: Url) -> Storage {
+    pub fn new(backend: SyncMemBackend, base_url: Url) -> Storage {
         Storage {
             base_url: base_url,
             backend: backend,
@@ -169,7 +169,7 @@ mod tests {
 #[cfg(test)]
 pub mod test_support {
     use super::*;
-    use super::super::common::test_support::sync_backend_fixture;
+    use super::super::mem::test_support::sync_backend_fixture;
     use url::Url;
 
     pub static TEST_HOST: &'static str = "test.host";

@@ -12,7 +12,7 @@ extern crate url;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
-use mogilefsd::common::{Backend, SyncBackend};
+use mogilefsd::mem::{MemBackend, SyncMemBackend};
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
 use mogilefsd::net::storage::StorageHandler;
@@ -38,7 +38,7 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
-    let backend = SyncBackend::new(Backend::new());
+    let backend = SyncMemBackend::new(MemBackend::new());
     let storage = Storage::new(backend.clone(), opts.flag_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
 

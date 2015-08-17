@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str;
-use super::common::SyncBackend;
+use super::mem::SyncMemBackend;
 use super::error::{MogError, MogResult};
 use super::storage::Storage;
 use url::{form_urlencoded, percent_encoding};
 
 /// The tracker object.
 pub struct Tracker {
-    backend: SyncBackend,
+    backend: SyncMemBackend,
     storage: Storage,
 }
 
 impl Tracker {
-    pub fn new(backend: SyncBackend, storage: Storage) -> Tracker {
+    pub fn new(backend: SyncMemBackend, storage: Storage) -> Tracker {
         Tracker {
             backend: backend,
             storage: storage,

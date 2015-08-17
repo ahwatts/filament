@@ -16,7 +16,6 @@ extern crate matches;
 extern crate regex;
 
 pub mod backend;
-pub mod common;
 pub mod ctrlc;
 pub mod error;
 pub mod mem;
@@ -26,7 +25,6 @@ pub mod tracker;
 
 #[cfg(test)]
 pub mod test_support {
-    pub use super::common::test_support::*;
-    pub use super::common::model::test_support::*;
+    pub use super::mem::test_support::*;
     pub use super::storage::test_support::*;
 }
