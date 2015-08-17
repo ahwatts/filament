@@ -5,7 +5,7 @@ use iron::modifiers::Header;
 use iron::status::Status;
 use std::error::Error;
 use std::ops::Deref;
-use super::Storage;
+use super::super::storage::Storage;
 use super::super::error::MogError;
 
 pub struct StorageHandler {

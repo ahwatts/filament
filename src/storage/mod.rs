@@ -4,10 +4,6 @@ use super::error::{MogError, MogResult};
 use time::{self, Tm};
 use url::Url;
 
-pub use self::iron::StorageHandler;
-
-pub mod iron;
-
 #[derive(Clone, Debug)]
 pub struct Storage {
     pub base_url: Url,

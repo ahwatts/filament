@@ -15,7 +15,7 @@ use iron::{Chain, Iron, Protocol};
 use mogilefsd::common::{Backend, SyncBackend};
 use mogilefsd::tracker::Tracker;
 use mogilefsd::storage::Storage;
-use mogilefsd::storage::iron::StorageHandler;
+use mogilefsd::net::storage::StorageHandler;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use std::thread;
