@@ -1,3 +1,5 @@
+//! Common error and result types for mogilefsd.
+
 use iron::IronError;
 use iron::status::Status;
 use std::error::Error;
@@ -5,10 +7,12 @@ use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::str::Utf8Error;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard, PoisonError};
-use super::common::Backend;
 
+/// A specialization of `Result` with the error type hard-coded to
+/// `MogError`.
 pub type MogResult<T> = Result<T, MogError>;
 
+/// The error types that mogilefsd can produce.
 #[derive(Debug)]
 pub enum MogError {
     Io(io::Error),
@@ -29,6 +33,8 @@ pub enum MogError {
 }
 
 impl MogError {
+    /// Return the string used in the MogileFS tracker response for
+    /// the error.
     pub fn error_kind(&self) -> &str {
         use self::MogError::*;
 
@@ -48,14 +54,14 @@ impl MogError {
     }
 }
 
-impl<'a> From<PoisonError<RwLockReadGuard<'a, Backend>>> for MogError {
-    fn from (_: PoisonError<RwLockReadGuard<'a, Backend>>) -> MogError {
+impl<'a, T> From<PoisonError<RwLockReadGuard<'a, T>>> for MogError {
+    fn from (_: PoisonError<RwLockReadGuard<'a, T>>) -> MogError {
         MogError::PoisonedMutex
     }
 }
 
-impl<'a> From<PoisonError<RwLockWriteGuard<'a, Backend>>> for MogError {
-    fn from (_: PoisonError<RwLockWriteGuard<'a, Backend>>) -> MogError {
+impl<'a, T> From<PoisonError<RwLockWriteGuard<'a, T>>> for MogError {
+    fn from (_: PoisonError<RwLockWriteGuard<'a, T>>) -> MogError {
         MogError::PoisonedMutex
     }
 }
