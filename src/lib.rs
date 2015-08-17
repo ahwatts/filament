@@ -15,9 +15,11 @@ extern crate matches;
 #[cfg(test)]
 extern crate regex;
 
+pub mod backend;
 pub mod common;
 pub mod ctrlc;
 pub mod error;
+pub mod mem;
 pub mod net;
 pub mod storage;
 pub mod tracker;
