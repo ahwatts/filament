@@ -75,7 +75,7 @@ fn run_evented(opts: &Options, tracker: Tracker) {
 }
 
 fn run_threaded(opts: &Options, tracker: Tracker) {
-    use mogilefsd::tracker::threaded::ThreadedListener;
+    use mogilefsd::net::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
         opts.flag_tracker_ip.0,

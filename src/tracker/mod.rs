@@ -6,7 +6,6 @@ pub use self::message::{Command, Request, Response};
 
 pub mod evented;
 pub mod message;
-pub mod threaded;
 
 /// The tracker object.
 pub struct Tracker {
