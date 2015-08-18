@@ -100,7 +100,7 @@ General Options:
 Tracker Options:
   --tracker-ip=IP            The ip:port for the tracker to listen on. [default: 0.0.0.0:7002]
   -t N, --tracker-threads=N  How many tracker threads to run.          [default: 4]
-  -i T, --tracker-io=T       Which I/O model the tracker should use.   [default: Threaded]
+  -i T, --tracker-io=T       Which I/O model the tracker should use.   [default: Evented]
                              (can be Threaded or Evented)
 
 Storage Options:
