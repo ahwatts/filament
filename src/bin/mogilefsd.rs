@@ -12,9 +12,8 @@ extern crate url;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
-use mogilefsd::mem::{MemBackend, SyncMemBackend};
+use mogilefsd::mem::{MemBackend, SyncMemBackend, MemStorage};
 use mogilefsd::tracker::Tracker;
-use mogilefsd::storage::Storage;
 use mogilefsd::net::storage::StorageHandler;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
@@ -39,7 +38,7 @@ fn main() {
     debug!("opts = {:?}", opts);
 
     let backend = SyncMemBackend::new(MemBackend::new());
-    let storage = Storage::new(backend.clone(), opts.flag_base_url.clone());
+    let storage = MemStorage::new(backend.clone(), opts.flag_base_url.clone());
     let tracker = Tracker::new(backend.clone(), storage.clone());
 
     let storage_addr = opts.flag_storage_ip.0.clone();

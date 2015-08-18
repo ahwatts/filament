@@ -3,17 +3,17 @@ use std::fmt::{self, Display, Formatter};
 use std::str;
 use super::mem::SyncMemBackend;
 use super::error::{MogError, MogResult};
-use super::storage::Storage;
+use super::mem::MemStorage;
 use url::{form_urlencoded, percent_encoding};
 
 /// The tracker object.
 pub struct Tracker {
     backend: SyncMemBackend,
-    storage: Storage,
+    storage: MemStorage,
 }
 
 impl Tracker {
-    pub fn new(backend: SyncMemBackend, storage: Storage) -> Tracker {
+    pub fn new(backend: SyncMemBackend, storage: MemStorage) -> Tracker {
         Tracker {
             backend: backend,
             storage: storage,

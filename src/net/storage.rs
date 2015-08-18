@@ -5,15 +5,15 @@ use iron::modifiers::Header;
 use iron::status::Status;
 use std::error::Error;
 use std::ops::Deref;
-use super::super::storage::Storage;
+use super::super::mem::MemStorage;
 use super::super::error::MogError;
 
 pub struct StorageHandler {
-    store: Storage,
+    store: MemStorage,
 }
 
 impl StorageHandler {
-    pub fn new(storage: Storage) -> StorageHandler {
+    pub fn new(storage: MemStorage) -> StorageHandler {
         StorageHandler {
             store: storage,
         }

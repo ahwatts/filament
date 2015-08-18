@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use super::super::error::{MogError, MogResult};
-use super::super::storage::Storage;
-use super::{Domain, FileInfo};
+use super::{Domain, FileInfo, MemStorage};
 use url::Url;
 
 #[derive(Debug, Default)]
@@ -38,7 +37,7 @@ impl MemBackend {
         }
     }
 
-    pub fn create_open(&mut self, domain_name: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+    pub fn create_open(&mut self, domain_name: &str, key: &str, storage: &MemStorage) -> MogResult<Vec<Url>> {
         let domain = try!(self.domain_mut(domain_name));
         let file_info = FileInfo::new(key);
         try!(domain.add_file(key, file_info));
@@ -51,7 +50,7 @@ impl MemBackend {
         Ok(())
     }
 
-    pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+    pub fn get_paths(&self, domain: &str, key: &str, storage: &MemStorage) -> MogResult<Vec<Url>> {
         self.domain(domain)
             .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
             .map(|_| vec![ storage.url_for_key(domain, key) ])
@@ -124,7 +123,7 @@ impl SyncMemBackend {
         try!(self.0.write()).create_domain(domain)
     }
 
-    pub fn create_open(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+    pub fn create_open(&self, domain: &str, key: &str, storage: &MemStorage) -> MogResult<Vec<Url>> {
         try!(self.0.write()).create_open(domain, key, storage)
     }
 
@@ -136,7 +135,7 @@ impl SyncMemBackend {
         Ok(())
     }
 
-    pub fn get_paths(&self, domain: &str, key: &str, storage: &Storage) -> MogResult<Vec<Url>> {
+    pub fn get_paths(&self, domain: &str, key: &str, storage: &MemStorage) -> MogResult<Vec<Url>> {
         try!(self.0.read()).get_paths(domain, key, storage)
     }
 
@@ -222,11 +221,11 @@ mod tests {
 
     #[test]
     fn backend_create_open() {
-        use super::super::super::storage::Storage;
+        use super::super::MemStorage;
         use url::Url;
 
         let sync_backend = sync_backend_fixture();
-        let storage = Storage::new(
+        let storage = MemStorage::new(
             sync_backend.clone(),
             Url::parse(format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH).as_ref()).unwrap());
 

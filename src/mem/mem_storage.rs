@@ -1,18 +1,18 @@
 use std::io::{self, Cursor, Read, Write};
-use super::mem::SyncMemBackend;
-use super::error::{MogError, MogResult};
+use super::SyncMemBackend;
+use super::super::error::{MogError, MogResult};
 use time::{self, Tm};
 use url::Url;
 
 #[derive(Clone, Debug)]
-pub struct Storage {
+pub struct MemStorage {
     pub base_url: Url,
     backend: SyncMemBackend,
 }
 
-impl Storage {
-    pub fn new(backend: SyncMemBackend, base_url: Url) -> Storage {
-        Storage {
+impl MemStorage {
+    pub fn new(backend: SyncMemBackend, base_url: Url) -> MemStorage {
+        MemStorage {
             base_url: base_url,
             backend: backend,
         }
@@ -85,8 +85,8 @@ pub struct FileMetadata {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use super::super::error::MogError;
-    use super::super::test_support::*;
+    use super::super::super::error::MogError;
+    use super::super::super::test_support::*;
 
     #[test]
     fn url_for_key() {
@@ -169,14 +169,14 @@ mod tests {
 #[cfg(test)]
 pub mod test_support {
     use super::*;
-    use super::super::mem::test_support::sync_backend_fixture;
+    use super::super::mem_backend::test_support::sync_backend_fixture;
     use url::Url;
 
     pub static TEST_HOST: &'static str = "test.host";
     pub static TEST_BASE_PATH: &'static str = "base_path";
 
-    pub fn storage_fixture() -> Storage {
+    pub fn storage_fixture() -> MemStorage {
         let base_url = Url::parse(&format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH)).unwrap();
-        Storage::new(sync_backend_fixture(), base_url)
+        MemStorage::new(sync_backend_fixture(), base_url)
     }
 }

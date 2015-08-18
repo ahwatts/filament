@@ -384,13 +384,13 @@ mod tests {
     use super::*;
     use super::notification::Notification;
     use super::super::super::super::tracker::Tracker;
-    use super::super::super::super::storage::Storage;
+    use super::super::super::super::mem::MemStorage;
     use super::super::super::super::mem::test_support::*;
     use url::Url;
 
     fn fixture_server() -> EventedListener {
         let backend = sync_backend_fixture();
-        let storage = Storage::new(backend.clone(), Url::parse("http://127.0.0.1:12345").unwrap());
+        let storage = MemStorage::new(backend.clone(), Url::parse("http://127.0.0.1:12345").unwrap());
         let tracker = Tracker::new(backend, storage.clone());
         EventedListener::new("0.0.0.0:0", tracker, 1, 1).unwrap()
     }
