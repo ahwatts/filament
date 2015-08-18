@@ -5,24 +5,24 @@ use iron::modifiers::Header;
 use iron::status::Status;
 use std::error::Error;
 use std::ops::Deref;
-use super::super::mem::MemStorage;
+use super::super::mem::SyncMemBackend;
 use super::super::error::MogError;
 
 pub struct StorageHandler {
-    store: MemStorage,
+    backend: SyncMemBackend,
 }
 
 impl StorageHandler {
-    pub fn new(storage: MemStorage) -> StorageHandler {
+    pub fn new(backend: SyncMemBackend) -> StorageHandler {
         StorageHandler {
-            store: storage,
+            backend: backend,
         }
     }
 
     fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
-        let metadata = try!(self.store.file_metadata(domain, key));
+        let metadata = try!(self.backend.file_metadata(domain, key));
         let mut content = vec![];
-        try!(self.store.get_content(domain, key, &mut content));
+        try!(self.backend.get_content(domain, key, &mut content));
         Ok(Response::with((
             Status::Ok,
             Header(headers::LastModified(headers::HttpDate(metadata.mtime))),
@@ -31,7 +31,7 @@ impl StorageHandler {
     }
 
     fn handle_put(&self, request: &mut Request, domain: &str, key: &str) -> IronResult<Response> {
-        match self.store.store_content(domain, key, &mut request.body) {
+        match self.backend.store_reader_content(domain, key, &mut request.body) {
             Ok(_) => Ok(Response::with((Status::Ok,))),
             Err(MogError::UnknownKey(ref k)) => {
                 return Ok(Response::with((Status::NotFound, format!("Unknown key: {:?}\n", k))));

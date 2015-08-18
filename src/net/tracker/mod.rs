@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str;
-use super::super::mem::{MemStorage, SyncMemBackend};
+use super::super::mem::SyncMemBackend;
 use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
@@ -11,14 +11,12 @@ pub mod threaded;
 /// The tracker object.
 pub struct Tracker {
     backend: SyncMemBackend,
-    storage: MemStorage,
 }
 
 impl Tracker {
-    pub fn new(backend: SyncMemBackend, storage: MemStorage) -> Tracker {
+    pub fn new(backend: SyncMemBackend) -> Tracker {
         Tracker {
             backend: backend,
-            storage: storage,
         }
     }
 
@@ -64,7 +62,7 @@ impl Tracker {
 
     fn create_open(&self, request: &Request) -> MogResult<Response> {
         let (domain, key) = try!(domain_and_key(request));
-        let urls = try!(self.backend.create_open(domain, key, &self.storage));
+        let urls = try!(self.backend.create_open(domain, key));
         let mut response_args = vec![];
         response_args.push(("dev_count".to_string(), urls.len().to_string()));
         for (i, url) in urls.iter().enumerate() {
@@ -86,7 +84,7 @@ impl Tracker {
     // response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/000/0000000109.fid\r\n"
     fn get_paths(&self, request: &Request) -> MogResult<Response> {
         let (domain, key) = try!(domain_and_key(request));
-        let paths = try!(self.backend.get_paths(domain, key, &self.storage));
+        let paths = try!(self.backend.get_paths(domain, key));
         let mut response_args = vec![ ("paths".to_string(), paths.len().to_string()) ];
         for (i, url) in paths.iter().enumerate() {
             response_args.push((format!("path{}", i+1), url.to_string()));
