@@ -13,7 +13,7 @@ extern crate url;
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
 use mogilefsd::mem::{MemBackend, SyncMemBackend, MemStorage};
-use mogilefsd::tracker::Tracker;
+use mogilefsd::net::tracker::Tracker;
 use mogilefsd::net::storage::StorageHandler;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;

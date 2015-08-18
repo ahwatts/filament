@@ -7,7 +7,7 @@ use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
 use super::super::super::ctrlc::CtrlC;
-use super::super::super::tracker::{Tracker, Response};
+use super::{Tracker, Response};
 
 pub use self::error::{EventedError, EventedResult};
 
@@ -383,7 +383,7 @@ mod tests {
     use std::thread::{self, JoinHandle};
     use super::*;
     use super::notification::Notification;
-    use super::super::super::super::tracker::Tracker;
+    use super::super::Tracker;
     use super::super::super::super::mem::MemStorage;
     use super::super::super::super::mem::test_support::*;
     use url::Url;

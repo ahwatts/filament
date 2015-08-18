@@ -3,7 +3,7 @@ use std::sync::Arc;
 use super::notification::Notification;
 use threadpool::ThreadPool;
 
-use super::super::super::super::tracker::{Tracker, Response};
+use super::super::{Tracker, Response};
 
 pub struct TrackerPool {
     thread_pool: ThreadPool,

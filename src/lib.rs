@@ -20,7 +20,6 @@ pub mod ctrlc;
 pub mod error;
 pub mod mem;
 pub mod net;
-pub mod tracker;
 
 #[cfg(test)]
 pub mod test_support {

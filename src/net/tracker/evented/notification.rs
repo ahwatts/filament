@@ -1,5 +1,5 @@
 use mio::Token;
-use super::super::super::super::tracker::Response;
+use super::super::Response;
 
 #[derive(Debug)]
 pub enum Notification {
