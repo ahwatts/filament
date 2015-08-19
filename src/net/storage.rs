@@ -3,17 +3,18 @@ use iron::headers;
 use iron::method::Method;
 use iron::modifiers::Header;
 use iron::status::Status;
+use std::any::Any;
 use std::error::Error;
 use std::ops::Deref;
-use super::super::mem::SyncMemBackend;
+use super::super::backend::StorageBackend;
 use super::super::error::MogError;
 
-pub struct StorageHandler {
-    backend: SyncMemBackend,
+pub struct StorageHandler<B: StorageBackend> {
+    backend: B,
 }
 
-impl StorageHandler {
-    pub fn new(backend: SyncMemBackend) -> StorageHandler {
+impl<B: StorageBackend> StorageHandler<B> {
+    pub fn new(backend: B) -> StorageHandler<B> {
         StorageHandler {
             backend: backend,
         }
@@ -44,7 +45,7 @@ impl StorageHandler {
     }
 }
 
-impl Handler for StorageHandler {
+impl<B: 'static + StorageBackend + Any> Handler for StorageHandler<B> {
     fn handle(&self, request: &mut Request) -> IronResult<Response> {
         let dk = domain_and_key_from_path(&request.url.path);
 

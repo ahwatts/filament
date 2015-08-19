@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
-use super::super::backend::{StorageMetadata, TrackerBackend, TrackerMetadata};
+use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend, TrackerMetadata};
 use super::super::error::{MogError, MogResult};
 use super::{Domain, FileInfo};
 use url::Url;
@@ -92,13 +92,7 @@ impl MemBackend {
     // Storage server methods.
 
     pub fn url_for_key(&self, domain: &str, key: &str) -> Url {
-        let mut key_url = self.base_url.clone();
-        let mut new_path = Vec::from(key_url.path().unwrap());
-        new_path.extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
-        new_path.extend(key.split("/").map(|s| s.to_string()));
-        new_path = new_path.into_iter().skip_while(|p| p == "").collect();
-        *key_url.path_mut().unwrap() = new_path;
-        key_url
+        url_for_key(&self.base_url, domain, key)
     }
 
     pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata> {
@@ -163,11 +157,12 @@ impl MemBackend {
 }
 
 #[derive(Clone, Debug)]
-pub struct SyncMemBackend(Arc<RwLock<MemBackend>>);
+pub struct SyncMemBackend(Arc<RwLock<MemBackend>>, Url);
 
 impl SyncMemBackend {
     pub fn new(backend: MemBackend) -> SyncMemBackend {
-        SyncMemBackend(Arc::new(RwLock::new(backend)))
+        let base_url = backend.base_url.clone();
+        SyncMemBackend(Arc::new(RwLock::new(backend)), base_url)
     }
 
     pub fn with_file<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
@@ -190,28 +185,6 @@ impl SyncMemBackend {
             Ok(None) => Err(MogError::UnknownKey(key.to_string())),
             Err(e) => Err(e),
         }
-    }
-
-    // Storage server methods.
-
-    pub fn url_for_key(&self, domain: &str, key: &str) -> MogResult<Url> {
-        Ok(try!(self.0.read()).url_for_key(domain, key))
-    }
-
-    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata> {
-        try!(self.0.read()).file_metadata(domain, key)
-    }
-
-    pub fn store_reader_content<R: Read>(&self, domain: &str, key: &str, reader: &mut R) -> MogResult<()> {
-        try!(self.0.write()).store_reader_content(domain, key, reader)
-    }
-
-    pub fn store_bytes_content(&self, domain: &str, key: &str, content: &[u8]) -> MogResult<()> {
-        try!(self.0.write()).store_bytes_content(domain, key, content)
-    }
-
-    pub fn get_content<W: Write>(&self, domain: &str, key: &str, writer: &mut W) -> MogResult<()> {
-        try!(self.0.read()).get_content(domain, key, writer)
     }
 }
 
@@ -251,6 +224,38 @@ impl TrackerBackend for SyncMemBackend {
     fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
         try!(self.0.read()).list_keys(domain, prefix, after_key, limit)
     }
+}
+
+impl StorageBackend for SyncMemBackend {
+    fn url_for_key(&self, domain: &str, key: &str) -> Url {
+        url_for_key(&self.1, domain, key)
+    }
+
+    fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata> {
+        try!(self.0.read()).file_metadata(domain, key)
+    }
+
+    fn store_reader_content<R: Read>(&self, domain: &str, key: &str, reader: &mut R) -> MogResult<()> {
+        try!(self.0.write()).store_reader_content(domain, key, reader)
+    }
+
+    fn store_bytes_content(&self, domain: &str, key: &str, content: &[u8]) -> MogResult<()> {
+        try!(self.0.write()).store_bytes_content(domain, key, content)
+    }
+
+    fn get_content<W: Write>(&self, domain: &str, key: &str, writer: &mut W) -> MogResult<()> {
+        try!(self.0.read()).get_content(domain, key, writer)
+    }
+}
+
+pub fn url_for_key(base_url: &Url, domain: &str, key: &str) -> Url {
+    let mut key_url = base_url.clone();
+    let mut new_path = Vec::from(key_url.path().unwrap());
+    new_path.extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
+    new_path.extend(key.split("/").map(|s| s.to_string()));
+    new_path = new_path.into_iter().skip_while(|p| p == "").collect();
+    *key_url.path_mut().unwrap() = new_path;
+    key_url
 }
 
 #[cfg(test)]

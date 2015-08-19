@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str;
 use super::super::backend::TrackerBackend;
-// use super::super::mem::SyncMemBackend;
 use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
