@@ -1,17 +1,18 @@
 use mio::{Sender, Token};
 use std::sync::Arc;
+use super::super::super::super::backend::TrackerBackend;
 use super::notification::Notification;
 use threadpool::ThreadPool;
 
 use super::super::{Tracker, Response};
 
-pub struct TrackerPool {
+pub struct TrackerPool<B: TrackerBackend> {
     thread_pool: ThreadPool,
-    tracker: Arc<Tracker>,
+    tracker: Arc<Tracker<B>>,
 }
 
-impl TrackerPool {
-    pub fn new(tracker: Tracker, threads: usize) -> TrackerPool {
+impl<B: 'static + TrackerBackend> TrackerPool<B> {
+    pub fn new(tracker: Tracker<B>, threads: usize) -> TrackerPool<B> {
         TrackerPool {
             thread_pool: ThreadPool::new(threads),
             tracker: Arc::new(tracker),

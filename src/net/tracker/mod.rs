@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str;
-use super::super::mem::SyncMemBackend;
+use super::super::backend::TrackerBackend;
+// use super::super::mem::SyncMemBackend;
 use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
@@ -9,12 +10,12 @@ pub mod evented;
 pub mod threaded;
 
 /// The tracker object.
-pub struct Tracker {
-    backend: SyncMemBackend,
+pub struct Tracker<B: TrackerBackend> {
+    backend: B,
 }
 
-impl Tracker {
-    pub fn new(backend: SyncMemBackend) -> Tracker {
+impl<B: TrackerBackend> Tracker<B> {
+    pub fn new(backend: B) -> Tracker<B> {
         Tracker {
             backend: backend,
         }
@@ -96,15 +97,13 @@ impl Tracker {
     // response = "OK length=4142596&class=song_replicated&devcount=1&key=Song/23198312/image&fid=264&domain=rn_development_private\r\n"
     fn file_info(&self, request: &Request) -> MogResult<Response> {
         let (domain, key) = try!(domain_and_key(request));
-        let mut response_args = vec!{
+        let meta = try!(self.backend.file_info(domain, key));
+
+        let response_args = vec!{
             ("domain".to_string(), domain.to_string()),
             ("key".to_string(), key.to_string()),
+            ("length".to_string(), meta.size.to_string()),
         };
-
-        try!(self.backend.with_file(domain, key, |file_info| {
-            response_args.push(("length".to_string(), file_info.size.unwrap_or(0).to_string()));
-            Ok(())
-        }));
 
         Ok(Response::new(response_args))
     }

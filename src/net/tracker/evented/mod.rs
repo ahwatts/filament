@@ -6,6 +6,7 @@ use self::tracker_pool::TrackerPool;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
+use super::super::super::backend::TrackerBackend;
 use super::super::super::ctrlc::CtrlC;
 use super::{Tracker, Response};
 
@@ -23,13 +24,13 @@ lazy_static!{
     static ref EDGE_ONESHOT: PollOpt = PollOpt::edge() | PollOpt::oneshot();
 }
 
-pub struct EventedListener {
-    event_loop: EventLoop<Handler>,
-    handler: Handler,
+pub struct EventedListener<B: 'static + TrackerBackend> {
+    event_loop: EventLoop<Handler<B>>,
+    handler: Handler<B>,
 }
 
-impl EventedListener {
-    pub fn new<T>(addr: T, tracker: Tracker, max_conns: usize, threads: usize) -> EventedResult<EventedListener>
+impl<B: TrackerBackend> EventedListener<B> {
+    pub fn new<T>(addr: T, tracker: Tracker<B>, max_conns: usize, threads: usize) -> EventedResult<EventedListener<B>>
         where T: ToSocketAddrs
     {
         Ok(EventedListener {
@@ -54,15 +55,15 @@ impl EventedListener {
     }
 }
 
-struct Handler {
+struct Handler<B: TrackerBackend> {
     listener: TcpListener,
     token: Token,
-    conns: Slab<Connection>,
-    tracker: Rc<TrackerPool>,
+    conns: Slab<Connection<B>>,
+    tracker: Rc<TrackerPool<B>>,
 }
 
-impl Handler {
-    pub fn new<T: ToSocketAddrs>(sock_addr: T, max_conns: usize, pool: TrackerPool) -> EventedResult<Handler> {
+impl<B: 'static + TrackerBackend> Handler<B> {
+    pub fn new<T: ToSocketAddrs>(sock_addr: T, max_conns: usize, pool: TrackerPool<B>) -> EventedResult<Handler<B>> {
         let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(EventedError::NoListenAddr));
         let token = Token(0);
         let listener = try!(TcpListener::bind(&sock_addr));
@@ -138,7 +139,7 @@ impl Handler {
     }
 }
 
-impl mio::Handler for Handler {
+impl<B: 'static + TrackerBackend> mio::Handler for Handler<B> {
     type Timeout = usize;
     type Message = Notification;
 
@@ -221,17 +222,17 @@ impl mio::Handler for Handler {
     }
 }
 
-struct Connection {
+struct Connection<B: TrackerBackend> {
     stream: TcpStream,
     token: Token,
     in_buf: Vec<u8>,
     out_buf: Vec<u8>,
-    tracker: Rc<TrackerPool>,
+    tracker: Rc<TrackerPool<B>>,
     current: Option<Vec<u8>>,
 }
 
-impl Connection {
-    pub fn new(stream: TcpStream, token: Token, tracker: Rc<TrackerPool>) -> Connection {
+impl<B: 'static + TrackerBackend> Connection<B> {
+    pub fn new(stream: TcpStream, token: Token, tracker: Rc<TrackerPool<B>>) -> Connection<B> {
         Connection {
             stream: stream,
             token: token,
@@ -242,7 +243,7 @@ impl Connection {
         }
     }
 
-    fn read(&mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<EventSet> {
+    fn read(&mut self, event_loop: &mut EventLoop<Handler<B>>) -> EventedResult<EventSet> {
         match self.stream.try_read_buf(&mut self.in_buf) {
             Ok(Some(n)) => {
                 debug!("Read {} bytes from {:?}", n, self.token);
@@ -259,7 +260,7 @@ impl Connection {
         }
     }
 
-    fn write(&mut self, _event_loop: &mut EventLoop<Handler>) -> EventedResult<EventSet> {
+    fn write(&mut self, _event_loop: &mut EventLoop<Handler<B>>) -> EventedResult<EventSet> {
         let wrote_bytes = {
             // Wrap this in a separate scope so that we can modify
             // out_buf later.
@@ -300,7 +301,7 @@ impl Connection {
         }
     }
 
-    fn maybe_dispatch_request(&mut self, event_loop: &mut EventLoop<Handler>) {
+    fn maybe_dispatch_request(&mut self, event_loop: &mut EventLoop<Handler<B>>) {
         if self.current.is_none() && self.in_buf.windows(2).position(|x| x == CRLF).is_some() {
             let mut request = vec![];
             let mut rest = vec![];
@@ -324,14 +325,14 @@ impl Connection {
         }
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Handler>, response: Response) -> EventedResult<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Handler<B>>, response: Response) -> EventedResult<()> {
         self.out_buf.write(&response.render()).unwrap();
         self.current = None;
         self.maybe_dispatch_request(event_loop);
         Ok(())
     }
 
-    fn shutdown(mut self, event_loop: &mut EventLoop<Handler>) -> EventedResult<()> {
+    fn shutdown(mut self, event_loop: &mut EventLoop<Handler<B>>) -> EventedResult<()> {
         info!("Shutting down {:?} from {:?}", self.token, self.stream.peer_addr());
         debug!("Deregistering {:?}", self.token);
         try!(event_loop.deregister(&self.stream));
@@ -384,9 +385,10 @@ mod tests {
     use super::*;
     use super::notification::Notification;
     use super::super::Tracker;
+    use super::super::super::super::mem::SyncMemBackend;
     use super::super::super::super::mem::test_support::*;
 
-    fn fixture_server() -> EventedListener {
+    fn fixture_server() -> EventedListener<SyncMemBackend> {
         let backend = sync_backend_fixture();
         let tracker = Tracker::new(backend);
         EventedListener::new("0.0.0.0:0", tracker, 1, 1).unwrap()

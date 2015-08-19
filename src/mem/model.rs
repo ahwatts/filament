@@ -75,7 +75,7 @@ impl<'a> Iterator for Files<'a> {
 pub struct FileInfo {
     key: String,
     pub content: Option<Vec<u8>>,
-    pub size: Option<usize>,
+    pub size: Option<u64>,
     pub mtime: Option<Tm>,
 }
 
@@ -174,7 +174,7 @@ mod tests {
         {   // Add a new file to the domain.
             let mut file = FileInfo::new(new_key);
             file.content = Some(content.clone());
-            file.size = Some(content.len());
+            file.size = Some(content.len() as u64);
             domain.add_file(new_key, file).unwrap();
         }
 
@@ -184,7 +184,7 @@ mod tests {
             let file = file.unwrap();
             assert_eq!(new_key, file.key());
             assert_eq!(Some(&content), file.content.as_ref());
-            assert_eq!(Some(&content.len()), file.size.as_ref());
+            assert_eq!(Some(content.len() as u64), file.size);
         }
 
         {   // Try adding a duplicate key to the domain, which should create a new empty file.
@@ -271,7 +271,7 @@ pub mod test_support {
         FileInfo {
             key: TEST_KEY_1.to_string(),
             content: Some(Vec::from(TEST_CONTENT_1)),
-            size: Some(TEST_CONTENT_1.len()),
+            size: Some(TEST_CONTENT_1.len() as u64),
             mtime: Some(time::now_utc()),
         }
     }

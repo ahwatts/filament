@@ -2,15 +2,16 @@ use std::io::{self, Write, BufRead, BufReader};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::thread;
+use super::super::super::backend::TrackerBackend;
 use super::{Tracker, Response};
 
-pub struct ThreadedListener {
+pub struct ThreadedListener<B: TrackerBackend> {
     listener: TcpListener,
-    tracker: Arc<Tracker>,
+    tracker: Arc<Tracker<B>>,
 }
 
-impl ThreadedListener {
-    pub fn new<S: ToSocketAddrs>(addr: S, tracker: Tracker) -> Result<ThreadedListener, io::Error> {
+impl<B: 'static + TrackerBackend> ThreadedListener<B> {
+    pub fn new<S: ToSocketAddrs>(addr: S, tracker: Tracker<B>) -> Result<ThreadedListener<B>, io::Error> {
         Ok(ThreadedListener {
             listener: try!(TcpListener::bind(addr)),
             tracker: Arc::new(tracker),
@@ -43,7 +44,7 @@ impl ThreadedListener {
     }
 }
 
-fn handle_connection(mut writer: TcpStream, tracker: Arc<Tracker>) -> Result<(), io::Error> {
+fn handle_connection<B: TrackerBackend>(mut writer: TcpStream, tracker: Arc<Tracker<B>>) -> Result<(), io::Error> {
     let reader = BufReader::new(try!(writer.try_clone()));
 
     for line in reader.split(b'\n') {

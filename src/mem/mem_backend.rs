@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
-use super::super::backend::FileMetadata;
+use super::super::backend::{StorageMetadata, TrackerBackend, TrackerMetadata};
 use super::super::error::{MogError, MogResult};
 use super::{Domain, FileInfo};
 use url::Url;
@@ -49,6 +49,18 @@ impl MemBackend {
         Ok(())
     }
 
+    pub fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata> {
+        self.domain(domain)
+            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
+            .map(|file_info| {
+                TrackerMetadata {
+                    size: file_info.size.unwrap_or(0),
+                    domain: domain.to_string(),
+                    key: key.to_string(),
+                }
+            })
+    }
+
     pub fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
         self.domain(domain)
             .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
@@ -71,10 +83,10 @@ impl MemBackend {
         let prefix = prefix.unwrap_or("");
         let limit = limit.unwrap_or(1000);
         Ok(try!(self.domain(domain_name)).files()
-            .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
-            .take(limit)
-            .map(|(k, _)| k.to_string())
-            .collect())
+           .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
+           .take(limit)
+           .map(|(k, _)| k.to_string())
+           .collect())
     }
 
     // Storage server methods.
@@ -89,12 +101,12 @@ impl MemBackend {
         key_url
     }
 
-    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<FileMetadata> {
+    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata> {
         let file_info = try!(try!(self.file(domain, key)).ok_or(MogError::UnknownKey(key.to_string())));
 
         match (file_info.size, file_info.mtime) {
             (Some(size), Some(mtime)) => {
-                Ok(FileMetadata { size: size, mtime: mtime, })
+                Ok(StorageMetadata { size: size, mtime: mtime, })
             },
             _ => {
                 Err(MogError::NoContent(key.to_string()))
@@ -110,7 +122,7 @@ impl MemBackend {
 
     pub fn store_bytes_content(&mut self, domain: &str, key: &str, content: &[u8]) -> MogResult<()> {
         let file_info = try!(try!(self.file_mut(domain, key)).ok_or(MogError::UnknownKey(key.to_string())));
-        file_info.size = Some(content.len());
+        file_info.size = Some(content.len() as u64);
         file_info.content = Some(content.to_owned());
         file_info.mtime = Some(time::now_utc());
         Ok(())
@@ -180,47 +192,13 @@ impl SyncMemBackend {
         }
     }
 
-    // Tracker methods.
-
-    pub fn create_domain(&self, domain: &str) -> MogResult<()> {
-        try!(self.0.write()).create_domain(domain)
-    }
-
-    pub fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
-        try!(self.0.write()).create_open(domain, key)
-    }
-
-    pub fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
-        // There's nothing to do here. See the equivalent method on
-        // the actual backend. There's no need acquire the mutex and
-        // call it, since we're not going to be doing anything with
-        // it anyway.
-        Ok(())
-    }
-
-    pub fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
-        try!(self.0.read()).get_paths(domain, key)
-    }
-
-    pub fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
-        try!(self.0.write()).delete(domain, key)
-    }
-
-    pub fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()> {
-        try!(self.0.write()).rename(domain, from, to)
-    }
-
-    pub fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
-        try!(self.0.read()).list_keys(domain, prefix, after_key, limit)
-    }
-
     // Storage server methods.
 
     pub fn url_for_key(&self, domain: &str, key: &str) -> MogResult<Url> {
         Ok(try!(self.0.read()).url_for_key(domain, key))
     }
 
-    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<FileMetadata> {
+    pub fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata> {
         try!(self.0.read()).file_metadata(domain, key)
     }
 
@@ -237,8 +215,47 @@ impl SyncMemBackend {
     }
 }
 
+impl TrackerBackend for SyncMemBackend {
+    fn create_domain(&self, domain: &str) -> MogResult<()> {
+        try!(self.0.write()).create_domain(domain)
+    }
+
+    fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
+        try!(self.0.write()).create_open(domain, key)
+    }
+
+    fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
+        // There's nothing to do here. See the equivalent method on
+        // the actual backend. There's no need acquire the mutex and
+        // call it, since we're not going to be doing anything with
+        // it anyway.
+        Ok(())
+    }
+
+    fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata> {
+        try!(self.0.read()).file_info(domain, key)
+    }
+
+    fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
+        try!(self.0.read()).get_paths(domain, key)
+    }
+
+    fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
+        try!(self.0.write()).delete(domain, key)
+    }
+
+    fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()> {
+        try!(self.0.write()).rename(domain, from, to)
+    }
+
+    fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
+        try!(self.0.read()).list_keys(domain, prefix, after_key, limit)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::super::super::backend::TrackerBackend;
     use super::super::super::error::MogError;
     use super::super::super::test_support::*;
     use std::io::Cursor;
