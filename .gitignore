@@ -3,3 +3,9 @@
 /git-revision
 /dist
 .DS_Store
+
+/client/target/
+/client/Cargo.lock
+
+/server/target/
+/server/Cargo.lock
