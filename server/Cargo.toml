@@ -1,26 +1,28 @@
 [package]
-name = "filament"
+name = "mogilefs_server"
 description = "A quasi-workalike for the MogileFS tracker daemon."
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
 homepage = "https://github.com/ahwatts/mogilefsd"
-build = "build.rs"
-
-[dependencies.mogilefs_client]
-path = "client"
-
-[dependencies.mogilefs_server]
-path = "server"
 
 [dependencies]
 docopt = "~0.6.70"
 env_logger = "~0.3.1"
 lazy_static = "~0.1.14"
+libc = "~0.1.8"
 log = "~0.3.1"
+mio = "~0.4.0"
+rand = "~0.3.0"
 rustc-serialize = "~0.3.15"
+threadpool = "~0.1.4"
+time = "~0.1.32"
 url = "~0.2.36"
 
 [dependencies.iron]
 git = "https://github.com/ahwatts/iron.git"
 branch = "bug/http_10"
 default-features = false
+
+[dev-dependencies]
+matches = "~0.1.2"
+regex = "~0.1.8"

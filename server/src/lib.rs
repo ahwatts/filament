@@ -17,7 +17,6 @@ extern crate matches;
 extern crate regex;
 
 pub mod backend;
-pub mod client;
 pub mod ctrlc;
 pub mod error;
 pub mod mem;

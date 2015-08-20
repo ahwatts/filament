@@ -1,4 +1,6 @@
-use rand;
+extern crate rand;
+#[macro_use] extern crate log;
+
 use std::io::{self, Read, Write, BufRead, BufReader, BufWriter};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 

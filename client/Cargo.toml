@@ -1,0 +1,10 @@
+[package]
+name = "mogilefs_client"
+description = "A client library for talking to MogileFS from Rust."
+version = "0.1.0"
+authors = ["Andrew Watts <ahwatts@gmail.com>"]
+homepage = "https://github.com/ahwatts/mogilefsd"
+
+[dependencies]
+rand = "~0.3.0"
+log = "~0.3.1"

@@ -3,7 +3,7 @@
 extern crate docopt;
 extern crate env_logger;
 extern crate iron;
-extern crate mogilefsd;
+extern crate mogilefs_server;
 extern crate rustc_serialize;
 extern crate url;
 
@@ -12,21 +12,21 @@ extern crate url;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
-use mogilefsd::backend::TrackerBackend;
-use mogilefsd::mem::{MemBackend, SyncMemBackend};
-use mogilefsd::net::tracker::Tracker;
-use mogilefsd::net::storage::StorageHandler;
+use mogilefs_server::backend::TrackerBackend;
+use mogilefs_server::mem::{MemBackend, SyncMemBackend};
+use mogilefs_server::net::tracker::Tracker;
+use mogilefs_server::net::storage::StorageHandler;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use std::thread;
 use url::Url;
 
 static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-static GIT_COMMIT: &'static str = include_str!("../../git-revision");
+static GIT_COMMIT: &'static str = include_str!("../git-revision");
 
 lazy_static!{
     static ref FULL_VERSION: String =
-        format!("mogilefsd-rs version {} commit {}",
+        format!("filament version {} commit {}",
                 VERSION_NUM.unwrap_or("unknown"), GIT_COMMIT);
 }
 
@@ -56,7 +56,7 @@ fn main() {
 }
 
 fn run_evented<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>) {
-    use mogilefsd::net::tracker::evented::EventedListener;
+    use mogilefs_server::net::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
         opts.flag_tracker_ip.0,
@@ -74,7 +74,7 @@ fn run_evented<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>)
 }
 
 fn run_threaded<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>) {
-    use mogilefsd::net::tracker::threaded::ThreadedListener;
+    use mogilefs_server::net::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
         opts.flag_tracker_ip.0,
@@ -92,7 +92,7 @@ static USAGE: &'static str = "
 A quasi-workalike for the MogileFS tracker daemon.
 
 Usage:
-  mogilefsd [options]
+  filament [options]
 
 General Options:
   -h, --help                 Print this help message.

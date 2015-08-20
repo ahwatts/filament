@@ -1,15 +1,20 @@
 [root]
-name = "filament"
+name = "mogilefsd"
 version = "0.1.0"
 dependencies = [
  "docopt 0.6.70 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "iron 0.1.20 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mogilefs_client 0.1.0",
- "mogilefs_server 0.1.0",
+ "matches 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mio 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -214,32 +219,6 @@ dependencies = [
 name = "modifier"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "mogilefs_client"
-version = "0.1.0"
-dependencies = [
- "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "mogilefs_server"
-version = "0.1.0"
-dependencies = [
- "docopt 0.6.70 (registry+https://github.com/rust-lang/crates.io-index)",
- "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "iron 0.1.20 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
- "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "mio 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
- "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "time 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)",
- "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
-]
 
 [[package]]
 name = "nix"
