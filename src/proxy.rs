@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use rand;
 use super::backend::{TrackerBackend, TrackerMetadata};
 use super::net::tracker;
@@ -60,7 +62,7 @@ impl ProxyTrackerBackend {
         self.with_conn_thread_sender(|locked| Ok(locked.clone()))
     }
 
-    fn create_connection_thread(&mut self) -> MogResult<()> {
+    fn create_conn_thread(&mut self) -> MogResult<()> {
         let (tx, rx) = mpsc::channel::<Request>();
         let tracker_addr = try!(self.random_tracker_addr());
 
@@ -74,7 +76,7 @@ impl ProxyTrackerBackend {
 
     fn send_request(&mut self, req: tracker::Request) -> MogResult<Response> {
         if self.conn_thread_sender.is_none() {
-            try!(self.create_connection_thread());
+            try!(self.create_conn_thread());
         }
 
         let (tx, rx) = mpsc::channel();
@@ -101,7 +103,7 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
                 break;
             },
             RequestInner::Real(inner) => {
-                debug!("Sending request {:?}...", inner);
+                debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
             },
         }
     }
@@ -143,9 +145,12 @@ impl TrackerBackend for ProxyTrackerBackend {
 
 #[cfg(test)]
 mod tests {
-    use std::net::{SocketAddr, ToSocketAddrs};
+    use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
+    use std::sync::mpsc;
+    use std::thread;
     use super::*;
     use super::super::error::MogError;
+    use super::{connection_thread, Request, RequestInner};
 
     fn tracker_addr_list() -> Vec<SocketAddr> {
         let rv: Vec<SocketAddr> = vec![ "127.0.0.1:7101", "127.0.0.1:7102", "[::1]:7103" ]
@@ -196,6 +201,31 @@ mod tests {
     }
 
     #[test]
-    fn establish_connection() {
+    fn can_stop_connection_thread() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let (req_tx, req_rx) = mpsc::channel();
+        let (res_tx, _) = mpsc::channel();
+
+        // Gosh, it would be great if I could time this out somehow by using Stable Rust...
+        let conn_thread = thread::spawn(move|| connection_thread(listener.local_addr().unwrap().clone(), req_rx));
+        req_tx.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
+        conn_thread.join().unwrap();
+    }
+
+    #[test]
+    fn creates_conn_thread() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let (res_tx, _) = mpsc::channel();
+        let mut backend = ProxyTrackerBackend::new(&[ listener.local_addr().unwrap() ]);
+        assert!(backend.create_conn_thread().is_ok());
+
+        assert!(backend.conn_thread_handle.is_some());
+        assert!(backend.conn_thread_sender.is_some());
+        assert!(matches!(backend.with_conn_thread_sender(|_| Ok(())), Ok(())));
+        assert!(matches!(backend.conn_thread_sender_clone(), Ok(..)));
+
+        let tx = backend.conn_thread_sender_clone().unwrap();
+        tx.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
+        backend.conn_thread_handle.unwrap().join().unwrap();
     }
 }
