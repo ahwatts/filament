@@ -146,8 +146,8 @@ impl TrackerBackend for ProxyTrackerBackend {
 #[cfg(test)]
 mod tests {
     use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
-    use std::sync::mpsc;
-    use std::thread;
+    use std::sync::mpsc::{self, Sender};
+    use std::thread::{self, JoinHandle};
     use super::*;
     use super::super::error::MogError;
     use super::{connection_thread, Request, RequestInner};
@@ -159,6 +159,12 @@ mod tests {
             .collect();
         assert_eq!(3, rv.len());
         rv
+    }
+
+    fn stop_conn_thread(handle: JoinHandle<()>, sender: Sender<Request>) {
+        let (res_tx, _) = mpsc::channel();
+        sender.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
+        handle.join().unwrap();
     }
 
     #[test]
@@ -204,18 +210,15 @@ mod tests {
     fn can_stop_connection_thread() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let (req_tx, req_rx) = mpsc::channel();
-        let (res_tx, _) = mpsc::channel();
 
         // Gosh, it would be great if I could time this out somehow by using Stable Rust...
         let conn_thread = thread::spawn(move|| connection_thread(listener.local_addr().unwrap().clone(), req_rx));
-        req_tx.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
-        conn_thread.join().unwrap();
+        stop_conn_thread(conn_thread, req_tx);
     }
 
     #[test]
     fn creates_conn_thread() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let (res_tx, _) = mpsc::channel();
         let mut backend = ProxyTrackerBackend::new(&[ listener.local_addr().unwrap() ]);
         assert!(backend.create_conn_thread().is_ok());
 
@@ -224,8 +227,8 @@ mod tests {
         assert!(matches!(backend.with_conn_thread_sender(|_| Ok(())), Ok(())));
         assert!(matches!(backend.conn_thread_sender_clone(), Ok(..)));
 
-        let tx = backend.conn_thread_sender_clone().unwrap();
-        tx.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
-        backend.conn_thread_handle.unwrap().join().unwrap();
+        stop_conn_thread(
+            backend.conn_thread_handle.take().unwrap(),
+            backend.conn_thread_sender_clone().unwrap());
     }
 }
