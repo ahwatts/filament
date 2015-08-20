@@ -6,7 +6,8 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::str::Utf8Error;
-use std::sync::{RwLockReadGuard, RwLockWriteGuard, PoisonError};
+use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
+use std::sync::mpsc::{SendError, RecvError};
 
 /// A specialization of `Result` with the error type hard-coded to
 /// `MogError`.
@@ -30,6 +31,11 @@ pub enum MogError {
     UnknownCommand(Option<String>),
 
     NoContent(String),
+
+    NoTrackers,
+    NoConnection,
+    SendError,
+    RecvError,
 }
 
 impl MogError {
@@ -63,6 +69,24 @@ impl<'a, T> From<PoisonError<RwLockReadGuard<'a, T>>> for MogError {
 impl<'a, T> From<PoisonError<RwLockWriteGuard<'a, T>>> for MogError {
     fn from (_: PoisonError<RwLockWriteGuard<'a, T>>) -> MogError {
         MogError::PoisonedMutex
+    }
+}
+
+impl<'a, T> From<PoisonError<MutexGuard<'a, T>>> for MogError {
+    fn from(_: PoisonError<MutexGuard<'a, T>>) -> MogError {
+        MogError::PoisonedMutex
+    }
+}
+
+impl<T> From<SendError<T>> for MogError {
+    fn from(_: SendError<T>) -> MogError {
+        MogError::SendError
+    }
+}
+
+impl From<RecvError> for MogError {
+    fn from(_: RecvError) -> MogError {
+        MogError::RecvError
     }
 }
 
@@ -137,6 +161,11 @@ impl Error for MogError {
 
             UnknownCommand(..) => "Unknown command",
             NoContent(..) => "No content",
+
+            NoTrackers => "No trackers provided",
+            NoConnection => "Could not connect to tracker",
+            SendError => "Error sending request",
+            RecvError => "Error receiving response",
         }
     }
 }

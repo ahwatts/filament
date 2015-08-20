@@ -1,19 +1,108 @@
+use rand;
 use super::backend::{TrackerBackend, TrackerMetadata};
-use super::error::MogResult;
-use std::net::TcpStream;
+use super::net::tracker;
+use super::error::{MogError, MogResult};
+use std::net::{SocketAddr, TcpStream};
+use std::sync::Mutex;
+use std::sync::mpsc::{self, Sender, Receiver};
+use std::thread::{self, JoinHandle};
 use url::Url;
 
-#[derive(Debug)]
+enum RequestInner {
+    Real(tracker::Request),
+    Stop,
+}
+
+struct Request {
+    inner: RequestInner,
+    respond: Sender<Response>,
+}
+
+struct Response {
+    inner: tracker::Response,
+}
+
 pub struct ProxyTrackerBackend {
-    trackers: Vec<Url>,
-    connection: Option<TcpStream>,
+    trackers: Vec<SocketAddr>,
+    conn_thread_handle: Option<JoinHandle<()>>,
+    conn_thread_sender: Option<Mutex<Sender<Request>>>,
 }
 
 impl ProxyTrackerBackend {
-    pub fn new(trackers: &[Url]) -> ProxyTrackerBackend {
+    pub fn new(trackers: &[SocketAddr]) -> ProxyTrackerBackend {
         ProxyTrackerBackend {
             trackers: trackers.to_owned(),
-            connection: None,
+            conn_thread_handle: None,
+            conn_thread_sender: None,
+        }
+    }
+
+    fn random_tracker_addr(&self) -> MogResult<SocketAddr> {
+        let mut rng = rand::thread_rng();
+        let mut sample = rand::sample(&mut rng, self.trackers.iter(), 1);
+        sample.pop().cloned().ok_or(MogError::NoTrackers)
+    }
+
+    fn with_conn_thread_sender<F, T>(&self, callback: F) -> MogResult<T>
+        where F: FnOnce(&Sender<Request>) -> MogResult<T>
+    {
+        let sender_mutex = try!(self.conn_thread_sender.as_ref().ok_or(MogError::NoConnection));
+        match sender_mutex.lock() {
+            Ok(locked) => callback(&locked),
+            Err(poisoned) => {
+                let locked = poisoned.into_inner();
+                callback(&locked)
+            }
+        }
+    }
+
+    fn conn_thread_sender_clone(&self) -> MogResult<Sender<Request>> {
+        self.with_conn_thread_sender(|locked| Ok(locked.clone()))
+    }
+
+    fn create_connection_thread(&mut self) -> MogResult<()> {
+        let (tx, rx) = mpsc::channel::<Request>();
+        let tracker_addr = try!(self.random_tracker_addr());
+
+        self.conn_thread_sender = Some(Mutex::new(tx));
+        self.conn_thread_handle = Some(thread::spawn(move|| {
+            connection_thread(tracker_addr, rx);
+        }));
+
+        Ok(())
+    }
+
+    fn send_request(&mut self, req: tracker::Request) -> MogResult<Response> {
+        if self.conn_thread_sender.is_none() {
+            try!(self.create_connection_thread());
+        }
+
+        let (tx, rx) = mpsc::channel();
+        let sender = try!(self.conn_thread_sender_clone());
+
+        try!(sender.send(Request { inner: RequestInner::Real(req), respond: tx }));
+        rx.recv().map_err(|e| MogError::from(e))
+    }
+}
+
+fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
+    let conn = match TcpStream::connect(addr) {
+        Ok(stream) => stream,
+        Err(e) => {
+            error!("Failed to connect to {:?}: {}", addr, e);
+            return;
+        }
+    };
+
+    for request in requests.iter() {
+        match request.inner {
+            RequestInner::Stop => {
+                info!("Stopping and closing connection thread...");
+                break;
+            },
+            RequestInner::Real(inner) => {
+                debug!("Sending request {:?}...", inner);
+            },
         }
     }
 }
@@ -26,6 +115,7 @@ impl TrackerBackend for ProxyTrackerBackend {
     fn create_open(&self, _domain: &str, _key: &str) -> MogResult<Vec<Url>> {
         unimplemented!()
     }
+
     fn create_close(&self, _domain: &str, _key: &str, _path: &Url, _size: u64) -> MogResult<()> {
         unimplemented!()
     }
@@ -48,5 +138,64 @@ impl TrackerBackend for ProxyTrackerBackend {
 
     fn list_keys(&self, _domain: &str, _prefix: Option<&str>, _after_key: Option<&str>, _limit: Option<usize>) -> MogResult<Vec<String>> {
         unimplemented!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::{SocketAddr, ToSocketAddrs};
+    use super::*;
+    use super::super::error::MogError;
+
+    fn tracker_addr_list() -> Vec<SocketAddr> {
+        let rv: Vec<SocketAddr> = vec![ "127.0.0.1:7101", "127.0.0.1:7102", "[::1]:7103" ]
+            .iter()
+            .flat_map(|a| a.to_socket_addrs().unwrap())
+            .collect();
+        assert_eq!(3, rv.len());
+        rv
+    }
+
+    #[test]
+    fn initial_state() {
+        let addr_list = tracker_addr_list();
+        let backend = ProxyTrackerBackend::new(&addr_list);
+        assert_eq!(addr_list, backend.trackers);
+        assert!(matches!(backend.conn_thread_handle, None));
+        assert!(matches!(backend.conn_thread_sender, None));
+        assert!(matches!(backend.conn_thread_sender_clone(), Err(MogError::NoConnection)));
+        assert!(matches!(backend.with_conn_thread_sender(move|_| Ok(())), Err(MogError::NoConnection)))
+    }
+
+    #[test]
+    fn no_trackers() {
+        let backend = ProxyTrackerBackend::new(&[]);
+        assert!(matches!(backend.random_tracker_addr(), Err(MogError::NoTrackers)));
+    }
+
+    #[test]
+    fn random_tracker_addr() {
+        let addr_list = tracker_addr_list();
+        let backend = ProxyTrackerBackend::new(&addr_list);
+        let mut seen: Vec<bool> = addr_list.iter().map(|_| false).collect();
+        let (mut loops, max_loops) = (0, addr_list.len() * 100);
+
+        loop {
+            loops += 1;
+            let addr = backend.random_tracker_addr().unwrap();
+            let index = addr_list.iter().position(|&a| a == addr);
+            assert!(index.is_some());
+            seen[index.unwrap()] = true;
+            if seen.iter().all(|&s| s) || loops >= max_loops {
+                break;
+            }
+        }
+
+        debug!("Seen all addrs after {} loops.", loops);
+        assert!(seen.iter().all(|&s| s));
+    }
+
+    #[test]
+    fn establish_connection() {
     }
 }

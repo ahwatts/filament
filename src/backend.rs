@@ -1,10 +1,9 @@
-use std::fmt::Debug;
 use std::io::{Read, Write};
 use super::error::MogResult;
 use time::Tm;
 use url::Url;
 
-pub trait TrackerBackend: Send + Sync + Debug {
+pub trait TrackerBackend: Send + Sync {
     fn create_domain(&self, domain: &str) -> MogResult<()>;
 
     fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>>;
@@ -25,7 +24,7 @@ pub struct TrackerMetadata {
     // Also: class, devcount, fid?
 }
 
-pub trait StorageBackend: Send + Sync + Debug {
+pub trait StorageBackend: Send + Sync {
     fn url_for_key(&self, domain: &str, key: &str) -> Url;
 
     fn file_metadata(&self, domain: &str, key: &str) -> MogResult<StorageMetadata>;
