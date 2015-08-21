@@ -5,8 +5,10 @@ use time::{self, Tm};
 use url::Url;
 
 pub use self::iron::StorageHandler;
+pub use self::range::RangeMiddleware;
 
 pub mod iron;
+pub mod range;
 
 #[derive(Clone, Debug)]
 pub struct Storage {

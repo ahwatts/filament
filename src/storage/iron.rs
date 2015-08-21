@@ -19,10 +19,14 @@ impl StorageHandler {
         }
     }
 
-    fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
+    fn handle_get(&self, request: &Request, domain: &str, key: &str) -> IronResult<Response> {
+        debug!("request = {:?}", request);
+        debug!("request headers = {:?}", request.headers);
+
         let metadata = try!(self.store.file_metadata(domain, key));
         let mut content = vec![];
         try!(self.store.get_content(domain, key, &mut content));
+
         Ok(Response::with((
             Status::Ok,
             Header(headers::LastModified(headers::HttpDate(metadata.mtime))),
@@ -62,11 +66,14 @@ impl Handler for StorageHandler {
               request.headers.get::<headers::ContentLength>().map(|h| h.deref()).unwrap_or(&0),
               request.remote_addr);
 
-        match request.method {
+        let rv = match request.method {
             Method::Get | Method::Head => self.handle_get(request, &domain, &key),
             Method::Put => self.handle_put(request, &domain, &key),
             _ => Ok(Response::with((Status::BadRequest, "Unknown request type.\n"))),
-        }
+        };
+        info!("Storage response: {:?}", rv);
+        info!("response headers = {:?}", rv.as_ref().map(|ref r| &r.headers));
+        rv
     }
 }
 
