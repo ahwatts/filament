@@ -19,10 +19,7 @@ impl StorageHandler {
         }
     }
 
-    fn handle_get(&self, request: &Request, domain: &str, key: &str) -> IronResult<Response> {
-        debug!("request = {:?}", request);
-        debug!("request headers = {:?}", request.headers);
-
+    fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
         let metadata = try!(self.store.file_metadata(domain, key));
         let mut content = vec![];
         try!(self.store.get_content(domain, key, &mut content));
@@ -66,14 +63,26 @@ impl Handler for StorageHandler {
               request.headers.get::<headers::ContentLength>().map(|h| h.deref()).unwrap_or(&0),
               request.remote_addr);
 
-        let rv = match request.method {
+        let response_rslt = match request.method {
             Method::Get | Method::Head => self.handle_get(request, &domain, &key),
             Method::Put => self.handle_put(request, &domain, &key),
             _ => Ok(Response::with((Status::BadRequest, "Unknown request type.\n"))),
         };
-        info!("Storage response: {:?}", rv);
-        info!("response headers = {:?}", rv.as_ref().map(|ref r| &r.headers));
-        rv
+
+        match response_rslt {
+            Ok(ref response) =>
+                info!("Storage response: {:?} (body = {} bytes to {:?})",
+                      response.status,
+                      response.headers.get::<headers::ContentLength>().map(|h| h.deref()).unwrap_or(&0),
+                      request.remote_addr),
+            Err(ref e) =>
+                info!("Storage response: {:?} (error response) body = {} bytes to {:?}",
+                      e.response.status,
+                      e.response.headers.get::<headers::ContentLength>().map(|h| h.deref()).unwrap_or(&0),
+                      request.remote_addr),
+        }
+
+        response_rslt
     }
 }
 

@@ -14,9 +14,7 @@ impl<H: Handler> Handler for RangeHandler<H> {
 
         match (response_rslt, range_opt) {
             (Ok(mut response), Some(Range::Bytes(ranges))) => {
-                debug!("response (before) = {:?}", response);
                 try!(modify_response_for_ranges(&mut response, &ranges));
-                debug!("response (after) = {:?}", response);
                 Ok(response)
             },
             (response_rslt, _) => response_rslt,
@@ -53,6 +51,8 @@ fn modify_response_for_range(response: &mut Response, range: &ByteRangeSpec) -> 
         },
         _ => {}
     }
+
+    debug!("Limiting response to range: {:?} of {:?}", range, body_vec.len());
 
     response.status = Some(Status::PartialContent);
     match range {
