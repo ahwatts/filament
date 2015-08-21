@@ -1,7 +1,7 @@
 [package]
 name = "mogilefsd"
 description = "A quasi-workalike for the MogileFS tracker daemon."
-version = "0.1.0"
+version = "0.1.1-pre"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
 homepage = "https://github.com/ahwatts/mogilefsd"
 build = "build.rs"

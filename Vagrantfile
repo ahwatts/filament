@@ -1,6 +1,9 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+# TODO: This needs to install Ruby, Rake, and the "toml" gem on the
+# VM. I did it manually via rbenv.
+
 RUST_VERSION = "1.2.0"
 
 GUEST_ADDITIONS_PATH =
