@@ -1,8 +1,15 @@
 extern crate rand;
+extern crate url;
+
 #[macro_use] extern crate log;
 
-use std::io::{self, Read, Write, BufRead, BufReader, BufWriter};
+use std::io::{Read, Write, BufRead, BufReader, BufWriter};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+pub use error::{MogClientError, MogClientResult};
+pub use message::{Request, Response};
+
+mod error;
+mod message;
 
 #[derive(Debug)]
 pub struct MogClient {
@@ -13,7 +20,6 @@ pub struct MogClient {
 impl MogClient {
     pub fn new<S: ToSocketAddrs + Sized>(trackers: &[S]) -> MogClient {
         let sock_addrs = trackers.iter().flat_map(|a| a.to_socket_addrs().unwrap()).collect();
-        debug!("sock_addrs = {:?}", sock_addrs);
         MogClient {
             trackers: sock_addrs,
             transport: None,
@@ -67,52 +73,6 @@ impl MogClientTransport {
         try!(self.write.write_all(format!("{}\r\n", request.line()).as_bytes()));
         try!(self.write.flush());
         try!(self.read.read_line(&mut line));
-        Response::from_line(&line)
-    }
-}
-
-#[derive(Debug)]
-pub enum Request {
-    FileInfo { domain: String, key: String },
-}
-
-impl Request {
-    pub fn line(&self) -> String {
-        use self::Request::*;
-
-        match self {
-            &FileInfo { ref domain, ref key } => {
-                format!("file_info domain={}&key={}", domain, key)
-            }
-        }
-    }
-
-    pub fn file_info(domain: &str, key: &str) -> Request {
-        Request::FileInfo { domain: domain.to_string(), key: key.to_string() }
-    }
-}
-
-#[derive(Debug)]
-pub enum Response {}
-
-impl Response {
-    pub fn from_line(line: &str) -> MogClientResult<Response> {
-        info!("Response from MogileFS: {:?}", line);
-        unimplemented!();
-    }
-}
-
-pub type MogClientResult<T> = Result<T, MogClientError>;
-
-#[derive(Debug)]
-pub enum MogClientError {
-    IoError(io::Error),
-    NoConnection,
-    NoTrackers,
-}
-
-impl From<io::Error> for MogClientError {
-    fn from(ioe: io::Error) -> MogClientError {
-        MogClientError::IoError(ioe)
+        Ok(Response::from_line(&line))
     }
 }
