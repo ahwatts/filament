@@ -1,14 +1,15 @@
 use mio::tcp::{Shutdown, TcpListener, TcpStream};
 use mio::util::Slab;
 use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
+use mogilefs_common::Response;
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
+use super::Tracker;
 use super::super::super::backend::TrackerBackend;
 use super::super::super::ctrlc::CtrlC;
-use super::{Tracker, Response};
 
 pub use self::error::{EventedError, EventedResult};
 

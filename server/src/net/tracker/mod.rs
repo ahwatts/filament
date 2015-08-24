@@ -1,6 +1,5 @@
-use mogilefs_common::{MogError, MogResult, Request};
+use mogilefs_common::{MogError, MogResult, Request, Response};
 use super::super::backend::TrackerBackend;
-use url::{form_urlencoded, percent_encoding};
 
 pub mod evented;
 pub mod threaded;
@@ -154,35 +153,4 @@ fn domain_and_key(request: &Request) -> MogResult<(&str, &str)> {
     let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
     let key = try!(args.get("key").ok_or(MogError::NoKey));
     Ok((domain, key))
-}
-
-/// The response from the tracker.
-#[derive(Debug)]
-pub struct Response(MogResult<Vec<(String, String)>>);
-
-impl Response {
-    pub fn new(args: Vec<(String, String)>) -> Response {
-        Response(Ok(args))
-    }
-
-    pub fn render(&self) -> Vec<u8> {
-        match self.0 {
-            Ok(ref args) => format!("OK {}\r\n", form_urlencoded::serialize(args)).into_bytes(),
-            Err(ref err) => {
-                let encoded_description = percent_encoding::percent_encode(
-                    format!("{}", err).as_bytes(),
-                    percent_encoding::FORM_URLENCODED_ENCODE_SET);
-                format!("ERR {} {}\r\n", err.error_kind(), encoded_description).into_bytes()
-            }
-        }
-    }
-}
-
-impl From<MogResult<Response>> for Response {
-    fn from(result: MogResult<Response>) -> Response {
-        match result {
-            Ok(response) => response,
-            Err(err) => Response(Err(err)),
-        }
-    }
 }

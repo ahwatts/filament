@@ -7,7 +7,6 @@ use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use super::backend::{TrackerBackend, TrackerMetadata};
-use super::net::tracker;
 use url::Url;
 
 enum RequestInner {
@@ -21,7 +20,7 @@ struct Request {
 }
 
 struct Response {
-    inner: tracker::Response,
+    inner: mogilefs_common::Response,
 }
 
 pub struct ProxyTrackerBackend {

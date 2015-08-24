@@ -1,5 +1,5 @@
 use mio::Token;
-use super::super::Response;
+use mogilefs_common::Response;
 
 #[derive(Debug)]
 pub enum Notification {

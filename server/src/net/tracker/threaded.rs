@@ -3,7 +3,8 @@ use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::thread;
 use super::super::super::backend::TrackerBackend;
-use super::{Tracker, Response};
+use super::Tracker;
+use mogilefs_common::Response;
 
 pub struct ThreadedListener<B: TrackerBackend> {
     listener: TcpListener,
