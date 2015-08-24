@@ -3,7 +3,7 @@ name = "mogilefs_server"
 description = "A quasi-workalike for the MogileFS tracker daemon."
 version = "0.1.0"
 authors = ["Andrew Watts <ahwatts@gmail.com>"]
-homepage = "https://github.com/ahwatts/mogilefsd"
+homepage = "https://github.com/ahwatts/mogilefsd-rs"
 
 [dependencies]
 docopt = "~0.6.70"
