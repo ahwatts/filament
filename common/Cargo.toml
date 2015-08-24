@@ -8,3 +8,6 @@ homepage = "https://github.com/ahwatts/mogilefsd-rs"
 [dependencies]
 log = "~0.3.1"
 url = "~0.2.36"
+
+[dev-dependencies]
+matches = "~0.1.2"

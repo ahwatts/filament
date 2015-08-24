@@ -1,6 +1,6 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
-use mogilefs_common::{MogError, MogResult};
+use mogilefs_common::{self, MogError, MogResult};
 use rand;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::Mutex;
@@ -11,7 +11,7 @@ use super::net::tracker;
 use url::Url;
 
 enum RequestInner {
-    Real(tracker::Request),
+    Real(mogilefs_common::Request),
     Stop,
 }
 
@@ -74,7 +74,7 @@ impl ProxyTrackerBackend {
         Ok(())
     }
 
-    fn send_request(&mut self, req: tracker::Request) -> MogResult<Response> {
+    fn send_request(&mut self, req: mogilefs_common::Request) -> MogResult<Response> {
         if self.conn_thread_sender.is_none() {
             try!(self.create_conn_thread());
         }
