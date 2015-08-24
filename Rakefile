@@ -1,5 +1,21 @@
 require "toml"
 
+def root_dir
+  File.expand_path(File.dirname(__FILE__))
+end
+
+def subdirs
+  %w{ . client common server }
+end
+
+def in_each_subdir
+  subdirs.each do |dir|
+    cd File.expand_path(File.join(root_dir, dir))
+    yield
+  end
+  cd root_dir
+end
+
 def cargo_data
   TOML.load_file("Cargo.toml")
 end
@@ -50,13 +66,12 @@ end
 desc "Compile the source, and put the release tarball in dist"
 task :package => [ release_file ]
 
+desc "Clean the sub-crates"
+task :clean do
+  in_each_subdir { sh "cargo", "clean" }
+end
+
 desc "Run the tests for all the sub-crates"
 task :test do
-  # Maybe we should look for Cargo.toml files and run cargo test there?
-  root_dir = File.expand_path(File.dirname(__FILE__))
-  %w{ . client common server }.each do |dir|
-    cd File.expand_path(File.join(root_dir, dir))
-    sh "cargo", "test"
-    cd root_dir
-  end
+  in_each_subdir { sh "cargo", "test" }
 end
