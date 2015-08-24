@@ -1,6 +1,7 @@
 extern crate iron;
 extern crate libc;
 extern crate mio;
+extern crate mogilefs_common;
 extern crate rand;
 extern crate threadpool;
 extern crate time;
@@ -18,7 +19,6 @@ extern crate regex;
 
 pub mod backend;
 pub mod ctrlc;
-pub mod error;
 pub mod mem;
 pub mod net;
 pub mod proxy;

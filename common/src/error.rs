@@ -1,7 +1,7 @@
 //! Common error and result types for mogilefsd.
 
-use iron::IronError;
-use iron::status::Status;
+// use iron::IronError;
+// use iron::status::Status;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -15,6 +15,7 @@ pub type MogResult<T> = Result<T, MogError>;
 
 /// The error types that mogilefsd can produce.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum MogError {
     Io(io::Error),
     PoisonedMutex,
@@ -99,26 +100,6 @@ impl From<io::Error> for MogError {
 impl From<Utf8Error> for MogError {
     fn from(utf8_err: Utf8Error) -> MogError {
         MogError::Utf8(utf8_err)
-    }
-}
-
-impl From<MogError> for IronError {
-    fn from(err: MogError) -> IronError {
-        use self::MogError::*;
-
-        let modifier = match &err {
-            &UnknownKey(ref k) => {
-                (Status::NotFound, format!("Unknown key: {:?}\n", k))
-            },
-            &NoContent(ref k) => {
-                (Status::NotFound, format!("No content key: {:?}\n", k))
-            },
-            e @ _ => {
-                (Status::InternalServerError, format!("{}\n", e.description()))
-            }
-        };
-
-        IronError::new(err, modifier)
     }
 }
 

@@ -1,8 +1,8 @@
+use mogilefs_common::{MogError, MogResult};
 use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::str;
 use super::super::backend::TrackerBackend;
-use super::super::error::{MogError, MogResult};
 use url::{form_urlencoded, percent_encoding};
 
 pub mod evented;
@@ -283,8 +283,8 @@ impl From<MogResult<Response>> for Response {
 
 #[cfg(test)]
 mod tests {
+    use mogilefs_common::MogError;
     use super::*;
-    use super::super::super::error::MogError;
 
     #[test]
     fn command_from_no_bytes() {

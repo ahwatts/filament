@@ -1,13 +1,13 @@
 #![cfg_attr(not(test), allow(dead_code))]
 
+use mogilefs_common::{MogError, MogResult};
 use rand;
-use super::backend::{TrackerBackend, TrackerMetadata};
-use super::net::tracker;
-use super::error::{MogError, MogResult};
 use std::net::{SocketAddr, TcpStream};
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
+use super::backend::{TrackerBackend, TrackerMetadata};
+use super::net::tracker;
 use url::Url;
 
 enum RequestInner {
@@ -145,11 +145,11 @@ impl TrackerBackend for ProxyTrackerBackend {
 
 #[cfg(test)]
 mod tests {
+    use mogilefs_common::MogError;
     use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
     use std::sync::mpsc::{self, Sender};
     use std::thread::{self, JoinHandle};
     use super::*;
-    use super::super::error::MogError;
     use super::{connection_thread, Request, RequestInner};
 
     fn tracker_addr_list() -> Vec<SocketAddr> {

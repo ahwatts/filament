@@ -1,5 +1,5 @@
+use mogilefs_common::{MogError, MogResult};
 use std::collections::{btree_map, BTreeMap};
-use super::super::error::{MogError, MogResult};
 use time::Tm;
 
 #[derive(Debug, Default)]

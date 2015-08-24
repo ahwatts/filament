@@ -1,14 +1,14 @@
+extern crate mogilefs_common;
 extern crate rand;
 extern crate url;
 
 #[macro_use] extern crate log;
 
+use mogilefs_common::{MogError, MogResult};
 use std::io::{Read, Write, BufRead, BufReader, BufWriter};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-pub use error::{MogClientError, MogClientResult};
 pub use message::{Request, Response};
 
-mod error;
 mod message;
 
 #[derive(Debug)]
@@ -26,20 +26,20 @@ impl MogClient {
         }
     }
 
-    pub fn file_info(&mut self, domain: &str, key: &str) -> MogClientResult<Response> {
+    pub fn file_info(&mut self, domain: &str, key: &str) -> MogResult<Response> {
         try!(self.ensure_connected());
         self.transport.as_mut()
-            .ok_or(MogClientError::NoConnection)
+            .ok_or(MogError::NoConnection)
             .and_then(|mut t| t.do_request(&Request::file_info(domain, key)))
     }
 
-    fn random_tracker_addr(&self) -> MogClientResult<SocketAddr> {
+    fn random_tracker_addr(&self) -> MogResult<SocketAddr> {
         let mut rng = rand::thread_rng();
         let mut sample = rand::sample(&mut rng, self.trackers.iter(), 1);
-        sample.pop().cloned().ok_or(MogClientError::NoTrackers)
+        sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    fn ensure_connected(&mut self) -> MogClientResult<()> {
+    fn ensure_connected(&mut self) -> MogResult<()> {
         if self.transport.is_some() {
             Ok(())
         } else {
@@ -58,7 +58,7 @@ pub struct MogClientTransport {
 }
 
 impl MogClientTransport {
-    pub fn connect<S: ToSocketAddrs + ?Sized>(tracker_addr: &S) -> MogClientResult<MogClientTransport> {
+    pub fn connect<S: ToSocketAddrs + ?Sized>(tracker_addr: &S) -> MogResult<MogClientTransport> {
         let stream = try!(TcpStream::connect(tracker_addr));
         debug!("stream = {:?}", stream);
 
@@ -68,7 +68,7 @@ impl MogClientTransport {
         })
     }
 
-    pub fn do_request(&mut self, request: &Request) -> MogClientResult<Response> {
+    pub fn do_request(&mut self, request: &Request) -> MogResult<Response> {
         let mut line = String::new();
         try!(self.write.write_all(format!("{}\r\n", request.line()).as_bytes()));
         try!(self.write.flush());

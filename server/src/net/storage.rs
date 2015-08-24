@@ -1,13 +1,13 @@
-use iron::{Handler, IronError, IronResult, Request, Response};
 use iron::headers;
 use iron::method::Method;
 use iron::modifiers::Header;
 use iron::status::Status;
+use iron::{Handler, IronError, IronResult, Request, Response};
+use mogilefs_common::MogError;
 use std::any::Any;
 use std::error::Error;
 use std::ops::Deref;
 use super::super::backend::StorageBackend;
-use super::super::error::MogError;
 
 pub struct StorageHandler<B: StorageBackend> {
     backend: B,
@@ -21,9 +21,9 @@ impl<B: StorageBackend> StorageHandler<B> {
     }
 
     fn handle_get(&self, _request: &Request, domain: &str, key: &str) -> IronResult<Response> {
-        let metadata = try!(self.backend.file_metadata(domain, key));
+        let metadata = try!(self.backend.file_metadata(domain, key).map_err(|e| coerce_mogerror(e)));
         let mut content = vec![];
-        try!(self.backend.get_content(domain, key, &mut content));
+        try!(self.backend.get_content(domain, key, &mut content).map_err(|e| coerce_mogerror(e)));
         Ok(Response::with((
             Status::Ok,
             Header(headers::LastModified(headers::HttpDate(metadata.mtime))),
@@ -85,4 +85,22 @@ fn domain_and_key_from_path(path: &Vec<String>) -> Result<(String, String), Stri
             Err(format!("Could not extract domain or key from path: {:?}", path))
         }
     }
+}
+
+fn coerce_mogerror(err: MogError) -> IronError {
+    use mogilefs_common::MogError::*;
+
+    let modifier = match err {
+        UnknownKey(ref k) => {
+            (Status::NotFound, format!("Unknown key: {:?}\n", k))
+        },
+        NoContent(ref k) => {
+            (Status::NotFound, format!("No content key: {:?}\n", k))
+        },
+        ref e @ _ => {
+            (Status::InternalServerError, format!("{}\n", e.description()))
+        }
+    };
+
+    IronError::new(err, modifier)
 }

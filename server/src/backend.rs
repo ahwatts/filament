@@ -1,5 +1,5 @@
+use mogilefs_common::MogResult;
 use std::io::{Read, Write};
-use super::error::MogResult;
 use time::Tm;
 use url::Url;
 

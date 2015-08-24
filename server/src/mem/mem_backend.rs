@@ -1,11 +1,11 @@
+use mogilefs_common::{MogError, MogResult};
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
 use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend, TrackerMetadata};
-use super::super::error::{MogError, MogResult};
 use super::{Domain, FileInfo};
-use url::Url;
 use time;
+use url::Url;
 
 #[derive(Debug)]
 pub struct MemBackend {
@@ -260,10 +260,10 @@ pub fn url_for_key(base_url: &Url, domain: &str, key: &str) -> Url {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::backend::TrackerBackend;
-    use super::super::super::error::MogError;
-    use super::super::super::test_support::*;
+    use mogilefs_common::MogError;
     use std::io::Cursor;
+    use super::super::super::backend::TrackerBackend;
+    use super::super::super::test_support::*;
 
     #[test]
     fn backend_get_file() {

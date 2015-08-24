@@ -23,6 +23,9 @@ git = "https://github.com/ahwatts/iron.git"
 branch = "bug/http_10"
 default-features = false
 
+[dependencies.mogilefs_common]
+path = "../common"
+
 [dev-dependencies]
 matches = "~0.1.2"
 regex = "~0.1.8"
