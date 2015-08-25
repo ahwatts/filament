@@ -26,27 +26,32 @@ impl<B: TrackerBackend> Tracker<B> {
     }
 
     pub fn handle(&self, request: &Request) -> MogResult<Response> {
-        use mogilefs_common::Command::*;
+        use mogilefs_common::Request::*;
+        unimplemented!()
 
-        match request.op {
-            CreateDomain => self.create_domain(request),
+        // match request.op {
+        //     CreateDomain => self.create_domain(request),
 
-            CreateOpen => self.create_open(request),
-            CreateClose => self.create_close(request),
-            GetPaths => self.get_paths(request),
-            FileInfo => self.file_info(request),
-            Rename => self.rename(request),
-            UpdateClass => self.updateclass(request),
-            Delete => self.delete(request),
-            ListKeys => self.list_keys(request),
+        //     CreateOpen => self.create_open(request),
+        //     CreateClose => self.create_close(request),
+        //     GetPaths => self.get_paths(request),
+        //     FileInfo => self.file_info(request),
+        //     Rename => self.rename(request),
+        //     UpdateClass => self.updateclass(request),
+        //     Delete => self.delete(request),
+        //     ListKeys => self.list_keys(request),
 
-            Noop => self.noop(request),
-            // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
-        }
+        //     Noop => self.noop(request),
+        //     // _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op)))),
+        // }
     }
 
-    fn noop(&self, _request: &Request) -> MogResult<Response> {
-        Ok(Response::new(vec![]))
+    fn noop(&self, request: &Request) -> MogResult<Response> {
+        match request {
+            &Request::Noop => Ok(Response::new(vec![])),
+            _ => Err(MogError::UnknownCommand(Some(format!("{}", request.op()))))
+        }
+        
     }
 
     fn create_domain(&self, request: &Request) -> MogResult<Response> {

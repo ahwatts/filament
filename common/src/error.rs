@@ -14,26 +14,25 @@ pub type MogResult<T> = Result<T, MogError>;
 /// The error types that mogilefsd can produce.
 #[derive(Debug)]
 pub enum MogError {
-    Io(io::Error),
-    PoisonedMutex,
-    Utf8(Utf8Error),
-
-    NoDomain,
-    UnregDomain(String),
     DomainExists(String),
-
-    NoKey,
-    UnknownKey(String),
+    Io(io::Error),
     KeyExists(String),
-
-    UnknownCommand(Option<String>),
-
-    NoContent(String),
-
-    NoTrackers,
+    NoClass,
     NoConnection,
-    SendError,
+    NoContent(String),
+    NoDevid,
+    NoDomain,
+    NoFid,
+    NoKey,
+    NoPath,
+    NoTrackers,
+    PoisonedMutex,
     RecvError,
+    SendError,
+    UnknownCommand(Option<String>),
+    UnknownKey(String),
+    UnregDomain(String),
+    Utf8(Utf8Error),
 }
 
 impl MogError {
@@ -125,25 +124,25 @@ impl Error for MogError {
     fn description(&self) -> &str {
         use self::MogError::*;
         match *self {
-            Io(ref io_err) => io_err.description(),
-            Utf8(ref utf8_err) => utf8_err.description(),
-            PoisonedMutex => "Poisoned mutex",
-
-            NoDomain => "No domain provided",
-            UnregDomain(..) => "Domain name invalid / not found",
             DomainExists(..) => "Domain already exists",
-
-            NoKey => "No key provided",
-            UnknownKey(..) => "Unknown key",
+            Io(ref io_err) => io_err.description(),
             KeyExists(..) => "Key already exists",
-
-            UnknownCommand(..) => "Unknown command",
-            NoContent(..) => "No content",
-
-            NoTrackers => "No trackers provided",
+            NoClass => "No class provided",
             NoConnection => "Could not connect to tracker",
-            SendError => "Error sending request",
+            NoContent(..) => "No content",
+            NoDevid => "No device ID provided",
+            NoDomain => "No domain provided",
+            NoFid => "No file ID provided",
+            NoKey => "No key provided",
+            NoPath => "No path provided",
+            NoTrackers => "No trackers provided",
+            PoisonedMutex => "Poisoned mutex",
             RecvError => "Error receiving response",
+            SendError => "Error sending request",
+            UnknownCommand(..) => "Unknown command",
+            UnknownKey(..) => "Unknown key",
+            UnregDomain(..) => "Domain name invalid / not found",
+            Utf8(ref utf8_err) => utf8_err.description(),
         }
     }
 }
