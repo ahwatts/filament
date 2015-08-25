@@ -1,7 +1,5 @@
 //! Common error and result types for mogilefsd.
 
-// use iron::IronError;
-// use iron::status::Status;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
@@ -15,7 +13,6 @@ pub type MogResult<T> = Result<T, MogError>;
 
 /// The error types that mogilefsd can produce.
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum MogError {
     Io(io::Error),
     PoisonedMutex,

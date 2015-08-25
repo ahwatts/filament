@@ -6,7 +6,7 @@ extern crate url;
 extern crate matches;
 
 pub use error::{MogError, MogResult};
-pub use request::{Command, Request};
+pub use request::{request_from_bytes, Request};
 pub use response::Response;
 
 mod error;
