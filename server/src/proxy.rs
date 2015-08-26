@@ -10,7 +10,7 @@ use super::backend::{TrackerBackend, TrackerMetadata};
 use url::Url;
 
 enum RequestInner {
-    Real(mogilefs_common::Request),
+    // Real(mogilefs_common::Request),
     Stop,
 }
 
@@ -73,7 +73,8 @@ impl ProxyTrackerBackend {
         Ok(())
     }
 
-    fn send_request(&mut self, req: mogilefs_common::Request) -> MogResult<Response> {
+    fn send_request(&mut self, // req: mogilefs_common::Request
+                    ) -> MogResult<Response> {
         if self.conn_thread_sender.is_none() {
             try!(self.create_conn_thread());
         }
@@ -81,7 +82,7 @@ impl ProxyTrackerBackend {
         let (tx, rx) = mpsc::channel();
         let sender = try!(self.conn_thread_sender_clone());
 
-        try!(sender.send(Request { inner: RequestInner::Real(req), respond: tx }));
+        // try!(sender.send(Request { inner: RequestInner::Real(req), respond: tx }));
         rx.recv().map_err(|e| MogError::from(e))
     }
 }
@@ -101,9 +102,9 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
                 info!("Stopping and closing connection thread...");
                 break;
             },
-            RequestInner::Real(inner) => {
-                debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
-            },
+            // RequestInner::Real(inner) => {
+            //     debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
+            // },
         }
     }
 }
