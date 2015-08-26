@@ -10,7 +10,7 @@ pub mod evented;
 pub mod threaded;
 
 /// Something that can be handled by the tracker, i.e, a handler for a
-/// Request. Responsible for callign the appropriate method on the
+/// Request. Responsible for calling the appropriate method on the
 /// Backend and turning the response in to a Response.
 trait Handlable<B: TrackerBackend>: Request {
     fn handle(&self, backend: &B) -> MogResult<Response>;
