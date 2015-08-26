@@ -8,8 +8,8 @@ extern crate matches;
 pub use error::{MogError, MogResult};
 pub use request::Request;
 pub use response::Response;
+pub use request::types as requests;
 
 mod error;
 mod response;
-
-pub mod request;
+mod request;

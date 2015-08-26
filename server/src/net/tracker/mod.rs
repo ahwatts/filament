@@ -1,4 +1,4 @@
-use mogilefs_common::request::types::*;
+use mogilefs_common::requests::*;
 use mogilefs_common::{MogError, MogResult, Request, Response};
 use self::from_bytes::FromBytes;
 use std::str;

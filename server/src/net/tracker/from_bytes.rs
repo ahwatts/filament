@@ -1,4 +1,4 @@
-use mogilefs_common::request::types::*;
+use mogilefs_common::requests::*;
 use mogilefs_common::{MogError, MogResult};
 use std::collections::HashMap;
 use url::{form_urlencoded, Url};
