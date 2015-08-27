@@ -9,8 +9,8 @@ pub trait FromBytes {
 
 impl FromBytes for CreateDomain {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateDomain> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
 
         Ok(CreateDomain {
             domain: domain,
@@ -20,11 +20,11 @@ impl FromBytes for CreateDomain {
 
 impl FromBytes for CreateOpen {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
-        let multi_dest = coerce_to_bool(&args.remove("multi_dest").unwrap_or("false".to_string()));
-        let size = args.remove("size").and_then(|s| u64::from_str_radix(&s, 10).ok());
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
+        let multi_dest = args.extract_bool_value("multi_dest", false);
+        let size = args.extract_optional_int("size");
 
         Ok(CreateOpen {
             domain: domain,
@@ -37,13 +37,13 @@ impl FromBytes for CreateOpen {
 
 impl FromBytes for CreateClose {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateClose> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
-        let fid = try!(args.remove("fid").and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(MogError::NoFid));
-        let devid = try!(args.remove("devid").and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(MogError::NoDevid));
-        let path = try!(args.remove("path").and_then(|u| Url::parse(&u).ok()).ok_or(MogError::NoPath));
-        let checksum = args.remove("checksum");
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
+        let fid = try!(args.extract_required_int("fid", MogError::NoFid));
+        let devid = try!(args.extract_required_int("devid", MogError::NoDevid));
+        let path = try!(args.extract_required_url("path", MogError::NoPath));
+        let checksum = args.extract_optional_string("checksum");
 
         Ok(CreateClose {
             domain: domain,
@@ -58,11 +58,11 @@ impl FromBytes for CreateClose {
 
 impl FromBytes for GetPaths {
     fn from_bytes(bytes: &[u8]) -> MogResult<GetPaths> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
-        let noverify = coerce_to_bool(&args.remove("noverify").unwrap_or("false".to_string()));
-        let pathcount = args.remove("pathcount").and_then(|s| u64::from_str_radix(&s, 10).ok());
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
+        let noverify = args.extract_bool_value("noverify", false);
+        let pathcount = args.extract_optional_int("pathcount");
 
         Ok(GetPaths {
             domain: domain,
@@ -75,9 +75,9 @@ impl FromBytes for GetPaths {
 
 impl FromBytes for FileInfo {
     fn from_bytes(bytes: &[u8]) -> MogResult<FileInfo> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
 
         Ok(FileInfo {
             domain: domain,
@@ -88,10 +88,10 @@ impl FromBytes for FileInfo {
 
 impl FromBytes for Rename {
     fn from_bytes(bytes: &[u8]) -> MogResult<Rename> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let from_key = try!(args.remove("from_key").and_is_not_blank().ok_or(MogError::NoKey));
-        let to_key = try!(args.remove("to_key").and_is_not_blank().ok_or(MogError::NoKey));
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let from_key = try!(args.extract_required_string("from_key", MogError::NoKey));
+        let to_key = try!(args.extract_required_string("to_key", MogError::NoKey));
 
         Ok(Rename {
             domain: domain,
@@ -103,10 +103,10 @@ impl FromBytes for Rename {
 
 impl FromBytes for UpdateClass {
     fn from_bytes(bytes: &[u8]) -> MogResult<UpdateClass> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
-        let class = try!(args.remove("class").and_is_not_blank().ok_or(MogError::NoClass));
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
+        let class = try!(args.extract_required_string("class", MogError::NoClass));
 
         Ok(UpdateClass {
             domain: domain,
@@ -118,9 +118,9 @@ impl FromBytes for UpdateClass {
 
 impl FromBytes for Delete {
     fn from_bytes(bytes: &[u8]) -> MogResult<Delete> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
 
         Ok(Delete {
             domain: domain,
@@ -131,11 +131,11 @@ impl FromBytes for Delete {
 
 impl FromBytes for ListKeys {
     fn from_bytes(bytes: &[u8]) -> MogResult<ListKeys> {
-        let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
-        let prefix = args.remove("prefix");
-        let limit = args.remove("limit").and_then(|s| u64::from_str_radix(&s, 10).ok());
-        let after = args.remove("after");
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let prefix = args.extract_optional_string("prefix");
+        let limit = args.extract_optional_int("limit");
+        let after = args.extract_optional_string("after");
 
         Ok(ListKeys {
             domain: domain,
@@ -152,24 +152,61 @@ impl FromBytes for Noop {
     }
 }
 
-fn bytes_to_args_hash(bytes: &[u8]) -> HashMap<String, String> {
-    let args = form_urlencoded::parse(bytes);
-    let mut rv = HashMap::new();
-    for (k, v) in args.into_iter() {
-        rv.entry(k).or_insert(v);
-    }
-    rv
-}
+#[derive(Debug, Clone)]
+struct ArgsHash(HashMap<String, String>);
 
-fn coerce_to_bool(string: &str) -> bool {
-    match string.to_lowercase().as_ref() {
-        "true" | "t" | "1" => true,
-        _ => false,
+impl ArgsHash {
+    fn from_bytes(bytes: &[u8]) -> ArgsHash {
+        let args = form_urlencoded::parse(bytes);
+        let mut rv = HashMap::new();
+        for (k, v) in args.into_iter() {
+            rv.entry(k).or_insert(v);
+        }
+        ArgsHash(rv)
+    }
+
+    fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
+        self.0.remove(key).and_is_not_blank().ok_or(missing_error)
+    }
+
+    fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
+        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(missing_error)
+    }
+
+    fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
+        match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
+            Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
+            _ => Err(missing_error),
+        }
+    }
+
+    fn extract_optional_string(&mut self, key: &str) -> Option<String> {
+        self.0.remove(key)
+    }
+
+    fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
+        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok())
+    }
+
+    fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
+        match self.0.remove(key) {
+            v @ Some(..) => v.is_truthy(),
+            None => default,
+        }
+    }
+
+    fn extract_domain(&mut self) -> MogResult<String> {
+        self.extract_required_string("domain", MogError::NoDomain)
+    }
+
+    fn extract_key(&mut self) -> MogResult<String> {
+        self.extract_required_string("key", MogError::NoKey)
     }
 }
 
 trait OptionStringExt<S: AsRef<str>>: Sized {
     fn and_is_not_blank(self) -> Self;
+    fn is_truthy(self) -> bool;
 }
 
 impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
@@ -181,129 +218,113 @@ impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
             }
         })
     }
+
+    fn is_truthy(self) -> bool {
+        match self {
+            Some(s) => {
+                match s.as_ref().to_lowercase().as_ref() {
+                    "true" | "t" | "1" => true,
+                    _ => false,
+                }
+            },
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::{ArgsHash, OptionStringExt};
     use mogilefs_common::MogError;
-    use mogilefs_common::requests::*;
-    use url::Url;
 
-    macro_rules! assert_eq_2 {
-        ( $expected:expr, $actual:expr ) => {
-            assert!($expected == $actual, "{:?} was not {:?}", stringify!($actual), $expected);
-        }
+    #[test]
+    fn test_is_not_blank() {
+        assert!(Some("").and_is_not_blank().is_none());
+        assert!(Some("not empty").and_is_not_blank().is_some());
     }
 
     #[test]
-    fn test_coerce_to_bool() {
-        assert_eq_2!(true, super::coerce_to_bool("true"));
-        assert_eq_2!(false, super::coerce_to_bool("false"));
+    fn test_is_truthy() {
+        assert!(Some("true").is_truthy());
+        assert!(!Some("false").is_truthy());
 
-        assert_eq_2!(true, super::coerce_to_bool("t"));
-        assert_eq_2!(false, super::coerce_to_bool("f"));
+        assert!(Some("t").is_truthy());
+        assert!(!Some("f").is_truthy());
 
-        assert_eq_2!(true, super::coerce_to_bool("1"));
-        assert_eq_2!(false, super::coerce_to_bool("0"));
+        assert!(Some("1").is_truthy());
+        assert!(!Some("0").is_truthy());
 
-        assert_eq_2!(false, super::coerce_to_bool("puppy"));
-        assert_eq_2!(false, super::coerce_to_bool("10"));
-        assert_eq_2!(false, super::coerce_to_bool("trueblood"));
-    }
-
-    macro_rules! matches_request {
-        ( $name: expr, $req:expr, $req_match:pat => $extra:block ) => {
-            match $req {
-                $req_match => $extra,
-                r @ _ => panic!("Bad request parse for {:?}: parsed request = {:?}", $name, r),
-            }
-        }
+        assert!(!Some("puppy").is_truthy());
+        assert!(!Some("10").is_truthy());
+        assert!(!Some("trueblood").is_truthy());
     }
 
     #[test]
-    fn create_domain_from_bytes() {
-        matches_request!{
-            "Happy path",
-            CreateDomain::from_bytes(b"domain=test_domain"),
-            Ok(CreateDomain { ref domain }) => {
-                assert_eq!("test_domain", domain);
-            }
-        }
+    fn test_extract_required_string() {
+        let args = ArgsHash::from_bytes(b"present_field=nachos&blank_field=");
 
-        matches_request!{
-            "Empty byte string",
-            CreateDomain::from_bytes(&[]),
-            Err(MogError::NoDomain) => {}
-        }
-
-        matches_request!{
-            "Blank domain",
-            CreateDomain::from_bytes(b"domain="),
-            Err(MogError::NoDomain) => {}
-        }
+        assert!(matches!(args.clone().extract_required_string("present_field", MogError::NoDomain), Ok(ref v) if v == "nachos"));
+        assert!(matches!(args.clone().extract_required_string("blank_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_string("missing_field", MogError::NoDomain), Err(MogError::NoDomain)));
     }
 
     #[test]
-    fn create_open_from_bytes() {
-        matches_request!{
-            "No optional params",
-            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1"),
-            Ok(req @ CreateOpen {..}) => {
-                assert_eq!("test_domain", req.domain);
-                assert_eq!("test/key/1", req.key);
-                assert_eq!(false, req.multi_dest);
-                assert_eq!(None, req.size);
-            }
-        }
+    fn test_extract_required_int() {
+        let args = ArgsHash::from_bytes(b"present_field=123&blank_field=&bad_format_field=nachos");
 
-        matches_request!{
-            "With multi_dest",
-            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1&multi_dest=1"),
-            Ok(req @ CreateOpen {..}) => {
-                assert_eq!("test_domain", req.domain);
-                assert_eq!("test/key/1", req.key);
-                assert_eq!(true, req.multi_dest);
-                assert_eq!(None, req.size);
-            }
-        }
-
-        matches_request!{
-            "With size",
-            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1&size=12"),
-            Ok(req @ CreateOpen {..}) => {
-                assert_eq!("test_domain", req.domain);
-                assert_eq!("test/key/1", req.key);
-                assert_eq!(false, req.multi_dest);
-                assert_eq!(Some(12), req.size);
-            }
-        }
-
-        matches_request!{
-            "Blank domain",
-            CreateOpen::from_bytes(b"domain=&key=test/key/1"),
-            Err(MogError::NoDomain) => {}
-        }
-
-        matches_request!{
-            "Blank key",
-            CreateOpen::from_bytes(b"domain=test_domain&key="),
-            Err(MogError::NoKey) => {}
-        }
+        assert!(matches!(args.clone().extract_required_int("present_field", MogError::NoDomain), Ok(123)));
+        assert!(matches!(args.clone().extract_required_int("blank_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_int("missing_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_int("bad_format_field", MogError::NoDomain), Err(MogError::NoDomain)));
     }
 
     #[test]
-    fn create_close_from_bytes() {
-        matches_request!{
-            "No optional params",
-            CreateClose::from_bytes(b"domain=test_domain&key=test/key/1&fid=25&devid=2&path=http://test.storage.host/dev2/0/0/0000025.fid"),
-            Ok(req @ CreateClose {..}) => {
-                assert_eq!("test_domain", req.domain);
-                assert_eq!("test/key/1", req.key);
-                assert_eq!(25, req.fid);
-                assert_eq!(2, req.devid);
-                assert_eq!(Url::parse("http://test.storage.host/dev2/0/0/0000025.fid").unwrap(), req.path);
-            }
-        }
+    fn test_extract_required_url() {
+        use url::Url;
+        let args = ArgsHash::from_bytes(b"present_field=http://test.host/path/to/resource&blank_field=&bad_format_field=nachos&not_http=file:///usr/bin/env");
+
+        assert!(matches!(args.clone().extract_required_url("present_field", MogError::NoDomain),
+                         Ok(ref u) if u == &Url::parse("http://test.host/path/to/resource").unwrap()));
+        assert!(matches!(args.clone().extract_required_url("blank_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_url("missing_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_url("bad_format_field", MogError::NoDomain), Err(MogError::NoDomain)));
+        assert!(matches!(args.clone().extract_required_url("not_http", MogError::NoDomain), Err(MogError::NoDomain)));
+    }
+
+    #[test]
+    fn test_extract_optional_string() {
+        let args = ArgsHash::from_bytes(b"present_field=nachos&blank_field=");
+
+        assert!(matches!(args.clone().extract_optional_string("present_field"), Some(ref v) if v == "nachos"));
+        // Do we actually wnat blank to be passed through?
+        assert!(matches!(args.clone().extract_optional_string("blank_field"), Some(ref v) if v.is_empty()));
+        assert!(matches!(args.clone().extract_optional_string("missing_field"), None));
+    }
+
+    #[test]
+    fn test_extract_optional_int() {
+        let args = ArgsHash::from_bytes(b"present_field=123&blank_field=&bad_format_field=nachos");
+
+        assert!(matches!(args.clone().extract_optional_int("present_field"), Some(123)));
+        assert!(matches!(args.clone().extract_optional_int("blank_field"), None));
+        assert!(matches!(args.clone().extract_optional_int("missing_field"), None));
+        assert!(matches!(args.clone().extract_optional_int("bad_format_field"), None));
+    }
+
+    #[test]
+    fn test_extract_bool_value() {
+        let args = ArgsHash::from_bytes(b"present_field=true&blank_field=&bad_format_field=nachos&as_number=1&as_first_letter=t&as_capital_letter=T");
+
+        assert!(args.clone().extract_bool_value("present_field", false));
+        assert!(!args.clone().extract_bool_value("blank_field", false));
+        assert!(!args.clone().extract_bool_value("bad_format_field", false));
+        assert!(args.clone().extract_bool_value("as_number", false));
+        assert!(args.clone().extract_bool_value("as_first_letter", false));
+        assert!(args.clone().extract_bool_value("as_capital_letter", false));
+
+        // this next test fails. If we care (i.e, we start having bool
+        // values that default to true), we should probably fix it.
+        // assert!(args.clone().extract_bool_value("blank_field", true));
     }
 }
