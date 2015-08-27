@@ -176,6 +176,28 @@ mod tests {
     use mogilefs_common::MogError;
     use mogilefs_common::requests::*;
 
+    macro_rules! assert_bool_coercion {
+        ( $expected:expr, $actual:expr ) => {
+            assert!($expected == $actual, "{:?} was not {:?}", stringify!($actual), $expected);
+        }
+    }
+
+    #[test]
+    fn test_coerce_to_bool() {
+        assert_bool_coercion!(true, super::coerce_to_bool("true"));
+        assert_bool_coercion!(false, super::coerce_to_bool("false"));
+
+        assert_bool_coercion!(true, super::coerce_to_bool("t"));
+        assert_bool_coercion!(false, super::coerce_to_bool("f"));
+
+        assert_bool_coercion!(true, super::coerce_to_bool("1"));
+        assert_bool_coercion!(false, super::coerce_to_bool("0"));
+
+        assert_bool_coercion!(false, super::coerce_to_bool("puppy"));
+        assert_bool_coercion!(false, super::coerce_to_bool("10"));
+        assert_bool_coercion!(false, super::coerce_to_bool("trueblood"));
+    }
+
     macro_rules! matches_request {
         ( $name: expr, $req:expr, $req_match:pat => $extra:block ) => {
             match $req {
@@ -186,7 +208,7 @@ mod tests {
     }
 
     #[test]
-    fn create_domain() {
+    fn create_domain_from_bytes() {
         matches_request!{
             "Happy path",
             CreateDomain::from_bytes(b"domain=test_domain"),
@@ -208,42 +230,39 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn request_from_no_bytes() {
-    //     assert!(matches!(Request::from_bytes(b""),
-    //                      Err(MogError::UnknownCommand(None))));
-    // }
+    #[test]
+    fn create_open_from_bytes() {
+        matches_request!{
+            "No optional params",
+            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1"),
+            Ok(req @ CreateOpen {..}) => {
+                assert_eq!("test_domain", req.domain);
+                assert_eq!("test/key/1", req.key);
+                assert_eq!(false, req.multi_dest);
+                assert_eq!(None, req.size);
+            }
+        }
 
-    // #[test]
-    // fn unknown_command() {
-    //     let request = Request::from_bytes(b"this_command_doesnt_exist");
+        matches_request!{
+            "With multi_dest",
+            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1&multi_dest=1"),
+            Ok(req @ CreateOpen {..}) => {
+                assert_eq!("test_domain", req.domain);
+                assert_eq!("test/key/1", req.key);
+                assert_eq!(true, req.multi_dest);
+                assert_eq!(None, req.size);
+            }
+        }
 
-    //     match request {
-    //         Err(MogError::UnknownCommand(Some(ref s))) => {
-    //             assert_eq!("this_command_doesnt_exist", s);
-    //         },
-    //         _ => panic!("Bad request parse: request = {:?}", request),
-    //     }
-    // }
-
-    // #[test]
-    // fn known_command() {
-    //     let request = Request::from_bytes(b"file_info domain=test_domain&key=test_key");
-    //     match request {
-    //         Ok(FileInfo { ref domain, ref key }) => {
-    //             assert_eq!("test_domain", domain);
-    //             assert_eq!("test_key", key);
-    //         },
-    //         _ => panic!("Bad request parse: request = {:?}", request),
-    //     }
-    // }
-
-    // #[test]
-    // fn request_with_no_args() {
-    //     let request = Request::from_bytes(b"create_open");
-    //     match request {
-    //         Err(MogError::NoDomain) => {},
-    //         _ => panic!("Bad request parse: request = {:?}", request),
-    //     }
-    // }
+        matches_request!{
+            "With size",
+            CreateOpen::from_bytes(b"domain=test_domain&key=test/key/1&size=12"),
+            Ok(req @ CreateOpen {..}) => {
+                assert_eq!("test_domain", req.domain);
+                assert_eq!("test/key/1", req.key);
+                assert_eq!(false, req.multi_dest);
+                assert_eq!(Some(12), req.size);
+            }
+        }
+    }
 }
