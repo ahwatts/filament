@@ -10,9 +10,7 @@ pub trait FromBytes {
 impl FromBytes for CreateDomain {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateDomain> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-
-        if domain.is_empty() { return Err(MogError::NoDomain); }
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
 
         Ok(CreateDomain {
             domain: domain,
@@ -23,8 +21,8 @@ impl FromBytes for CreateDomain {
 impl FromBytes for CreateOpen {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
         let multi_dest = coerce_to_bool(&args.remove("multi_dest").unwrap_or("false".to_string()));
         let size = args.remove("size").and_then(|s| u64::from_str_radix(&s, 10).ok());
 
@@ -40,8 +38,8 @@ impl FromBytes for CreateOpen {
 impl FromBytes for CreateClose {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateClose> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
         let fid = try!(args.remove("fid").and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(MogError::NoFid));
         let devid = try!(args.remove("devid").and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(MogError::NoDevid));
         let path = try!(args.remove("path").and_then(|u| Url::parse(&u).ok()).ok_or(MogError::NoPath));
@@ -61,8 +59,8 @@ impl FromBytes for CreateClose {
 impl FromBytes for GetPaths {
     fn from_bytes(bytes: &[u8]) -> MogResult<GetPaths> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
         let noverify = coerce_to_bool(&args.remove("noverify").unwrap_or("false".to_string()));
         let pathcount = args.remove("pathcount").and_then(|s| u64::from_str_radix(&s, 10).ok());
 
@@ -78,8 +76,8 @@ impl FromBytes for GetPaths {
 impl FromBytes for FileInfo {
     fn from_bytes(bytes: &[u8]) -> MogResult<FileInfo> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
 
         Ok(FileInfo {
             domain: domain,
@@ -91,9 +89,9 @@ impl FromBytes for FileInfo {
 impl FromBytes for Rename {
     fn from_bytes(bytes: &[u8]) -> MogResult<Rename> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let from_key = try!(args.remove("from_key").ok_or(MogError::NoKey));
-        let to_key = try!(args.remove("to_key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let from_key = try!(args.remove("from_key").and_is_not_blank().ok_or(MogError::NoKey));
+        let to_key = try!(args.remove("to_key").and_is_not_blank().ok_or(MogError::NoKey));
 
         Ok(Rename {
             domain: domain,
@@ -106,9 +104,9 @@ impl FromBytes for Rename {
 impl FromBytes for UpdateClass {
     fn from_bytes(bytes: &[u8]) -> MogResult<UpdateClass> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
-        let class = try!(args.remove("class").ok_or(MogError::NoClass));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
+        let class = try!(args.remove("class").and_is_not_blank().ok_or(MogError::NoClass));
 
         Ok(UpdateClass {
             domain: domain,
@@ -121,8 +119,8 @@ impl FromBytes for UpdateClass {
 impl FromBytes for Delete {
     fn from_bytes(bytes: &[u8]) -> MogResult<Delete> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
-        let key = try!(args.remove("key").ok_or(MogError::NoKey));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
+        let key = try!(args.remove("key").and_is_not_blank().ok_or(MogError::NoKey));
 
         Ok(Delete {
             domain: domain,
@@ -134,7 +132,7 @@ impl FromBytes for Delete {
 impl FromBytes for ListKeys {
     fn from_bytes(bytes: &[u8]) -> MogResult<ListKeys> {
         let mut args = bytes_to_args_hash(bytes);
-        let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
+        let domain = try!(args.remove("domain").and_is_not_blank().ok_or(MogError::NoDomain));
         let prefix = args.remove("prefix");
         let limit = args.remove("limit").and_then(|s| u64::from_str_radix(&s, 10).ok());
         let after = args.remove("after");
@@ -170,11 +168,27 @@ fn coerce_to_bool(string: &str) -> bool {
     }
 }
 
+trait OptionStringExt<S: AsRef<str>>: Sized {
+    fn and_is_not_blank(self) -> Self;
+}
+
+impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
+    fn and_is_not_blank(self) -> Option<S> {
+        self.and_then(|s| {
+            match s.as_ref().is_empty() {
+                true => None,
+                false => Some(s),
+            }
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mogilefs_common::MogError;
     use mogilefs_common::requests::*;
+    use url::Url;
 
     macro_rules! assert_eq_2 {
         ( $expected:expr, $actual:expr ) => {
@@ -262,6 +276,33 @@ mod tests {
                 assert_eq!("test/key/1", req.key);
                 assert_eq!(false, req.multi_dest);
                 assert_eq!(Some(12), req.size);
+            }
+        }
+
+        matches_request!{
+            "Blank domain",
+            CreateOpen::from_bytes(b"domain=&key=test/key/1"),
+            Err(MogError::NoDomain) => {}
+        }
+
+        matches_request!{
+            "Blank key",
+            CreateOpen::from_bytes(b"domain=test_domain&key="),
+            Err(MogError::NoKey) => {}
+        }
+    }
+
+    #[test]
+    fn create_close_from_bytes() {
+        matches_request!{
+            "No optional params",
+            CreateClose::from_bytes(b"domain=test_domain&key=test/key/1&fid=25&devid=2&path=http://test.storage.host/dev2/0/0/0000025.fid"),
+            Ok(req @ CreateClose {..}) => {
+                assert_eq!("test_domain", req.domain);
+                assert_eq!("test/key/1", req.key);
+                assert_eq!(25, req.fid);
+                assert_eq!(2, req.devid);
+                assert_eq!(Url::parse("http://test.storage.host/dev2/0/0/0000025.fid").unwrap(), req.path);
             }
         }
     }
