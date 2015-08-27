@@ -12,6 +12,8 @@ impl FromBytes for CreateDomain {
         let mut args = bytes_to_args_hash(bytes);
         let domain = try!(args.remove("domain").ok_or(MogError::NoDomain));
 
+        if domain.is_empty() { return Err(MogError::NoDomain); }
+
         Ok(CreateDomain {
             domain: domain,
         })
@@ -166,4 +168,82 @@ fn coerce_to_bool(string: &str) -> bool {
         "true" | "t" | "1" => true,
         _ => false,
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mogilefs_common::MogError;
+    use mogilefs_common::requests::*;
+
+    macro_rules! matches_request {
+        ( $name: expr, $req:expr, $req_match:pat => $extra:block ) => {
+            match $req {
+                $req_match => $extra,
+                r @ _ => panic!("Bad request parse for {:?}: parsed request = {:?}", $name, r),
+            }
+        }
+    }
+
+    #[test]
+    fn create_domain() {
+        matches_request!{
+            "Happy path",
+            CreateDomain::from_bytes(b"domain=test_domain"),
+            Ok(CreateDomain { ref domain }) => {
+                assert_eq!("test_domain", domain);
+            }
+        }
+
+        matches_request!{
+            "Empty byte string",
+            CreateDomain::from_bytes(&[]),
+            Err(MogError::NoDomain) => {}
+        }
+
+        matches_request!{
+            "Blank domain",
+            CreateDomain::from_bytes(b"domain="),
+            Err(MogError::NoDomain) => {}
+        }
+    }
+
+    // #[test]
+    // fn request_from_no_bytes() {
+    //     assert!(matches!(Request::from_bytes(b""),
+    //                      Err(MogError::UnknownCommand(None))));
+    // }
+
+    // #[test]
+    // fn unknown_command() {
+    //     let request = Request::from_bytes(b"this_command_doesnt_exist");
+
+    //     match request {
+    //         Err(MogError::UnknownCommand(Some(ref s))) => {
+    //             assert_eq!("this_command_doesnt_exist", s);
+    //         },
+    //         _ => panic!("Bad request parse: request = {:?}", request),
+    //     }
+    // }
+
+    // #[test]
+    // fn known_command() {
+    //     let request = Request::from_bytes(b"file_info domain=test_domain&key=test_key");
+    //     match request {
+    //         Ok(FileInfo { ref domain, ref key }) => {
+    //             assert_eq!("test_domain", domain);
+    //             assert_eq!("test_key", key);
+    //         },
+    //         _ => panic!("Bad request parse: request = {:?}", request),
+    //     }
+    // }
+
+    // #[test]
+    // fn request_with_no_args() {
+    //     let request = Request::from_bytes(b"create_open");
+    //     match request {
+    //         Err(MogError::NoDomain) => {},
+    //         _ => panic!("Bad request parse: request = {:?}", request),
+    //     }
+    // }
 }

@@ -1,36 +1,36 @@
 use std::collections::HashMap;
 use url::form_urlencoded;
 
-#[derive(Debug)]
-pub enum Request {
-    FileInfo { domain: String, key: String },
-}
+// #[derive(Debug)]
+// pub enum Request {
+//     FileInfo { domain: String, key: String },
+// }
 
-impl Request {
-    pub fn file_info(domain: &str, key: &str) -> Request {
-        Request::FileInfo { domain: domain.to_string(), key: key.to_string() }
-    }
+// impl Request {
+//     pub fn file_info(domain: &str, key: &str) -> Request {
+//         Request::FileInfo { domain: domain.to_string(), key: key.to_string() }
+//     }
 
-    pub fn line(&self) -> String {
-        format!("{} {}", self.op(), form_urlencoded::serialize(self.args()))
-    }
+//     pub fn line(&self) -> String {
+//         format!("{} {}", self.op(), form_urlencoded::serialize(self.args()))
+//     }
 
-    fn op(&self) -> &'static str {
-        use self::Request::*;
+//     fn op(&self) -> &'static str {
+//         use self::Request::*;
 
-        match self {
-            &FileInfo {..} => "file_info",
-        }
-    }
+//         match self {
+//             &FileInfo {..} => "file_info",
+//         }
+//     }
 
-    fn args(&self) -> Vec<(&str, &str)> {
-        use self::Request::*;
+//     fn args(&self) -> Vec<(&str, &str)> {
+//         use self::Request::*;
 
-        match self {
-            &FileInfo { ref domain, ref key } => vec![ ("domain", domain), ("key", key) ],
-        }
-    }
-}
+//         match self {
+//             &FileInfo { ref domain, ref key } => vec![ ("domain", domain), ("key", key) ],
+//         }
+//     }
+// }
 
 #[derive(Debug)]
 pub struct Response(Result<HashMap<String, String>, String>);

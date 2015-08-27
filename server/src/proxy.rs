@@ -1,4 +1,4 @@
-#![cfg_attr(not(test), allow(dead_code))]
+#![allow(dead_code, unused_variables)]
 
 use mogilefs_common::{self, MogError, MogResult};
 use rand;
