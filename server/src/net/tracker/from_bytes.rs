@@ -176,7 +176,7 @@ mod tests {
     use mogilefs_common::MogError;
     use mogilefs_common::requests::*;
 
-    macro_rules! assert_bool_coercion {
+    macro_rules! assert_eq_2 {
         ( $expected:expr, $actual:expr ) => {
             assert!($expected == $actual, "{:?} was not {:?}", stringify!($actual), $expected);
         }
@@ -184,18 +184,18 @@ mod tests {
 
     #[test]
     fn test_coerce_to_bool() {
-        assert_bool_coercion!(true, super::coerce_to_bool("true"));
-        assert_bool_coercion!(false, super::coerce_to_bool("false"));
+        assert_eq_2!(true, super::coerce_to_bool("true"));
+        assert_eq_2!(false, super::coerce_to_bool("false"));
 
-        assert_bool_coercion!(true, super::coerce_to_bool("t"));
-        assert_bool_coercion!(false, super::coerce_to_bool("f"));
+        assert_eq_2!(true, super::coerce_to_bool("t"));
+        assert_eq_2!(false, super::coerce_to_bool("f"));
 
-        assert_bool_coercion!(true, super::coerce_to_bool("1"));
-        assert_bool_coercion!(false, super::coerce_to_bool("0"));
+        assert_eq_2!(true, super::coerce_to_bool("1"));
+        assert_eq_2!(false, super::coerce_to_bool("0"));
 
-        assert_bool_coercion!(false, super::coerce_to_bool("puppy"));
-        assert_bool_coercion!(false, super::coerce_to_bool("10"));
-        assert_bool_coercion!(false, super::coerce_to_bool("trueblood"));
+        assert_eq_2!(false, super::coerce_to_bool("puppy"));
+        assert_eq_2!(false, super::coerce_to_bool("10"));
+        assert_eq_2!(false, super::coerce_to_bool("trueblood"));
     }
 
     macro_rules! matches_request {
