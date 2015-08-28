@@ -50,16 +50,12 @@ mod tests {
         let mut dst_buf = Vec::new();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"This line will end with two bytes:\r\n".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"This line will end with two bytes:\r\n".as_ref(), &*dst_buf);
 
         dst_buf.clear();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"And then a second line.".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"And then a second line.", &*dst_buf);
     }
 
     #[test]
@@ -69,16 +65,12 @@ mod tests {
         let mut dst_buf = Vec::new();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"This line will end\r with two bytes:\r\n".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"This line will end\r with two bytes:\r\n".as_ref(), &*dst_buf);
 
         dst_buf.clear();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"And then a second\n line.".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"And then a second\n line.", &*dst_buf);
     }
 
     #[test]
@@ -88,16 +80,12 @@ mod tests {
         let mut dst_buf = Vec::new();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"This line will end with two bytes:\r\n".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"This line will end with two bytes:\r\n".as_ref(), &*dst_buf);
 
         dst_buf.clear();
 
         reader.read_until_mb(CRLF, &mut dst_buf).unwrap();
-        assert_eq!(
-            b"And then a second line, which also ends with two bytes.\r\n".as_ref(),
-            AsRef::<[u8]>::as_ref(&dst_buf));
+        assert_eq!(b"And then a second line, which also ends with two bytes.\r\n".as_ref(), &*dst_buf);
 
         dst_buf.clear();
 

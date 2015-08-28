@@ -4,7 +4,7 @@ use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
 use mogilefs_common::{BufReadMb, Response};
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
-use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
+use std::io::{BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
 use super::Tracker;
