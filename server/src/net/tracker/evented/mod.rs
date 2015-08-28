@@ -1,7 +1,7 @@
 use mio::tcp::{Shutdown, TcpListener, TcpStream};
 use mio::util::Slab;
 use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
-use mogilefs_common::Response;
+use mogilefs_common::{BufReadMb, Response};
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Write};
@@ -311,7 +311,7 @@ impl<B: 'static + TrackerBackend> Connection<B> {
                 // There should be no way this can go wrong; we're reading
                 // from and writing to Vecs.
                 let mut reader = BufReader::new(Cursor::new(self.in_buf.as_ref()));
-                read_until_mb(&mut reader, CRLF, &mut request).unwrap();
+                reader.read_until_mb(CRLF, &mut request).unwrap();
                 reader.read_to_end(&mut rest).unwrap();
             }
 
@@ -342,38 +342,6 @@ impl<B: 'static + TrackerBackend> Connection<B> {
         try!(self.stream.shutdown(Shutdown::Both));
 
         Ok(())
-    }
-}
-
-/// A version of the standard library's read_until() function that
-/// supports a multibyte delimiter.
-fn read_until_mb<R: BufRead + ?Sized>(r: &mut R, delim: &[u8], buf: &mut Vec<u8>) -> io::Result<usize> {
-    use std::io::ErrorKind;
-
-    let mut read = 0;
-    loop {
-        let (done, used) = {
-            let available = match r.fill_buf() {
-                Ok(n) => n,
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => continue,
-                Err(e) => return Err(e)
-            };
-            match available.windows(delim.len()).position(|x| x == delim) {
-                Some(i) => {
-                    buf.extend(&available[..i + delim.len()]);
-                    (true, i + delim.len())
-                }
-                None => {
-                    buf.extend(available);
-                    (false, available.len())
-                }
-            }
-        };
-        r.consume(used);
-        read += used;
-        if done || used == 0 {
-            return Ok(read);
-        }
     }
 }
 
