@@ -4,15 +4,13 @@ extern crate url;
 
 #[macro_use] extern crate log;
 
-use message::Response;
 use mogilefs_common::requests::*;
-use mogilefs_common::{Request, MogError, MogResult};
-use std::io::{Read, Write, BufRead, BufReader, BufWriter};
+use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, FromBytes};
+use std::io::{Read, Write, BufReader, BufWriter};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use to_args::ToArgs;
 use url::form_urlencoded;
 
-mod message;
 mod to_args;
 
 trait ClientRequest: Request + ToArgs {
@@ -85,10 +83,10 @@ impl MogClientTransport {
     }
 
     fn do_request<R: ClientRequest>(&mut self, request: R) -> MogResult<Response> {
-        let mut line = String::new();
+        let mut line = Vec::new();
         try!(self.write.write_all(format!("{}\r\n", request.render()).as_bytes()));
         try!(self.write.flush());
-        try!(self.read.read_line(&mut line));
-        Ok(Response::from_line(&line))
+        try!(self.read.read_until_mb(b"\r\n", &mut line));
+        Response::from_bytes(&line)
     }
 }

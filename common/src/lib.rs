@@ -6,14 +6,13 @@ extern crate url;
 extern crate matches;
 
 pub use error::{MogError, MogResult};
-pub use from_bytes::FromBytes;
 pub use request::Request;
 pub use request::types as requests;
 pub use response::Response;
-pub use util::BufReadMb;
+pub use util::{BufReadMb, FromBytes};
 
+mod args_hash;
 mod error;
-mod from_bytes;
 mod response;
 mod request;
 mod util;

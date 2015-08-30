@@ -1,17 +1,12 @@
-use super::{MogError, MogResult};
-use super::request::types::*;
 use std::collections::HashMap;
+use super::error::{MogError, MogResult};
 use url::{form_urlencoded, Url};
 
-pub trait FromBytes {
-    fn from_bytes(bytes: &[u8]) -> MogResult<Self>;
-}
-
 #[derive(Debug, Clone)]
-struct ArgsHash(HashMap<String, String>);
+pub struct ArgsHash(HashMap<String, String>);
 
 impl ArgsHash {
-    fn from_bytes(bytes: &[u8]) -> ArgsHash {
+    pub fn from_bytes(bytes: &[u8]) -> ArgsHash {
         let args = form_urlencoded::parse(bytes);
         let mut rv = HashMap::new();
         for (k, v) in args.into_iter() {
@@ -20,42 +15,46 @@ impl ArgsHash {
         ArgsHash(rv)
     }
 
-    fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
+    pub fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
         self.0.remove(key).and_is_not_blank().ok_or(missing_error)
     }
 
-    fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
+    pub fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
         self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(missing_error)
     }
 
-    fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
+    pub fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
         match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
             Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
             _ => Err(missing_error),
         }
     }
 
-    fn extract_optional_string(&mut self, key: &str) -> Option<String> {
+    pub fn extract_optional_string(&mut self, key: &str) -> Option<String> {
         self.0.remove(key)
     }
 
-    fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
+    pub fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
         self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok())
     }
 
-    fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
+    pub fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
         match self.0.remove(key) {
             v @ Some(..) => v.is_truthy(),
             None => default,
         }
     }
 
-    fn extract_domain(&mut self) -> MogResult<String> {
+    pub fn extract_domain(&mut self) -> MogResult<String> {
         self.extract_required_string("domain", MogError::NoDomain)
     }
 
-    fn extract_key(&mut self) -> MogResult<String> {
+    pub fn extract_key(&mut self) -> MogResult<String> {
         self.extract_required_string("key", MogError::NoKey)
+    }
+
+    pub fn as_hash(&self) -> &HashMap<String, String> {
+        &self.0
     }
 }
 
@@ -87,156 +86,11 @@ impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
     }
 }
 
-impl FromBytes for CreateDomain {
-    fn from_bytes(bytes: &[u8]) -> MogResult<CreateDomain> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-
-        Ok(CreateDomain {
-            domain: domain,
-        })
-    }
-}
-
-impl FromBytes for CreateOpen {
-    fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-        let multi_dest = args.extract_bool_value("multi_dest", false);
-        let size = args.extract_optional_int("size");
-
-        Ok(CreateOpen {
-            domain: domain,
-            key: key,
-            multi_dest: multi_dest,
-            size: size,
-        })
-    }
-}
-
-impl FromBytes for CreateClose {
-    fn from_bytes(bytes: &[u8]) -> MogResult<CreateClose> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-        let fid = try!(args.extract_required_int("fid", MogError::NoFid));
-        let devid = try!(args.extract_required_int("devid", MogError::NoDevid));
-        let path = try!(args.extract_required_url("path", MogError::NoPath));
-        let checksum = args.extract_optional_string("checksum");
-
-        Ok(CreateClose {
-            domain: domain,
-            key: key,
-            fid: fid,
-            devid: devid,
-            path: path,
-            checksum: checksum,
-        })
-    }
-}
-
-impl FromBytes for GetPaths {
-    fn from_bytes(bytes: &[u8]) -> MogResult<GetPaths> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-        let noverify = args.extract_bool_value("noverify", false);
-        let pathcount = args.extract_optional_int("pathcount");
-
-        Ok(GetPaths {
-            domain: domain,
-            key: key,
-            noverify: noverify,
-            pathcount: pathcount,
-        })
-    }
-}
-
-impl FromBytes for FileInfo {
-    fn from_bytes(bytes: &[u8]) -> MogResult<FileInfo> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-
-        Ok(FileInfo {
-            domain: domain,
-            key: key,
-        })
-    }
-}
-
-impl FromBytes for Rename {
-    fn from_bytes(bytes: &[u8]) -> MogResult<Rename> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let from_key = try!(args.extract_required_string("from_key", MogError::NoKey));
-        let to_key = try!(args.extract_required_string("to_key", MogError::NoKey));
-
-        Ok(Rename {
-            domain: domain,
-            from_key: from_key,
-            to_key: to_key,
-        })
-    }
-}
-
-impl FromBytes for UpdateClass {
-    fn from_bytes(bytes: &[u8]) -> MogResult<UpdateClass> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-        let class = try!(args.extract_required_string("class", MogError::NoClass));
-
-        Ok(UpdateClass {
-            domain: domain,
-            key: key,
-            new_class: class,
-        })
-    }
-}
-
-impl FromBytes for Delete {
-    fn from_bytes(bytes: &[u8]) -> MogResult<Delete> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let key = try!(args.extract_key());
-
-        Ok(Delete {
-            domain: domain,
-            key: key,
-        })
-    }
-}
-
-impl FromBytes for ListKeys {
-    fn from_bytes(bytes: &[u8]) -> MogResult<ListKeys> {
-        let mut args = ArgsHash::from_bytes(bytes);
-        let domain = try!(args.extract_domain());
-        let prefix = args.extract_optional_string("prefix");
-        let limit = args.extract_optional_int("limit");
-        let after = args.extract_optional_string("after");
-
-        Ok(ListKeys {
-            domain: domain,
-            prefix: prefix,
-            limit: limit,
-            after: after,
-        })
-    }
-}
-
-impl FromBytes for Noop {
-    fn from_bytes(_bytes: &[u8]) -> MogResult<Noop> {
-        Ok(Noop)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::{ArgsHash, OptionStringExt};
-    use super::super::MogError;
+    use super::OptionStringExt;
+    use super::super::error::MogError;
 
     #[test]
     fn test_is_not_blank() {

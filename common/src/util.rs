@@ -1,3 +1,4 @@
+use super::error::MogResult;
 use std::io::{self, BufRead};
 
 /// An extension of the standard library's `BufRead` trait which
@@ -35,6 +36,12 @@ pub trait BufReadMb: BufRead {
 }
 
 impl<B: BufRead> BufReadMb for B {}
+
+/// A trait abstracting the ability to construct something from a byte
+/// string.
+pub trait FromBytes {
+    fn from_bytes(bytes: &[u8]) -> MogResult<Self>;
+}
 
 #[cfg(test)]
 mod tests {
