@@ -1,10 +1,90 @@
-use mogilefs_common::requests::*;
-use mogilefs_common::{MogError, MogResult};
+use super::{MogError, MogResult};
+use super::request::types::*;
 use std::collections::HashMap;
 use url::{form_urlencoded, Url};
 
 pub trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> MogResult<Self>;
+}
+
+#[derive(Debug, Clone)]
+struct ArgsHash(HashMap<String, String>);
+
+impl ArgsHash {
+    fn from_bytes(bytes: &[u8]) -> ArgsHash {
+        let args = form_urlencoded::parse(bytes);
+        let mut rv = HashMap::new();
+        for (k, v) in args.into_iter() {
+            rv.entry(k).or_insert(v);
+        }
+        ArgsHash(rv)
+    }
+
+    fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
+        self.0.remove(key).and_is_not_blank().ok_or(missing_error)
+    }
+
+    fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
+        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(missing_error)
+    }
+
+    fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
+        match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
+            Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
+            _ => Err(missing_error),
+        }
+    }
+
+    fn extract_optional_string(&mut self, key: &str) -> Option<String> {
+        self.0.remove(key)
+    }
+
+    fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
+        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok())
+    }
+
+    fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
+        match self.0.remove(key) {
+            v @ Some(..) => v.is_truthy(),
+            None => default,
+        }
+    }
+
+    fn extract_domain(&mut self) -> MogResult<String> {
+        self.extract_required_string("domain", MogError::NoDomain)
+    }
+
+    fn extract_key(&mut self) -> MogResult<String> {
+        self.extract_required_string("key", MogError::NoKey)
+    }
+}
+
+trait OptionStringExt<S: AsRef<str>>: Sized {
+    fn and_is_not_blank(self) -> Self;
+    fn is_truthy(self) -> bool;
+}
+
+impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
+    fn and_is_not_blank(self) -> Option<S> {
+        self.and_then(|s| {
+            match s.as_ref().is_empty() {
+                true => None,
+                false => Some(s),
+            }
+        })
+    }
+
+    fn is_truthy(self) -> bool {
+        match self {
+            Some(s) => {
+                match s.as_ref().to_lowercase().as_ref() {
+                    "true" | "t" | "1" => true,
+                    _ => false,
+                }
+            },
+            _ => false,
+        }
+    }
 }
 
 impl FromBytes for CreateDomain {
@@ -152,91 +232,11 @@ impl FromBytes for Noop {
     }
 }
 
-#[derive(Debug, Clone)]
-struct ArgsHash(HashMap<String, String>);
-
-impl ArgsHash {
-    fn from_bytes(bytes: &[u8]) -> ArgsHash {
-        let args = form_urlencoded::parse(bytes);
-        let mut rv = HashMap::new();
-        for (k, v) in args.into_iter() {
-            rv.entry(k).or_insert(v);
-        }
-        ArgsHash(rv)
-    }
-
-    fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
-        self.0.remove(key).and_is_not_blank().ok_or(missing_error)
-    }
-
-    fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
-        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(missing_error)
-    }
-
-    fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
-        match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
-            Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
-            _ => Err(missing_error),
-        }
-    }
-
-    fn extract_optional_string(&mut self, key: &str) -> Option<String> {
-        self.0.remove(key)
-    }
-
-    fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
-        self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok())
-    }
-
-    fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
-        match self.0.remove(key) {
-            v @ Some(..) => v.is_truthy(),
-            None => default,
-        }
-    }
-
-    fn extract_domain(&mut self) -> MogResult<String> {
-        self.extract_required_string("domain", MogError::NoDomain)
-    }
-
-    fn extract_key(&mut self) -> MogResult<String> {
-        self.extract_required_string("key", MogError::NoKey)
-    }
-}
-
-trait OptionStringExt<S: AsRef<str>>: Sized {
-    fn and_is_not_blank(self) -> Self;
-    fn is_truthy(self) -> bool;
-}
-
-impl<S: AsRef<str>> OptionStringExt<S> for Option<S> {
-    fn and_is_not_blank(self) -> Option<S> {
-        self.and_then(|s| {
-            match s.as_ref().is_empty() {
-                true => None,
-                false => Some(s),
-            }
-        })
-    }
-
-    fn is_truthy(self) -> bool {
-        match self {
-            Some(s) => {
-                match s.as_ref().to_lowercase().as_ref() {
-                    "true" | "t" | "1" => true,
-                    _ => false,
-                }
-            },
-            _ => false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use super::{ArgsHash, OptionStringExt};
-    use mogilefs_common::MogError;
+    use super::super::MogError;
 
     #[test]
     fn test_is_not_blank() {

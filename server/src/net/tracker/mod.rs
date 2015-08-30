@@ -1,10 +1,7 @@
 use mogilefs_common::requests::*;
-use mogilefs_common::{MogError, MogResult, Request, Response};
-use self::from_bytes::FromBytes;
+use mogilefs_common::{MogError, MogResult, Request, Response, FromBytes};
 use std::str;
 use super::super::backend::TrackerBackend;
-
-mod from_bytes;
 
 pub mod evented;
 pub mod threaded;
