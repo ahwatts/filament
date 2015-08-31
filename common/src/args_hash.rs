@@ -53,9 +53,9 @@ impl ArgsHash {
         self.extract_required_string("key", MogError::NoKey)
     }
 
-    pub fn as_hash(&self) -> &HashMap<String, String> {
-        &self.0
-    }
+    // pub fn as_hash(&self) -> &HashMap<String, String> {
+    //     &self.0
+    // }
 }
 
 trait OptionStringExt<S: AsRef<str>>: Sized {

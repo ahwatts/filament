@@ -66,20 +66,24 @@ fn request_from_bytes<B: TrackerBackend>(bytes: &[u8]) -> MogResult<Box<Handlabl
 impl<B: TrackerBackend> Handlable<B> for CreateDomain {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         try!(backend.create_domain(&self.domain));
-        Ok(Response::new(vec![ ("domain".to_string(), self.domain.clone()) ]))
+
+        Ok(Response::new_ok(|h| {
+            h.insert("domain".to_string(), self.domain.clone());
+        }))
     }
 }
 
 impl<B: TrackerBackend> Handlable<B> for CreateOpen {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         let urls = try!(backend.create_open(&self.domain, &self.key));
-        let mut response_args = vec![];
-        response_args.push(("dev_count".to_string(), urls.len().to_string()));
-        for (i, url) in urls.iter().enumerate() {
-            response_args.push((format!("devid_{}", i+1), (i+1).to_string()));
-            response_args.push((format!("path_{}", i+1), url.to_string()));
-        }
-        Ok(Response::new(response_args))
+
+        Ok(Response::new_ok(|h| {
+            h.insert("dev_count".to_string(), urls.len().to_string());
+            for (i, url) in urls.iter().enumerate() {
+                h.insert(format!("devid_{}", i+1), (i+1).to_string());
+                h.insert(format!("path_{}", i+1), url.to_string());
+            }
+        }))
     }
 }
 
@@ -89,7 +93,7 @@ impl<B: TrackerBackend> Handlable<B> for CreateClose {
         // but they don't do anything at the moment, and there's not
         // much point in writing code here if it's not going to be
         // used. We'll just leave this blank for now.
-        Ok(Response::new(vec![]))
+        Ok(Response::new_ok(|_| {}))
     }
 }
 
@@ -98,11 +102,12 @@ impl<B: TrackerBackend> Handlable<B> for CreateClose {
 impl<B: TrackerBackend> Handlable<B> for GetPaths {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         let paths = try!(backend.get_paths(&self.domain, &self.key));
-        let mut response_args = vec![ ("paths".to_string(), paths.len().to_string()) ];
-        for (i, url) in paths.iter().enumerate() {
-            response_args.push((format!("path{}", i+1), url.to_string()));
-        }
-        Ok(Response::new(response_args))
+        Ok(Response::new_ok(|h| {
+            h.insert("paths".to_string(), paths.len().to_string());
+            for (i, url) in paths.iter().enumerate() {
+                h.insert(format!("path{}", i+1), url.to_string());
+            }
+        }))
     }
 }
 
@@ -111,14 +116,11 @@ impl<B: TrackerBackend> Handlable<B> for GetPaths {
 impl<B: TrackerBackend> Handlable<B> for FileInfo {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         let meta = try!(backend.file_info(&self.domain, &self.key));
-
-        let response_args = vec!{
-            ("domain".to_string(), self.domain.clone()),
-            ("key".to_string(), self.key.clone()),
-            ("length".to_string(), meta.size.to_string()),
-        };
-
-        Ok(Response::new(response_args))
+        Ok(Response::new_ok(|h| {
+            h.insert("domain".to_string(), self.domain.clone());
+            h.insert("key".to_string(), self.key.clone());
+            h.insert("length".to_string(), meta.size.to_string());
+        }))
     }
 }
 
@@ -131,21 +133,21 @@ impl<B: TrackerBackend> Handlable<B> for FileInfo {
 impl<B: TrackerBackend> Handlable<B> for Rename {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         try!(backend.rename(&self.domain, &self.from_key, &self.to_key));
-        Ok(Response::new(vec![]))
+        Ok(Response::new_ok(|_| {}))
     }
 }
 
 impl<B: TrackerBackend> Handlable<B> for UpdateClass {
     fn handle(&self, _backend: &B) -> MogResult<Response> {
         // We don't support classes at the moment; just smile and nod.
-        Ok(Response::new(vec![]))
+        Ok(Response::new_ok(|_| {}))
     }
 }
 
 impl<B: TrackerBackend> Handlable<B> for Delete {
     fn handle(&self, backend: &B) -> MogResult<Response> {
         try!(backend.delete(&self.domain, &self.key));
-        Ok(Response::new(vec![]))
+        Ok(Response::new_ok(|_| {}))
     }
 }
 
@@ -157,21 +159,21 @@ impl<B: TrackerBackend> Handlable<B> for ListKeys {
             self.after.as_ref().map(|a| a as &str),
             self.limit.map(|lim| lim as usize)));
 
-        let mut response_args = vec![ ("key_count".to_string(), keys.len().to_string()) ];
-        for (i, key) in keys.iter().enumerate() {
-            response_args.push((format!("key_{}", i+1), key.to_string()));
-            if i == keys.len() - 1 {
-                response_args.push(("next_after".to_string(), key.to_string()));
+        Ok(Response::new_ok(|h| {
+            h.insert("key_count".to_string(), keys.len().to_string());
+            for (i, key) in keys.iter().enumerate() {
+                h.insert(format!("key_{}", i+1), key.to_string());
+                if i == keys.len() - 1 {
+                    h.insert("next_after".to_string(), key.to_string());
+                }
             }
-        }
-
-        Ok(Response::new(response_args))
+        }))
     }
 }
 
 impl<B: TrackerBackend> Handlable<B> for Noop {
     fn handle(&self, _backend: &B) -> MogResult<Response> {
-        Ok(Response::new(vec![]))
+        Ok(Response::new_ok(|_| {}))
     }
 }
 

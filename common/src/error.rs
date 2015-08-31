@@ -3,9 +3,10 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::io;
-use std::str::Utf8Error;
-use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
+use std::str::{self, Utf8Error};
 use std::sync::mpsc::{SendError, RecvError};
+use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
+use url::percent_encoding;
 
 /// A specialization of `Result` with the error type hard-coded to
 /// `MogError`.
@@ -26,12 +27,14 @@ pub enum MogError {
     NoKey,
     NoPath,
     NoTrackers,
+    Other(String, Option<String>),
     PoisonedMutex,
     RecvError,
     SendError,
     UnknownCommand(Option<String>),
     UnknownKey(String),
     UnregDomain(String),
+    UnknownCode(String),
     Utf8(Utf8Error),
 }
 
@@ -52,7 +55,29 @@ impl MogError {
 
             UnknownCommand(..) => "unknown_command",
 
+            Other(ref op, _) => op,
+
             _ => "other_error",
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> MogError {
+        use self::MogError::*;
+
+        let mut toks = bytes.split(|&b| b == b' ');
+        let op = toks.next();
+        let msg = toks.next().map(|m| percent_encoding::lossy_utf8_percent_decode(m));
+
+        match op.map(|o| str::from_utf8(o)) {
+            Some(Ok("no_class")) => NoClass,
+            Some(Ok("no_devid")) => NoDevid,
+            Some(Ok("no_domain")) => NoDomain,
+            Some(Ok("no_fid")) => NoFid,
+            Some(Ok("no_path")) => NoPath,
+            Some(Ok("unknown_command")) => UnknownCommand(msg),
+            Some(Ok(s)) => Other(s.to_string(), msg),
+            Some(Err(utf8e)) => Utf8(utf8e),
+            None => UnknownCommand(None),
         }
     }
 }
@@ -115,6 +140,9 @@ impl Display for MogError {
             UnknownCommand(ref d) => write!(f, "Unknown command: {:?}", d),
             NoContent(ref d) => write!(f, "No content for key: {:?}", d),
 
+            Other(ref op, ref desc) => write!(f, "{} {}", op, desc.clone().unwrap_or_default()),
+            UnknownCode(ref c) => write!(f, "Unknown code: {:?}", c),
+
             _ => write!(f, "{}", self.description()),
         }
     }
@@ -136,9 +164,11 @@ impl Error for MogError {
             NoKey => "No key provided",
             NoPath => "No path provided",
             NoTrackers => "No trackers provided",
+            Other(..) => "Other error",
             PoisonedMutex => "Poisoned mutex",
             RecvError => "Error receiving response",
             SendError => "Error sending request",
+            UnknownCode(..) => "Unknown response code",
             UnknownCommand(..) => "Unknown command",
             UnknownKey(..) => "Unknown key",
             UnregDomain(..) => "Domain name invalid / not found",
