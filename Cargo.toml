@@ -9,6 +9,9 @@ build = "build.rs"
 [dependencies.mogilefs_client]
 path = "client"
 
+[dependencies.mogilefs_common]
+path = "common"
+
 [dependencies.mogilefs_server]
 path = "server"
 

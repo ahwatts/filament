@@ -1,12 +1,14 @@
+extern crate bufstream;
 extern crate mogilefs_common;
 extern crate rand;
 extern crate url;
 
 #[macro_use] extern crate log;
 
+use bufstream::BufStream;
 use mogilefs_common::requests::*;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, FromBytes};
-use std::io::{Read, Write, BufReader, BufWriter};
+use std::io::Write;
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use to_args::ToArgs;
 use url::form_urlencoded;
@@ -23,70 +25,95 @@ impl<R: Request + ToArgs> ClientRequest for R {}
 
 #[derive(Debug)]
 pub struct MogClient {
-    trackers: Vec<SocketAddr>,
-    transport: Option<MogClientTransport>,
+    transport: MogClientTransport,
 }
 
 impl MogClient {
     pub fn new<S: ToSocketAddrs + Sized>(trackers: &[S]) -> MogClient {
-        let sock_addrs = trackers.iter().flat_map(|a| a.to_socket_addrs().unwrap()).collect();
         MogClient {
-            trackers: sock_addrs,
-            transport: None,
+            transport: MogClientTransport::new(trackers),
         }
     }
 
     pub fn file_info(&mut self, domain: &str, key: &str) -> MogResult<Response> {
-        try!(self.ensure_connected());
         let req = FileInfo {
             domain: domain.to_string(),
             key: key.to_string(),
         };
-        self.transport.as_mut()
-            .ok_or(MogError::NoConnection)
-            .and_then(|mut t| t.do_request(req))
-    }
-
-    fn random_tracker_addr(&self) -> MogResult<SocketAddr> {
-        let mut rng = rand::thread_rng();
-        let mut sample = rand::sample(&mut rng, self.trackers.iter(), 1);
-        sample.pop().cloned().ok_or(MogError::NoTrackers)
-    }
-
-    fn ensure_connected(&mut self) -> MogResult<()> {
-        if self.transport.is_some() {
-            Ok(())
-        } else {
-            let tracker = try!(self.random_tracker_addr());
-            let conn = try!(MogClientTransport::connect(&tracker));
-            self.transport = Some(conn);
-            Ok(())
-        }
+        info!("request = {:?}", req);
+        let resp_rslt = self.transport.do_request(req);
+        info!("response = {:?}", resp_rslt);
+        resp_rslt
     }
 }
 
 #[derive(Debug)]
 struct MogClientTransport {
-    read: BufReader<TcpStream>,
-    write: BufWriter<TcpStream>,
+    hosts: Vec<SocketAddr>,
+    stream: Option<BufStream<TcpStream>>,
 }
 
 impl MogClientTransport {
-    fn connect<S: ToSocketAddrs + ?Sized>(tracker_addr: &S) -> MogResult<MogClientTransport> {
-        let stream = try!(TcpStream::connect(tracker_addr));
-        debug!("stream = {:?}", stream);
-
-        Ok(MogClientTransport {
-            read: BufReader::new(try!(stream.try_clone())),
-            write: BufWriter::new(stream),
-        })
+    pub fn new<S: ToSocketAddrs + Sized>(tracker_addrs: &[S]) -> MogClientTransport {
+        MogClientTransport {
+            hosts: tracker_addrs.iter().flat_map(|a| a.to_socket_addrs().unwrap()).collect(),
+            stream: None,
+        }
     }
 
-    fn do_request<R: ClientRequest>(&mut self, request: R) -> MogResult<Response> {
-        let mut line = Vec::new();
-        try!(self.write.write_all(format!("{}\r\n", request.render()).as_bytes()));
-        try!(self.write.flush());
-        try!(self.read.read_until_mb(b"\r\n", &mut line));
-        Response::from_bytes(&line)
+    fn random_tracker_addr(&self) -> MogResult<SocketAddr> {
+        let mut rng = rand::thread_rng();
+        let mut sample = rand::sample(&mut rng, self.hosts.iter(), 1);
+        sample.pop().cloned().ok_or(MogError::NoTrackers)
+    }
+
+    fn ensure_connected(&mut self) -> MogResult<()> {
+        match self.stream {
+            None => {
+                let tracker = try!(self.random_tracker_addr());
+                let tcp_stream = try!(TcpStream::connect(tracker));
+                self.stream = Some(BufStream::new(tcp_stream));
+                Ok(())
+            },
+            _ => Ok(()),
+        }
+    }
+
+    pub fn do_request<R: ClientRequest>(&mut self, request: R) -> MogResult<Response> {
+        try!(self.ensure_connected());
+
+        match self.stream {
+            Some(ref mut stream) => {
+                let mut resp_line = Vec::new();
+                let req_line = format!("{}\r\n", request.render());
+                debug!("req_line = {:?}", req_line);
+                try!(stream.write_all(req_line.as_bytes()));
+                try!(stream.flush());
+                try!(stream.read_until_mb(b"\r\n", &mut resp_line));
+                debug!("resp_line = {:?}", String::from_utf8_lossy(&resp_line));
+
+                if resp_line.ends_with(b"\r\n") {
+                    let len = resp_line.len();
+                    resp_line = resp_line.into_iter().take(len - 2).collect();
+                }
+
+                Response::from_bytes(&resp_line)
+            },
+            None => {
+                Err(MogError::NoConnection)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_file_info() {
+        let mut client = MogClient::new(&[ "127.0.0.1:7001" ]);
+        let response = client.file_info("rn_development_private", "Song/225322/image");
+        println!("response = {:?}", response);
     }
 }

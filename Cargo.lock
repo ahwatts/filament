@@ -8,6 +8,7 @@ dependencies = [
  "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_client 0.1.0",
+ "mogilefs_common 0.1.0",
  "mogilefs_server 0.1.0",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -32,6 +33,11 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "bufstream"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -219,6 +225,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "mogilefs_client"
 version = "0.1.0"
 dependencies = [
+ "bufstream 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_common 0.1.0",
  "rand 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
