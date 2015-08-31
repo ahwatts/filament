@@ -10,6 +10,16 @@ use url::percent_encoding::{self, FORM_URLENCODED_ENCODE_SET};
 pub struct Response(MogResult<HashMap<String, String>>);
 
 impl Response {
+    pub fn new(args: Vec<(String, String)>) -> Response {
+        let mut hash = HashMap::new();
+
+        for (k, v) in args.into_iter() {
+            hash.entry(k).or_insert(v);
+        }
+
+        Response(Ok(hash))
+    }
+
     pub fn render(&self) -> Vec<u8> {
         match self.0 {
             Ok(ref args) => format!("OK {}\r\n", form_urlencoded::serialize(args)).into_bytes(),

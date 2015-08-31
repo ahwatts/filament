@@ -188,4 +188,10 @@ pub mod types {
             })
         }
     }
+
+    impl FromBytes for Noop {
+        fn from_bytes(_bytes: &[u8]) -> MogResult<Noop> {
+            Ok(Noop)
+        }
+    }
 }
