@@ -9,12 +9,8 @@ extern crate url;
 
 use docopt::Docopt;
 use mogilefs_client::MogClient;
-use mogilefs_common::requests::*;
-use mogilefs_common::FromBytes;
 use rustc_serialize::{Decodable, Decoder};
-use std::io;
-use std::net::{SocketAddr, ToSocketAddrs};
-use std::option::IntoIter;
+use std::net::SocketAddr;
 
 pub fn main() {
     env_logger::init().unwrap();
@@ -24,18 +20,19 @@ pub fn main() {
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
-    let mut client = MogClient::new(&opts.arg_tracker);
+    let mut client = MogClient::new(opts.flag_trackers.as_slice());
 
-    match opts.arg_command.as_ref() {
-        "file_info" => {
-            let args_str = opts.arg_args.expect("The file_info command requires arguments.");
-            let req = FileInfo::from_bytes(args_str.as_bytes()).unwrap();
-            let res = client.file_info(&req.domain, &req.key).unwrap();
-            println!("{:?}", res);
-        },
-        _ => {
-            println!("Unknown command: {:}", opts.arg_command);
+    if opts.cmd_file_info {
+        let domain = opts.arg_domain.expect("No domain provided.");
+        let key = opts.arg_key.expect("No key provided.");
+        let resp_rslt = client.file_info(&domain, &key);
+
+        match resp_rslt {
+            Ok(resp) => println!("{:?}", resp),
+            Err(e) => println!("Error: {}", e),
         }
+    } else {
+        println!("No command provided?!");
     }
 }
 
@@ -43,45 +40,44 @@ static USAGE: &'static str = "
 A command-line tool for querying a MogileFS system.
 
 Usage:
-  filament-cli t <tracker>... c <command> [<args>]
+  filament-cli [options] file-info <domain> <key>
+  filament-cli (-h | --help)
 
 General Options:
-  -h, --help                 Print this help message.
+  -h, --help                 This help message.
+  -t IPS, --trackers IPS     A comma-separated list of tracker ip:port combinations [default: 127.0.0.1:7001]
 ";
 
 #[derive(Debug, RustcDecodable)]
-enum TrackerIoType {
-    Threaded,
-    Evented,
-}
-
-#[derive(Debug, RustcDecodable)]
 struct Options {
-    arg_tracker: Vec<WrapSocketAddr>,
-    arg_command: String,
-    arg_args: Option<String>,
+    flag_trackers: SocketAddrList,
+
+    arg_domain: Option<String>,
+    arg_key: Option<String>,
+    cmd_file_info: bool,
 }
 
-// Need to wrap SocketAddr with our own type so that we can implement
-// RustcDecodable for it.
 #[derive(Debug)]
-struct WrapSocketAddr(SocketAddr);
+pub struct SocketAddrList(Vec<SocketAddr>);
 
-impl Decodable for WrapSocketAddr {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        use std::str::FromStr;
-        let addr_str = try!(d.read_str());
-        SocketAddr::from_str(&addr_str)
-            .map(|a| WrapSocketAddr(a))
-            .map_err(|e| d.error(format!("Error parsing address {:?}: {:?}",
-                                         addr_str, e).as_ref()))
+impl SocketAddrList {
+    pub fn as_slice(&self) -> &[SocketAddr] {
+        &self.0
     }
 }
 
-impl ToSocketAddrs for WrapSocketAddr {
-    type Iter = IntoIter<SocketAddr>;
+impl Decodable for SocketAddrList {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        use std::str::FromStr;
 
-    fn to_socket_addrs(&self) -> io::Result<IntoIter<SocketAddr>> {
-        self.0.to_socket_addrs()
+        let addrs_str = try!(d.read_str());
+        let mut addrs = Vec::new();
+
+        for addr_str in addrs_str.split(',') {
+            let addr = try!(SocketAddr::from_str(addr_str).map_err(|e| d.error(&format!("Unable to parse address {:?}: {:?}", addr_str, e))));
+            addrs.push(addr);
+        }
+
+        Ok(SocketAddrList(addrs))
     }
 }
