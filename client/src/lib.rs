@@ -8,7 +8,7 @@ extern crate url;
 use bufstream::BufStream;
 use mogilefs_common::requests::*;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, FromBytes};
-use std::io::Write;
+use std::io::{self, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use to_args::ToArgs;
 use url::form_urlencoded;
@@ -41,7 +41,7 @@ impl MogClient {
             key: key.to_string(),
         };
         info!("request = {:?}", req);
-        let resp_rslt = self.transport.do_request(req);
+        let resp_rslt = self.transport.do_request(&req);
         info!("response = {:?}", resp_rslt);
         resp_rslt
     }
@@ -50,14 +50,14 @@ impl MogClient {
 #[derive(Debug)]
 struct MogClientTransport {
     hosts: Vec<SocketAddr>,
-    stream: Option<BufStream<TcpStream>>,
+    stream: Option<ConnectionState>,
 }
 
 impl MogClientTransport {
     pub fn new<S: ToSocketAddrs + Sized>(tracker_addrs: &[S]) -> MogClientTransport {
         MogClientTransport {
             hosts: tracker_addrs.iter().flat_map(|a| a.to_socket_addrs().unwrap()).collect(),
-            stream: None,
+            stream: Some(ConnectionState::new()),
         }
     }
 
@@ -67,44 +67,156 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    fn ensure_connected(&mut self) -> MogResult<()> {
-        match self.stream {
-            None => {
+    pub fn do_request<R: ClientRequest>(&mut self, request: &R) -> MogResult<Response> {
+        let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
+        let req_line = format!("{}\r\n", request.render());
+        let mut resp_line = Vec::new();
+        let mut tries = 0;
+
+        loop {
+            if !stream.is_connected() {
                 let tracker = try!(self.random_tracker_addr());
-                let tcp_stream = try!(TcpStream::connect(tracker));
-                self.stream = Some(BufStream::new(tcp_stream));
-                Ok(())
-            },
-            _ => Ok(()),
+                debug!("Connecting to {:?}", tracker);
+                stream = stream.connect(&tracker);
+            }
+
+            debug!("req_line = {:?}", req_line);
+            stream = stream.write_and_flush(req_line.as_bytes());
+            stream = stream.read_until_mb(&mut resp_line);
+            debug!("resp_line = {:?}", String::from_utf8_lossy(&resp_line));
+            tries += 1;
+
+            if stream.is_connected() || tries >= 3 { break; }
         }
-    }
 
-    pub fn do_request<R: ClientRequest>(&mut self, request: R) -> MogResult<Response> {
-        try!(self.ensure_connected());
 
-        match self.stream {
-            Some(ref mut stream) => {
-                let mut resp_line = Vec::new();
-                let req_line = format!("{}\r\n", request.render());
-                debug!("req_line = {:?}", req_line);
-                try!(stream.write_all(req_line.as_bytes()));
-                try!(stream.flush());
-                try!(stream.read_until_mb(b"\r\n", &mut resp_line));
-                debug!("resp_line = {:?}", String::from_utf8_lossy(&resp_line));
+        let (stream, err) = stream.take_err();
+        self.stream = Some(stream);
 
+        match err {
+            Some(err) => Err(MogError::Io(err)),
+            None => {
                 if resp_line.ends_with(b"\r\n") {
                     let len = resp_line.len();
                     resp_line = resp_line.into_iter().take(len - 2).collect();
                 }
-
                 Response::from_bytes(&resp_line)
-            },
-            None => {
-                Err(MogError::NoConnection)
             }
         }
     }
 }
+
+#[derive(Debug)]
+enum ConnectionState {
+    NoConnection,
+    Connected(BufStream<TcpStream>),
+    Error(io::Error),
+}
+
+impl ConnectionState {
+    fn new() -> ConnectionState {
+        ConnectionState::NoConnection
+    }
+
+    fn is_connected(&self) -> bool {
+        match self {
+            &ConnectionState::Connected(..) => true,
+            _ => false,
+        }
+    }
+
+    fn take_err(self) -> (ConnectionState, Option<io::Error>) {
+        use self::ConnectionState::*;
+
+        match self {
+            ConnectionState::Error(ioe) => (NoConnection, Some(ioe)),
+            _ => (self, None),
+        }
+    }
+
+    fn connect(self, addr: &SocketAddr) -> ConnectionState {
+        use self::ConnectionState::*;
+
+        match self {
+            Connected(..) => return self,
+            _ => {},
+        }
+
+        trace!("Opening connection to {:?}...", addr);
+        match TcpStream::connect(addr) {
+            Ok(stream) => {
+                trace!("... connected to {:?}", addr);
+                Connected(BufStream::new(stream))
+            },
+            Err(ioe) => {
+                error!("Error connecting to {:?}: {}", addr, ioe);
+                Error(ioe)
+            },
+        }
+    }
+
+    fn write_and_flush(self, line: &[u8]) -> ConnectionState {
+        use self::ConnectionState::*;
+
+        match self {
+            NoConnection | Error(..) => self,
+            Connected(mut stream) => {
+                let peer = stream.get_ref().peer_addr();
+                trace!("Writing {} bytes to {:?}...", line.len(), peer);
+                match stream.write_all(line).and_then(|_| stream.flush()) {
+                    Ok(..) => {
+                        trace!("... successfully wrote {} bytes to {:?}", line.len(), peer);
+                        Connected(stream)
+                    },
+                    Err(ioe) => {
+                        error!("Error writing to {:?}: {}", peer, ioe);
+                        Error(ioe)
+                    }
+                }
+            },
+        }
+    }
+
+    fn read_until_mb(self, buf: &mut Vec<u8>) -> ConnectionState {
+        use self::ConnectionState::*;
+
+        match self {
+            NoConnection | Error(..) => self,
+            Connected(mut stream) => {
+                let peer = stream.get_ref().peer_addr();
+                trace!("Waiting for response from {:?}...", peer);
+                match stream.read_until_mb(b"\r\n", buf) {
+                    Ok(..) => {
+                        trace!("... read {} bytes from {:?}", buf.len(), peer);
+                        Connected(stream)
+                    },
+                    Err(ioe) => {
+                        error!("Error reading from {:?}: {}", peer, ioe);
+                        Error(ioe)
+                    },
+                }
+            }
+        }
+    }
+}
+
+// fn reset_connection(&mut self) -> MogResult<()> {
+//     self.stream = None;
+//     self.ensure_connected()
+// }
+
+// fn handle_ioerror(&mut self, io_err: &io::Error) -> MogResult<()> {
+//     use std::io::ErrorKind::*;
+
+//     warn!("Handling I/O error: {}", io_err);
+
+//     match io_err.kind() {
+//         ConnectionReset | ConnectionAborted | NotConnected | BrokenPipe | TimedOut | Interrupted => {
+//             self.reset_connection()
+//         },
+//         _ => Ok(())
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
