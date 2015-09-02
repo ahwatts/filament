@@ -11,7 +11,12 @@ end
 def in_each_subdir
   subdirs.each do |dir|
     cd File.expand_path(File.join(root_dir, dir))
-    yield
+    begin
+      yield
+    rescue
+      STDERR.puts "Error running in subdir %s: %s (%p):\n\t%s" %
+        [ dir, $!.message, $!.class, $!.backtrace.join("\n\t") ]
+    end
   end
   cd root_dir
 end
@@ -74,4 +79,9 @@ end
 desc "Run the tests for all the sub-crates"
 task :test do
   in_each_subdir { sh "cargo", "test" }
+end
+
+desc "Build the docs"
+task :doc do
+  in_each_subdir { sh "cargo", "doc" }
 end
