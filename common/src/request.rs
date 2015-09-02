@@ -4,10 +4,24 @@ pub trait Request: Debug {
     fn op(&self) -> &'static str;
 }
 
+impl<R: Request> Request for Box<R> {
+    fn op(&self) -> &'static str {
+        use std::ops::Deref;
+        self.deref().op()
+    }
+}
+
+impl<'a, R: Request> Request for &'a R {
+    fn op(&self) -> &'static str {
+        use std::ops::Deref;
+        self.deref().op()
+    }
+}
+
 pub mod types {
     use super::Request;
     use super::super::args_hash::ArgsHash;
-    use super::super::util::FromBytes;
+    use super::super::util::{ToArgs, FromBytes};
     use super::super::error::{MogError, MogResult};
     use url::Url;
 
@@ -20,11 +34,6 @@ pub mod types {
                     $op
                 }
             }
-            // impl ToArgs for $name {
-            //     fn args(&self) -> Vec<(String, String)> {
-            //         vec![]
-            //     }
-            // }
         };
         ( $name:ident $op:expr { $( $f:ident : $t:ty ),* } ) => {
             #[derive(Debug)]
@@ -61,6 +70,14 @@ pub mod types {
         }
     }
 
+    impl ToArgs for CreateDomain {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec!{
+                ("domain".to_string(), self.domain.clone()),
+            }
+        }
+    }
+
     impl FromBytes for CreateOpen {
         fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
             let mut args = ArgsHash::from_bytes(bytes);
@@ -75,6 +92,22 @@ pub mod types {
                 multi_dest: multi_dest,
                 size: size,
             })
+        }
+    }
+
+    impl ToArgs for CreateOpen {
+        fn to_args(&self) -> Vec<(String, String)> {
+            let mut rv = vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+                ("multi_dest".to_string(), self.multi_dest.to_string()),
+            };
+
+            if self.size.is_some() {
+                rv.push(("size".to_string(), self.size.clone().unwrap().to_string()));
+            }
+
+            rv
         }
     }
 
@@ -99,6 +132,24 @@ pub mod types {
         }
     }
 
+    impl ToArgs for CreateClose {
+        fn to_args(&self) -> Vec<(String, String)> {
+            let mut rv = vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+                ("fid".to_string(), self.fid.to_string()),
+                ("devid".to_string(), self.devid.to_string()),
+                ("path".to_string(), self.path.to_string()),
+            };
+
+            if self.checksum.is_some() {
+                rv.push(("checksum".to_string(), self.checksum.clone().unwrap()));
+            }
+
+            rv
+        }
+    }
+
     impl FromBytes for GetPaths {
         fn from_bytes(bytes: &[u8]) -> MogResult<GetPaths> {
             let mut args = ArgsHash::from_bytes(bytes);
@@ -116,6 +167,22 @@ pub mod types {
         }
     }
 
+    impl ToArgs for GetPaths {
+        fn to_args(&self) -> Vec<(String, String)> {
+            let mut rv = vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+                ("noverify".to_string(), self.noverify.to_string()),
+            };
+
+            if self.pathcount.is_some() {
+                rv.push(("pathcount".to_string(), self.pathcount.clone().unwrap().to_string()));
+            }
+
+            rv
+        }
+    }
+
     impl FromBytes for FileInfo {
         fn from_bytes(bytes: &[u8]) -> MogResult<FileInfo> {
             let mut args = ArgsHash::from_bytes(bytes);
@@ -126,6 +193,15 @@ pub mod types {
                 domain: domain,
                 key: key,
             })
+        }
+    }
+
+    impl ToArgs for FileInfo {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+            }
         }
     }
 
@@ -144,6 +220,16 @@ pub mod types {
         }
     }
 
+    impl ToArgs for Rename {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("from_key".to_string(), self.from_key.clone()),
+                ("to_key".to_string(), self.to_key.clone()),
+            }
+        }
+    }
+
     impl FromBytes for UpdateClass {
         fn from_bytes(bytes: &[u8]) -> MogResult<UpdateClass> {
             let mut args = ArgsHash::from_bytes(bytes);
@@ -159,6 +245,16 @@ pub mod types {
         }
     }
 
+    impl ToArgs for UpdateClass {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+                ("class".to_string(), self.new_class.clone()),
+            }
+        }
+    }
+
     impl FromBytes for Delete {
         fn from_bytes(bytes: &[u8]) -> MogResult<Delete> {
             let mut args = ArgsHash::from_bytes(bytes);
@@ -169,6 +265,15 @@ pub mod types {
                 domain: domain,
                 key: key,
             })
+        }
+    }
+
+    impl ToArgs for Delete {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec!{
+                ("domain".to_string(), self.domain.clone()),
+                ("key".to_string(), self.key.clone()),
+            }
         }
     }
 
@@ -189,9 +294,37 @@ pub mod types {
         }
     }
 
+    impl ToArgs for ListKeys {
+        fn to_args(&self) -> Vec<(String, String)> {
+            let mut rv = vec!{
+                ("domain".to_string(), self.domain.clone()),
+            };
+
+            if self.prefix.is_some() {
+                rv.push(("prefix".to_string(), self.prefix.clone().unwrap()));
+            }
+
+            if self.after.is_some() {
+                rv.push(("after".to_string(), self.after.clone().unwrap()));
+            }
+
+            if self.limit.is_some() {
+                rv.push(("limit".to_string(), self.limit.clone().unwrap().to_string()));
+            }
+
+            rv
+        }
+    }
+
     impl FromBytes for Noop {
         fn from_bytes(_bytes: &[u8]) -> MogResult<Noop> {
             Ok(Noop)
+        }
+    }
+
+    impl ToArgs for Noop {
+        fn to_args(&self) -> Vec<(String, String)> {
+            vec![]
         }
     }
 }

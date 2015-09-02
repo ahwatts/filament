@@ -6,22 +6,10 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use bufstream::BufStream;
-use mogilefs_common::requests::*;
-use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, FromBytes};
+use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs, FromBytes};
 use std::io::{self, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use to_args::ToArgs;
 use url::form_urlencoded;
-
-mod to_args;
-
-trait ClientRequest: Request + ToArgs {
-    fn render(&self) -> String {
-        format!("{} {}", self.op(), form_urlencoded::serialize(self.args()))
-    }
-}
-
-impl<R: Request + ToArgs> ClientRequest for R {}
 
 #[derive(Debug)]
 pub struct MogClient {
@@ -35,13 +23,9 @@ impl MogClient {
         }
     }
 
-    pub fn file_info(&mut self, domain: &str, key: &str) -> MogResult<Response> {
-        let req = FileInfo {
-            domain: domain.to_string(),
-            key: key.to_string(),
-        };
-        info!("request = {:?}", req);
-        let resp_rslt = self.transport.do_request(&req);
+    pub fn request<R: Request + ToArgs>(&mut self, req: R) -> MogResult<Response> {
+        info!("request = {:?}", self);
+        let resp_rslt = self.transport.do_request(req);
         info!("response = {:?}", resp_rslt);
         resp_rslt
     }
@@ -67,9 +51,9 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    pub fn do_request<R: ClientRequest>(&mut self, request: &R) -> MogResult<Response> {
+    pub fn do_request<R: Request + ToArgs>(&mut self, request: R) -> MogResult<Response> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
-        let req_line = format!("{}\r\n", request.render());
+        let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
         let mut resp_line = Vec::new();
         let mut tries = 0;
 
@@ -138,19 +122,19 @@ impl ConnectionState {
         use self::ConnectionState::*;
 
         match self {
-            Connected(..) => return self,
-            _ => {},
-        }
-
-        trace!("Opening connection to {:?}...", addr);
-        match TcpStream::connect(addr) {
-            Ok(stream) => {
-                trace!("... connected to {:?}", addr);
-                Connected(BufStream::new(stream))
-            },
-            Err(ioe) => {
-                error!("Error connecting to {:?}: {}", addr, ioe);
-                Error(ioe)
+            Connected(..) => self,
+            _ => {
+                trace!("Opening connection to {:?}...", addr);
+                match TcpStream::connect(addr) {
+                    Ok(stream) => {
+                        trace!("... connected to {:?}", addr);
+                        Connected(BufStream::new(stream))
+                    },
+                    Err(ioe) => {
+                        error!("Error connecting to {:?}: {}", addr, ioe);
+                        Error(ioe)
+                    },
+                }
             },
         }
     }
@@ -218,14 +202,14 @@ impl ConnectionState {
 //     }
 // }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn test_file_info() {
-        let mut client = MogClient::new(&[ "127.0.0.1:7001" ]);
-        let response = client.file_info("rn_development_private", "Song/225322/image");
-        println!("response = {:?}", response);
-    }
-}
+//     #[test]
+//     fn test_file_info() {
+//         let mut client = MogClient::new(&[ "127.0.0.1:7001" ]);
+//         let response = client.file_info("rn_development_private", "Song/225322/image");
+//         println!("response = {:?}", response);
+//     }
+// }

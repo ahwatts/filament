@@ -9,7 +9,7 @@ pub use error::{MogError, MogResult};
 pub use request::Request;
 pub use request::types as requests;
 pub use response::Response;
-pub use util::{BufReadMb, FromBytes};
+pub use util::{BufReadMb, ToArgs, FromBytes};
 
 mod args_hash;
 mod error;

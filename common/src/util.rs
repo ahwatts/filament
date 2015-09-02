@@ -1,5 +1,6 @@
-use super::error::MogResult;
+use std::collections::HashMap;
 use std::io::{self, BufRead};
+use super::error::MogResult;
 
 /// An extension of the standard library's `BufRead` trait which
 /// supports multibyte delimiters.
@@ -41,6 +42,41 @@ impl<B: BufRead> BufReadMb for B {}
 /// string.
 pub trait FromBytes {
     fn from_bytes(bytes: &[u8]) -> MogResult<Self>;
+}
+
+impl<B: FromBytes> FromBytes for Box<B> {
+    fn from_bytes(bytes: &[u8]) -> MogResult<Self> {
+        B::from_bytes(bytes).map(|b| Box::new(b))
+    }
+}
+
+/// A trait abstracting the ability to convert something in to a
+/// tuple-vec or string hash of arguments, obviously discarding any
+/// type-safety.
+pub trait ToArgs {
+    fn to_args(&self) -> Vec<(String, String)>;
+
+    fn to_args_hash(&self) -> HashMap<String, String> {
+        let mut rv = HashMap::new();
+        for (k, v) in self.to_args().into_iter() {
+            rv.entry(k).or_insert(v);
+        }
+        rv
+    }
+}
+
+impl<T: ToArgs + ?Sized> ToArgs for Box<T> {
+    fn to_args(&self) -> Vec<(String, String)> {
+        use std::ops::Deref;
+        self.deref().to_args()
+    }
+}
+
+impl<'a, T: ToArgs + ?Sized> ToArgs for &'a T {
+    fn to_args(&self) -> Vec<(String, String)> {
+        use std::ops::Deref;
+        self.deref().to_args()
+    }
 }
 
 #[cfg(test)]
