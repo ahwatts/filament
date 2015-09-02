@@ -71,6 +71,11 @@ end
 desc "Compile the source, and put the release tarball in dist"
 task :package => [ release_file ]
 
+desc "Build all the sub-crates (you probably don't need to do this)"
+task :build do
+  in_each_subdir { sh "cargo", "build" }
+end
+
 desc "Clean the sub-crates"
 task :clean do
   in_each_subdir { sh "cargo", "clean" }
