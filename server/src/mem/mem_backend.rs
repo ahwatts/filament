@@ -26,22 +26,30 @@ impl MemBackend {
 
     // Tracker methods.
 
-    pub fn create_domain(&mut self, domain_name: &str) -> MogResult<()> {
-        if self.domains.contains_key(domain_name) {
-            Err(MogError::DomainExists(domain_name.to_string()))
+    pub fn create_domain(&mut self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
+        if self.domains.contains_key(&req.domain) {
+            Err(MogError::DomainExists(req.domain.clone()))
         } else {
-            let domain = Domain::new(domain_name);
-            self.domains.insert(domain_name.to_string(), domain);
+            let domain = Domain::new(&req.domain);
+            self.domains.insert(req.domain.clone(), domain);
             Ok(())
         }
     }
 
-    pub fn create_open(&mut self, domain_name: &str, key: &str) -> MogResult<Vec<Url>> {
-        let url = self.url_for_key(domain_name, key);
-        let domain = try!(self.domain_mut(domain_name));
-        let file_info = FileInfo::new(key);
-        try!(domain.add_file(key, file_info));
-        Ok(vec![ url ])
+    pub fn create_open(&mut self, req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
+        let fid = self.domains.len() + 1;
+        let url = self.url_for_key(&req.domain, &req.key);
+        let domain = try!(self.domain_mut(&req.domain));
+        let file_info = FileInfo::new(&req.key);
+        try!(domain.add_file(&req.key, file_info));
+
+        let mut response = CreateOpenResponse {
+            fid: fid as u64,
+            devcount: 1,
+            paths: HashMap::new(),
+        };
+        response.paths.insert(1, url);
+        Ok(response)
     }
 
     pub fn create_close(&mut self, _domain: &str, _key: &str, _path: &Url, _size: u64) -> MogResult<()> {
@@ -191,11 +199,11 @@ impl SyncMemBackend {
 
 impl TrackerBackend for SyncMemBackend {
     fn create_domain(&self, request: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
-        try!(self.0.write()).create_domain(&request.domain)
+        try!(self.0.write()).create_domain(&request)
     }
 
-    fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
-        try!(self.0.write()).create_open(domain, key)
+    fn create_open(&self, request: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
+        try!(self.0.write()).create_open(&request)
     }
 
     fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
@@ -262,6 +270,7 @@ pub fn url_for_key(base_url: &Url, domain: &str, key: &str) -> Url {
 #[cfg(test)]
 mod tests {
     use mogilefs_common::MogError;
+    use mogilefs_common::requests::*;
     use std::io::Cursor;
     use super::super::super::backend::TrackerBackend;
     use super::super::super::test_support::*;
@@ -317,12 +326,14 @@ mod tests {
     fn backend_create_domain() {
         let mut backend = backend_fixture();
 
-        let create_result = backend.create_domain("test_domain_2");
+        let create_request = CreateDomain { domain: "test_domain_2".to_string() };
+        let create_result = backend.create_domain(&create_request);
         assert!(create_result.is_ok(), "Create new domain result was {:?}", create_result);
 
         assert!(backend.domains.contains_key("test_domain_2"));
 
-        let create_dup_result = backend.create_domain(TEST_DOMAIN);
+        let create_dup_request = CreateDomain { domain: TEST_DOMAIN.to_string() };
+        let create_dup_result = backend.create_domain(&create_dup_request);
         assert!(
             matches!(create_dup_result, Err(MogError::DomainExists(ref d)) if d == TEST_DOMAIN),
             "Create duplicate domain result was {:?}", create_dup_result);
@@ -338,14 +349,15 @@ mod tests {
         //     Url::parse(format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH).as_ref()).unwrap());
 
         {
+            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), key: "test/key/3".to_string(), multi_dest: true, size: None };
             let mut backend = sync_backend.0.write().unwrap();
-            let co_result = backend.create_open(TEST_DOMAIN, "test/key/3");
+            let co_result = backend.create_open(&req);
             assert!(co_result.is_ok());
-            let urls = co_result.unwrap();
-            assert_eq!(1, urls.len());
+            let co_response = co_result.unwrap();
+            assert_eq!(1, co_response.paths.len());
             assert_eq!(
-                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, "test/key/3").as_ref()).unwrap(),
-                urls[0]);
+                &Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, "test/key/3").as_ref()).unwrap(),
+                co_response.paths.iter().next().unwrap().1);
         }
 
         {
@@ -359,14 +371,15 @@ mod tests {
         }
 
         {
+            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), key: TEST_KEY_1.to_string(), multi_dest: true, size: None };
             let mut backend = sync_backend.0.write().unwrap();
-            let co_result = backend.create_open(TEST_DOMAIN, TEST_KEY_1);
+            let co_result = backend.create_open(&req);
             assert!(co_result.is_ok(), "Create open with duplicate key result was {:?}", co_result);
-            let urls = co_result.unwrap();
-            assert_eq!(1, urls.len());
+            let co_response = co_result.unwrap();
+            assert_eq!(1, co_response.paths.len());
             assert_eq!(
-                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1).as_ref()).unwrap(),
-                urls[0]);
+                &Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1).as_ref()).unwrap(),
+                co_response.paths.iter().next().unwrap().1);
         }
 
         // {

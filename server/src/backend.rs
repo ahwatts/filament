@@ -7,7 +7,7 @@ use url::Url;
 pub trait TrackerBackend: Send + Sync {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType>;
 
-    fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>>;
+    fn create_open(&self, req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType>;
     fn create_close(&self, domain: &str, key: &str, path: &Url, size: u64) -> MogResult<()>;
     fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>>;
     fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata>;

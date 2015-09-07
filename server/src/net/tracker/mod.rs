@@ -33,8 +33,8 @@ impl<B: TrackerBackend> Tracker<B> {
 
         match op.map(|bs| str::from_utf8(bs)) {
             Some(Ok("create_domain")) => CreateDomain::from_bytes(args).and_then(|r| r.handle(&self.backend)),
+            Some(Ok("create_open")) => CreateOpen::from_bytes(args).and_then(|r| r.handle(&self.backend)),
 
-            // Some(Ok("create_open"))   => coerce_request(CreateOpen::from_bytes(args)),
             // Some(Ok("create_close"))  => coerce_request(CreateClose::from_bytes(args)),
             // Some(Ok("get_paths"))     => coerce_request(GetPaths::from_bytes(args)),
             // Some(Ok("file_info"))     => coerce_request(FileInfo::from_bytes(args)),
@@ -59,19 +59,11 @@ impl<B: TrackerBackend> Handlable<B> for CreateDomain {
     }
 }
 
-// impl<B: TrackerBackend> Handlable<B> for CreateOpen {
-//     fn handle(&self, backend: &B) -> MogResult<Response> {
-//         let urls = try!(backend.create_open(&self.domain, &self.key));
-
-//         Ok(Response::new_ok(|h| {
-//             h.insert("dev_count".to_string(), urls.len().to_string());
-//             for (i, url) in urls.iter().enumerate() {
-//                 h.insert(format!("devid_{}", i+1), (i+1).to_string());
-//                 h.insert(format!("path_{}", i+1), url.to_string());
-//             }
-//         }))
-//     }
-// }
+impl<B: TrackerBackend> Handlable<B> for CreateOpen {
+    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
+        backend.create_open(self).map(|r| Box::new(r) as Box<Response>)
+    }
+}
 
 // impl<B: TrackerBackend> Handlable<B> for CreateClose {
 //     fn handle(&self, _backend: &B) -> MogResult<Response> {

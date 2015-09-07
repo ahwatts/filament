@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use mogilefs_common::{self, MogError, MogResult};
+use mogilefs_common::{Request, Response, MogError, MogResult};
 use mogilefs_common::requests::*;
 use rand;
 use std::net::{SocketAddr, TcpStream};
@@ -15,19 +15,19 @@ enum RequestInner {
     Stop,
 }
 
-struct Request {
+struct ProxyRequest {
     inner: RequestInner,
     respond: Sender<MogResult<Box<Response>>>,
 }
 
-struct Response {
-    inner: mogilefs_common::Response,
+struct ProxyResponse {
+    inner: Response,
 }
 
 pub struct ProxyTrackerBackend {
     trackers: Vec<SocketAddr>,
     conn_thread_handle: Option<JoinHandle<()>>,
-    conn_thread_sender: Option<Mutex<Sender<Request>>>,
+    conn_thread_sender: Option<Mutex<Sender<ProxyRequest>>>,
 }
 
 impl ProxyTrackerBackend {
@@ -46,7 +46,7 @@ impl ProxyTrackerBackend {
     }
 
     fn with_conn_thread_sender<F, T>(&self, callback: F) -> MogResult<T>
-        where F: FnOnce(&Sender<Request>) -> MogResult<T>
+        where F: FnOnce(&Sender<ProxyRequest>) -> MogResult<T>
     {
         let sender_mutex = try!(self.conn_thread_sender.as_ref().ok_or(MogError::NoConnection));
         match sender_mutex.lock() {
@@ -58,12 +58,12 @@ impl ProxyTrackerBackend {
         }
     }
 
-    fn conn_thread_sender_clone(&self) -> MogResult<Sender<Request>> {
+    fn conn_thread_sender_clone(&self) -> MogResult<Sender<ProxyRequest>> {
         self.with_conn_thread_sender(|locked| Ok(locked.clone()))
     }
 
     fn create_conn_thread(&mut self) -> MogResult<()> {
-        let (tx, rx) = mpsc::channel::<Request>();
+        let (tx, rx) = mpsc::channel::<ProxyRequest>();
         let tracker_addr = try!(self.random_tracker_addr());
 
         self.conn_thread_sender = Some(Mutex::new(tx));
@@ -75,7 +75,7 @@ impl ProxyTrackerBackend {
     }
 
     fn send_request(&mut self, // req: mogilefs_common::Request
-                    ) -> MogResult<Box<mogilefs_common::Response>> {
+                    ) -> MogResult<Box<Response>> {
         if self.conn_thread_sender.is_none() {
             try!(self.create_conn_thread());
         }
@@ -88,7 +88,7 @@ impl ProxyTrackerBackend {
     }
 }
 
-fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
+fn connection_thread(addr: SocketAddr, requests: Receiver<ProxyRequest>) {
     let conn = match TcpStream::connect(addr) {
         Ok(stream) => stream,
         Err(e) => {
@@ -111,11 +111,11 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
 }
 
 impl TrackerBackend for ProxyTrackerBackend {
-    fn create_domain(&self, _req: &CreateDomain) -> MogResult<()> {
+    fn create_domain(&self, _req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
         unimplemented!()
     }
 
-    fn create_open(&self, _domain: &str, _key: &str) -> MogResult<Vec<Url>> {
+    fn create_open(&self, _req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
         unimplemented!()
     }
 
@@ -151,7 +151,7 @@ mod tests {
     use std::sync::mpsc::{self, Sender};
     use std::thread::{self, JoinHandle};
     use super::*;
-    use super::{connection_thread, Request, RequestInner};
+    use super::{connection_thread, ProxyRequest, RequestInner};
 
     fn tracker_addr_list() -> Vec<SocketAddr> {
         let rv: Vec<SocketAddr> = vec![ "127.0.0.1:7101", "127.0.0.1:7102", "[::1]:7103" ]
@@ -162,9 +162,9 @@ mod tests {
         rv
     }
 
-    fn stop_conn_thread(handle: JoinHandle<()>, sender: Sender<Request>) {
+    fn stop_conn_thread(handle: JoinHandle<()>, sender: Sender<ProxyRequest>) {
         let (res_tx, _) = mpsc::channel();
-        sender.send(Request { inner: RequestInner::Stop, respond: res_tx }).unwrap();
+        sender.send(ProxyRequest { inner: RequestInner::Stop, respond: res_tx }).unwrap();
         handle.join().unwrap();
     }
 

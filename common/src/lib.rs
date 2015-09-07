@@ -15,6 +15,7 @@ pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
 /// globbing.
 pub mod requests {
     pub use request::CreateDomain;
+    pub use request::{CreateOpen, CreateOpenResponse};
 }
 
 mod args_hash;

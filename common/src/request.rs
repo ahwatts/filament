@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use super::args_hash::ArgsHash;
 use super::error::{MogError, MogResult};
 use super::util::{FromBytes, ToArgs, ToUrlencodedString};
+use url::Url;
 
 pub trait Request: Debug + ToArgs {
     type ResponseType: Response;
@@ -52,6 +54,77 @@ impl ToArgs for CreateDomain {
         vec!{
             ("domain".to_string(), self.domain.clone()),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateOpen {
+    pub domain: String,
+    pub key: String,
+    pub multi_dest: bool,
+    pub size: Option<u64>
+}
+
+impl Request for CreateOpen {
+    type ResponseType = CreateOpenResponse;
+    fn op(&self) -> &'static str { "create_open" }
+}
+
+impl FromBytes for CreateOpen {
+    fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let key = try!(args.extract_key());
+        let multi_dest = args.extract_bool_value("multi_dest", false);
+        let size = args.extract_optional_int("size");
+
+        Ok(CreateOpen {
+            domain: domain,
+            key: key,
+            multi_dest: multi_dest,
+            size: size,
+        })
+    }
+}
+
+impl ToArgs for CreateOpen {
+    fn to_args(&self) -> Vec<(String, String)> {
+        let mut rv = vec!{
+            ("domain".to_string(), self.domain.clone()),
+            ("key".to_string(), self.key.clone()),
+            ("multi_dest".to_string(), self.multi_dest.to_string()),
+        };
+
+        if self.size.is_some() {
+            rv.push(("size".to_string(), self.size.clone().unwrap().to_string()));
+        }
+
+        rv
+    }
+}
+
+#[derive(Debug)]
+pub struct CreateOpenResponse {
+    pub fid: u64,
+    pub devcount: u64,
+    pub paths: HashMap<u64, Url>,
+}
+
+impl Response for CreateOpenResponse {}
+
+impl ToArgs for CreateOpenResponse {
+    fn to_args(&self) -> Vec<(String, String)> {
+        let mut args = vec!{
+            ("fid".to_string(), self.fid.to_string()),
+            ("devcount".to_string(), self.devcount.to_string()),
+        };
+
+        for (i, (devid, url)) in self.paths.iter().enumerate() {
+            args.push((format!("devid_{}", i + 1), devid.to_string()));
+            args.push((format!("path_{}", i + 1), url.to_string()));
+        }
+
+        args
     }
 }
 
