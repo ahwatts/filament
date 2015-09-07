@@ -6,13 +6,19 @@ extern crate url;
 extern crate matches;
 
 pub use error::{MogError, MogResult};
-pub use request::Request;
-pub use request::types as requests;
-pub use response::Response;
-pub use util::{BufReadMb, ToArgs, FromBytes};
+pub use request::{Request, Response, Renderable};
+// pub use request::types as requests;
+// pub use response::Response;
+pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
+
+/// The specific request types, in a separate module for easy
+/// globbing.
+pub mod requests {
+    pub use request::CreateDomain;
+}
 
 mod args_hash;
 mod error;
-mod response;
+// mod response;
 mod request;
 mod util;

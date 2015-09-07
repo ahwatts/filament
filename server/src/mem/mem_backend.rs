@@ -1,4 +1,5 @@
-use mogilefs_common::{MogError, MogResult};
+use mogilefs_common::{MogError, MogResult, Request};
+use mogilefs_common::requests::*;
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
@@ -189,8 +190,8 @@ impl SyncMemBackend {
 }
 
 impl TrackerBackend for SyncMemBackend {
-    fn create_domain(&self, domain: &str) -> MogResult<()> {
-        try!(self.0.write()).create_domain(domain)
+    fn create_domain(&self, request: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
+        try!(self.0.write()).create_domain(&request.domain)
     }
 
     fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {

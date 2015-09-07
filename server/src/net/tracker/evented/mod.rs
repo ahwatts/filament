@@ -1,7 +1,7 @@
 use mio::tcp::{Shutdown, TcpListener, TcpStream};
 use mio::util::Slab;
 use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
-use mogilefs_common::{BufReadMb, Response};
+use mogilefs_common::{BufReadMb, Renderable};
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
 use std::io::{BufReader, Cursor, Read, Write};
@@ -123,10 +123,10 @@ impl<B: 'static + TrackerBackend> Handler<B> {
         }
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response: Response) -> EventedResult<()> {
+    fn write_response(&mut self, event_loop: &mut EventLoop<Self>, token: Token, response_bytes: &[u8]) -> EventedResult<()> {
         match self.conns.get_mut(token) {
             Some(conn) => {
-                let result = conn.write_response(event_loop, response);
+                let result = conn.write_response(event_loop, response_bytes);
 
                 debug!("Re-registering {:?} as {:?} / {:?}", token, *WRITABLE, *EDGE_ONESHOT);
                 event_loop.reregister(&conn.stream, conn.token, *WRITABLE, *EDGE_ONESHOT).unwrap_or_else(|e|{
@@ -204,7 +204,12 @@ impl<B: 'static + TrackerBackend> mio::Handler for Handler<B> {
                 });
             },
             Notification::Response(token, response) => {
-                self.write_response(event_loop, token, response).unwrap_or_else(|e| {
+                let rendered: Vec<u8> = match response {
+                    Ok(resp) => format!("{}\r\n", resp.render()).bytes().collect(),
+                    Err(e) => format!("{}\r\n", e.render()).bytes().collect(),
+                };
+
+                self.write_response(event_loop, token, &rendered).unwrap_or_else(|e| {
                     error!("Error writing tracker response to {:?}: {}", token, e);
                 });
             }
@@ -326,8 +331,8 @@ impl<B: 'static + TrackerBackend> Connection<B> {
         }
     }
 
-    fn write_response(&mut self, event_loop: &mut EventLoop<Handler<B>>, response: Response) -> EventedResult<()> {
-        self.out_buf.write(&response.render()).unwrap();
+    fn write_response(&mut self, event_loop: &mut EventLoop<Handler<B>>, response_bytes: &[u8]) -> EventedResult<()> {
+        self.out_buf.write(response_bytes).unwrap();
         self.current = None;
         self.maybe_dispatch_request(event_loop);
         Ok(())

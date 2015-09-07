@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::{self, BufRead};
 use super::error::MogResult;
+use url::form_urlencoded;
 
 /// An extension of the standard library's `BufRead` trait which
 /// supports multibyte delimiters.
@@ -67,15 +68,30 @@ pub trait ToArgs {
 
 impl<T: ToArgs + ?Sized> ToArgs for Box<T> {
     fn to_args(&self) -> Vec<(String, String)> {
-        use std::ops::Deref;
-        self.deref().to_args()
+        (&*self as &T).to_args()
     }
 }
 
-impl<'a, T: ToArgs + ?Sized> ToArgs for &'a T {
+pub trait ToUrlencodedString {
+    fn to_urlencoded_string(&self) -> String;
+}
+
+impl<T: ToArgs> ToUrlencodedString for T {
+    fn to_urlencoded_string(&self) -> String {
+        form_urlencoded::serialize(self.to_args())
+    }
+}
+
+// impl<'a, T: ToArgs + ?Sized> ToArgs for &'a T {
+//     fn to_args(&self) -> Vec<(String, String)> {
+//         use std::ops::Deref;
+//         self.deref().to_args()
+//     }
+// }
+
+impl ToArgs for () {
     fn to_args(&self) -> Vec<(String, String)> {
-        use std::ops::Deref;
-        self.deref().to_args()
+        vec![]
     }
 }
 

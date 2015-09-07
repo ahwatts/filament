@@ -1,6 +1,7 @@
 #![allow(dead_code, unused_variables)]
 
 use mogilefs_common::{self, MogError, MogResult};
+use mogilefs_common::requests::*;
 use rand;
 use std::net::{SocketAddr, TcpStream};
 use std::sync::Mutex;
@@ -16,7 +17,7 @@ enum RequestInner {
 
 struct Request {
     inner: RequestInner,
-    respond: Sender<Response>,
+    respond: Sender<MogResult<Box<Response>>>,
 }
 
 struct Response {
@@ -74,7 +75,7 @@ impl ProxyTrackerBackend {
     }
 
     fn send_request(&mut self, // req: mogilefs_common::Request
-                    ) -> MogResult<Response> {
+                    ) -> MogResult<Box<mogilefs_common::Response>> {
         if self.conn_thread_sender.is_none() {
             try!(self.create_conn_thread());
         }
@@ -110,7 +111,7 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<Request>) {
 }
 
 impl TrackerBackend for ProxyTrackerBackend {
-    fn create_domain(&self, _domain: &str) -> MogResult<()> {
+    fn create_domain(&self, _req: &CreateDomain) -> MogResult<()> {
         unimplemented!()
     }
 

@@ -1,10 +1,11 @@
-use mogilefs_common::MogResult;
+use mogilefs_common::{MogResult, Request};
+use mogilefs_common::requests::*;
 use std::io::{Read, Write};
 use time::Tm;
 use url::Url;
 
 pub trait TrackerBackend: Send + Sync {
-    fn create_domain(&self, domain: &str) -> MogResult<()>;
+    fn create_domain(&self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType>;
 
     fn create_open(&self, domain: &str, key: &str) -> MogResult<Vec<Url>>;
     fn create_close(&self, domain: &str, key: &str, path: &Url, size: u64) -> MogResult<()>;

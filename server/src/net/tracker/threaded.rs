@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::thread;
 use super::super::super::backend::TrackerBackend;
 use super::Tracker;
-use mogilefs_common::Response;
+use mogilefs_common::Renderable;
 
 pub struct ThreadedListener<B: TrackerBackend> {
     listener: TcpListener,
@@ -51,8 +51,14 @@ fn handle_connection<B: TrackerBackend>(mut writer: TcpStream, tracker: Arc<Trac
     for line in reader.split(b'\n') {
         let mut line = try!(line);
         if line.last() == Some(&b'\r') { line.pop(); }
-        let response = Response::from(tracker.handle_bytes(line.as_ref()));
-        try!(writer.write_all(&response.render()));
+        let response = tracker.handle_bytes(line.as_ref());
+
+        // Despite both arms being identical, I have to break it out
+        // because the result itself is not Renderable.
+        match response {
+            Ok(resp) => try!(writer.write_all(resp.render().as_bytes())),
+            Err(e) => try!(writer.write_all(&e.render().as_bytes())),
+        }
     }
 
     Ok(())

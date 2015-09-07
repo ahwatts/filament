@@ -6,7 +6,9 @@ use std::io;
 use std::str::{self, Utf8Error};
 use std::sync::mpsc::{SendError, RecvError};
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
-use url::percent_encoding;
+use super::request::Renderable;
+use super::util::ToUrlencodedString;
+use url::percent_encoding::{self, FORM_URLENCODED_ENCODE_SET};
 
 /// A specialization of `Result` with the error type hard-coded to
 /// `MogError`.
@@ -174,5 +176,17 @@ impl Error for MogError {
             UnregDomain(..) => "Domain name invalid / not found",
             Utf8(ref utf8_err) => utf8_err.description(),
         }
+    }
+}
+
+impl ToUrlencodedString for MogError {
+    fn to_urlencoded_string(&self) -> String {
+        percent_encoding::percent_encode(self.description().as_bytes(), FORM_URLENCODED_ENCODE_SET)
+    }
+}
+
+impl Renderable for MogError {
+    fn render(&self) -> String {
+        format!("ERR {} {}", self.error_kind(), self.to_urlencoded_string())
     }
 }

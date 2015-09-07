@@ -1,11 +1,11 @@
 use mio::Token;
-use mogilefs_common::Response;
+use mogilefs_common::{MogResult, Response};
 
 #[derive(Debug)]
 pub enum Notification {
     CloseConnection(Token),
     Shutdown,
-    Response(Token, Response),
+    Response(Token, MogResult<Box<Response>>),
 }
 
 impl Notification {

@@ -6,7 +6,7 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use bufstream::BufStream;
-use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs, FromBytes};
+use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
 use std::io::{self, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use url::form_urlencoded;
@@ -23,7 +23,7 @@ impl MogClient {
         }
     }
 
-    pub fn request<R: Request + ToArgs>(&mut self, req: R) -> MogResult<Response> {
+    pub fn request<R: Request + ToArgs>(&mut self, req: R) -> MogResult<Box<Response>> {
         info!("request = {:?}", self);
         let resp_rslt = self.transport.do_request(req);
         info!("response = {:?}", resp_rslt);
@@ -51,7 +51,8 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    pub fn do_request<R: Request + ToArgs>(&mut self, request: R) -> MogResult<Response> {
+    #[allow(unused_assignments)]
+    pub fn do_request<R: Request + ToArgs>(&mut self, request: R) -> MogResult<Box<Response>> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
         let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
         let mut resp_line = Vec::new();
@@ -84,7 +85,8 @@ impl MogClientTransport {
                     let len = resp_line.len();
                     resp_line = resp_line.into_iter().take(len - 2).collect();
                 }
-                Response::from_bytes(&resp_line)
+                unimplemented!()
+                // Response::from_bytes(&resp_line)
             }
         }
     }
