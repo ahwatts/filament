@@ -78,8 +78,13 @@ desc "Compile the source, and put the release tarball in dist"
 task :package => [ release_file ]
 
 desc "Build all the sub-crates (you probably don't need to do this)"
-task :build do
-  in_each_subdir { sh "cargo", "build" }
+task :build, :verbose do |t, args|
+  args.with_defaults(verbose: false)
+  cmdline = [ "cargo", "build" ]
+  if args[:verbose]
+    cmdline << "--verbose"
+  end
+  in_each_subdir { sh(*cmdline) }
 end
 
 desc "Clean the sub-crates"
@@ -88,8 +93,13 @@ task :clean do
 end
 
 desc "Run the tests for all the sub-crates"
-task :test do
-  in_each_subdir { sh "cargo", "test" }
+task :test, :verbose do |t, args|
+  args.with_defaults(verbose: false)
+  cmdline = [ "cargo", "test" ]
+  if args[:verbose]
+    cmdline << "--verbose"
+  end
+  in_each_subdir { sh(*cmdline) }
 end
 
 desc "Build the docs"

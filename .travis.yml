@@ -9,4 +9,5 @@ matrix:
 before_install:
   - gem install toml
 script:
-  - rake test
+  - rake build[verbose]
+  - rake test[verbose]
