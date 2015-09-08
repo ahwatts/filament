@@ -15,14 +15,6 @@ pub trait TrackerBackend: Send + Sync {
     fn list_keys    (&self, req: &ListKeys)     -> MogResult<<ListKeys     as Request>::ResponseType>;
 }
 
-#[derive(Debug)]
-pub struct TrackerMetadata {
-    pub size: u64,
-    pub domain: String,
-    pub key: String,
-    // Also: class, devcount, fid?
-}
-
 pub trait StorageBackend: Send + Sync {
     fn url_for_key(&self, domain: &str, key: &str) -> Url;
 
