@@ -4,14 +4,14 @@ use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
 use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend, TrackerMetadata};
-use super::{Domain, FileInfo};
+use super::{MemDomain, MemFileInfo};
 use time;
 use url::Url;
 
 #[derive(Debug)]
 pub struct MemBackend {
-    domains: HashMap<String, Domain>,
-    empty_domain: Domain,
+    domains: HashMap<String, MemDomain>,
+    empty_domain: MemDomain,
     pub base_url: Url,
 }
 
@@ -19,7 +19,7 @@ impl MemBackend {
     pub fn new(storage_base_url: Url) -> MemBackend {
         MemBackend {
             domains: HashMap::new(),
-            empty_domain: Domain::new(""),
+            empty_domain: MemDomain::new(""),
             base_url: storage_base_url,
         }
     }
@@ -30,9 +30,9 @@ impl MemBackend {
         if self.domains.contains_key(&req.domain) {
             Err(MogError::DomainExists(req.domain.clone()))
         } else {
-            let domain = Domain::new(&req.domain);
+            let domain = MemDomain::new(&req.domain);
             self.domains.insert(req.domain.clone(), domain);
-            Ok(())
+            Ok(CreateDomain { domain: req.domain.clone() })
         }
     }
 
@@ -40,7 +40,7 @@ impl MemBackend {
         let fid = self.domains.len() + 1;
         let url = self.url_for_key(&req.domain, &req.key);
         let domain = try!(self.domain_mut(&req.domain));
-        let file_info = FileInfo::new(&req.key);
+        let file_info = MemFileInfo::new(&req.key);
         try!(domain.add_file(&req.key, file_info));
 
         let mut response = CreateOpenResponse {
@@ -146,22 +146,22 @@ impl MemBackend {
 
     // Utility methods.
 
-    fn file(&self, domain: &str, key: &str) -> MogResult<Option<&FileInfo>> {
+    fn file(&self, domain: &str, key: &str) -> MogResult<Option<&MemFileInfo>> {
         self.domain(domain).map(|d| d.file(key))
     }
 
-    fn file_mut(&mut self, domain: &str, key: &str) -> MogResult<Option<&mut FileInfo>> {
+    fn file_mut(&mut self, domain: &str, key: &str) -> MogResult<Option<&mut MemFileInfo>> {
         self.domain_mut(domain).map(|d| d.file_mut(key))
     }
 
-    fn domain(&self, domain_name: &str) -> MogResult<&Domain> {
+    fn domain(&self, domain_name: &str) -> MogResult<&MemDomain> {
         // self.domains.get(domain_name).ok_or(MogError::UnregDomain(domain_name.to_string()))
         Ok(self.domains.get(domain_name).unwrap_or(&self.empty_domain))
     }
 
-    fn domain_mut(&mut self, domain_name: &str) -> MogResult<&mut Domain> {
+    fn domain_mut(&mut self, domain_name: &str) -> MogResult<&mut MemDomain> {
         // self.domains.get_mut(domain_name).ok_or(MogError::UnregDomain(domain_name.to_string()))
-        Ok(self.domains.entry(domain_name.to_string()).or_insert(Domain::new(domain_name)))
+        Ok(self.domains.entry(domain_name.to_string()).or_insert(MemDomain::new(domain_name)))
     }
 }
 
@@ -175,7 +175,7 @@ impl SyncMemBackend {
     }
 
     pub fn with_file<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
-        where F: FnOnce(&FileInfo) -> MogResult<()>
+        where F: FnOnce(&MemFileInfo) -> MogResult<()>
     {
         let guard = try!(self.0.read());
         match guard.file(domain, key) {
@@ -186,7 +186,7 @@ impl SyncMemBackend {
     }
 
     pub fn with_file_mut<F>(&self, domain: &str, key: &str, block: F) -> MogResult<()>
-        where F: FnOnce(&mut FileInfo) -> MogResult<()>
+        where F: FnOnce(&mut MemFileInfo) -> MogResult<()>
     {
         let mut guard = try!(self.0.write());
         match guard.file_mut(domain, key) {
@@ -526,7 +526,7 @@ mod tests {
 pub mod test_support {
     use std::collections::HashMap;
     use super::*;
-    use super::super::Domain;
+    use super::super::MemDomain;
     use super::super::model::test_support::{domain_fixture, full_domain_fixture};
     use url::Url;
 
@@ -540,7 +540,7 @@ pub mod test_support {
     pub fn backend_fixture() -> MemBackend {
         let mut backend = MemBackend {
             domains: HashMap::new(),
-            empty_domain: Domain::new(""),
+            empty_domain: MemDomain::new(""),
             base_url: TEST_BASE_URL.clone(),
         };
         let domain = domain_fixture();
@@ -551,7 +551,7 @@ pub mod test_support {
     pub fn full_backend_fixture() -> MemBackend {
         let mut backend = MemBackend {
             domains: HashMap::new(),
-            empty_domain: Domain::new(""),
+            empty_domain: MemDomain::new(""),
             base_url: TEST_BASE_URL.clone(),
         };
         let domain = full_domain_fixture();

@@ -3,14 +3,14 @@ use std::collections::{btree_map, BTreeMap};
 use time::Tm;
 
 #[derive(Debug, Default)]
-pub struct Domain {
+pub struct MemDomain {
     name: String,
-    files: BTreeMap<String, FileInfo>,
+    files: BTreeMap<String, MemFileInfo>,
 }
 
-impl Domain {
-    pub fn new(name: &str) -> Domain {
-        Domain {
+impl MemDomain {
+    pub fn new(name: &str) -> MemDomain {
+        MemDomain {
             name: name.to_string(),
             files: BTreeMap::new(),
         }
@@ -20,11 +20,11 @@ impl Domain {
         &self.name
     }
 
-    pub fn file(&self, key: &str) -> Option<&FileInfo> {
+    pub fn file(&self, key: &str) -> Option<&MemFileInfo> {
         self.files.get(key)
     }
 
-    pub fn file_mut(&mut self, key: &str) -> Option<&mut FileInfo> {
+    pub fn file_mut(&mut self, key: &str) -> Option<&mut MemFileInfo> {
         self.files.get_mut(key)
     }
 
@@ -32,12 +32,12 @@ impl Domain {
         Files { inner: self.files.iter(), }
     }
 
-    pub fn add_file(&mut self, key: &str, info: FileInfo) -> MogResult<&FileInfo> {
+    pub fn add_file(&mut self, key: &str, info: MemFileInfo) -> MogResult<&MemFileInfo> {
         self.files.insert(key.to_string(), info);
         Ok(self.file(key).unwrap())
     }
 
-    pub fn remove_file(&mut self, key: &str) -> Option<FileInfo> {
+    pub fn remove_file(&mut self, key: &str) -> Option<MemFileInfo> {
         self.files.remove(key)
     }
 
@@ -56,13 +56,13 @@ impl Domain {
 }
 
 pub struct Files<'a> {
-    inner: btree_map::Iter<'a, String, FileInfo>,
+    inner: btree_map::Iter<'a, String, MemFileInfo>,
 }
 
 impl<'a> Iterator for Files<'a> {
-    type Item = (&'a str, &'a FileInfo);
+    type Item = (&'a str, &'a MemFileInfo);
 
-    fn next(&mut self) -> Option<(&'a str, &'a FileInfo)> {
+    fn next(&mut self) -> Option<(&'a str, &'a MemFileInfo)> {
         self.inner.next().map(|(k, v)| (k.as_ref(), v))
     }
 
@@ -72,16 +72,16 @@ impl<'a> Iterator for Files<'a> {
 }
 
 #[derive(Debug)]
-pub struct FileInfo {
+pub struct MemFileInfo {
     key: String,
     pub content: Option<Vec<u8>>,
     pub size: Option<u64>,
     pub mtime: Option<Tm>,
 }
 
-impl FileInfo {
-    pub fn new(key: &str) -> FileInfo {
-        FileInfo {
+impl MemFileInfo {
+    pub fn new(key: &str) -> MemFileInfo {
+        MemFileInfo {
             key: key.to_string(),
             content: None,
             size: None,
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn create_domain() {
-        let domain = Domain::new("test_domain_2");
+        let domain = MemDomain::new("test_domain_2");
         assert_eq!("test_domain_2", domain.name());
         assert!(domain.files.is_empty());
     }
@@ -172,7 +172,7 @@ mod tests {
         let content: Vec<u8> = b"New file content".iter().cloned().collect();
 
         {   // Add a new file to the domain.
-            let mut file = FileInfo::new(new_key);
+            let mut file = MemFileInfo::new(new_key);
             file.content = Some(content.clone());
             file.size = Some(content.len() as u64);
             domain.add_file(new_key, file).unwrap();
@@ -188,7 +188,7 @@ mod tests {
         }
 
         {   // Try adding a duplicate key to the domain, which should create a new empty file.
-            let file = FileInfo::new(TEST_KEY_1);
+            let file = MemFileInfo::new(TEST_KEY_1);
             let result = domain.add_file(TEST_KEY_1, file);
             assert!(result.is_ok());
             let file = result.unwrap();
@@ -236,27 +236,27 @@ pub mod test_support {
     pub static TEST_KEY_PREFIX_2: &'static str = "bar/prefix";
     pub static TEST_PREFIX_COUNT: u32 = 100;
 
-    pub fn domain_fixture() -> Domain {
-        let mut domain = Domain::new(TEST_DOMAIN);
+    pub fn domain_fixture() -> MemDomain {
+        let mut domain = MemDomain::new(TEST_DOMAIN);
         domain.files.insert(TEST_KEY_1.to_string(), file_1_fixture());
         domain.files.insert(TEST_KEY_2.to_string(), file_2_fixture());
         domain
     }
 
-    pub fn full_domain_fixture() -> Domain {
-        let mut domain = Domain::new(TEST_FULL_DOMAIN);
+    pub fn full_domain_fixture() -> MemDomain {
+        let mut domain = MemDomain::new(TEST_FULL_DOMAIN);
         for i in (0..TEST_PREFIX_COUNT) {
             let key_p1 = format!("{}/key/{}", TEST_KEY_PREFIX_1, i+1);
             let key_p2 = format!("{}/key/{}", TEST_KEY_PREFIX_2, i+1);
 
-            domain.files.insert(key_p1.clone(), FileInfo {
+            domain.files.insert(key_p1.clone(), MemFileInfo {
                 key: key_p1,
                 content: None,
                 size: None,
                 mtime: None,
             });
 
-            domain.files.insert(key_p2.clone(), FileInfo {
+            domain.files.insert(key_p2.clone(), MemFileInfo {
                 key: key_p2,
                 content: None,
                 size: None,
@@ -267,8 +267,8 @@ pub mod test_support {
         domain
     }
 
-    pub fn file_1_fixture() -> FileInfo {
-        FileInfo {
+    pub fn file_1_fixture() -> MemFileInfo {
+        MemFileInfo {
             key: TEST_KEY_1.to_string(),
             content: Some(Vec::from(TEST_CONTENT_1)),
             size: Some(TEST_CONTENT_1.len() as u64),
@@ -276,8 +276,8 @@ pub mod test_support {
         }
     }
 
-    pub fn file_2_fixture() -> FileInfo {
-        FileInfo {
+    pub fn file_2_fixture() -> MemFileInfo {
+        MemFileInfo {
             key: TEST_KEY_2.to_string(),
             content: None,
             size: None,

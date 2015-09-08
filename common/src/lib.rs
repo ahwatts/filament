@@ -16,6 +16,13 @@ pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
 pub mod requests {
     pub use request::CreateDomain;
     pub use request::{CreateOpen, CreateOpenResponse};
+    pub use request::CreateClose;
+    pub use request::{GetPaths, GetPathsResponse};
+    pub use request::{FileInfo, FileInfoResponse};
+    pub use request::Rename;
+    pub use request::Delete;
+    pub use request::{ListKeys, ListKeysResponse};
+    pub use request::Noop;
 }
 
 mod args_hash;

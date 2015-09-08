@@ -1,7 +1,7 @@
 //! In-memory implementations of MogileFS, for testing purposes.
 
 pub use self::mem_backend::{MemBackend, SyncMemBackend};
-pub use self::model::{Domain, FileInfo};
+pub use self::model::{MemDomain, MemFileInfo};
 
 mod mem_backend;
 mod model;
