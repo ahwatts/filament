@@ -9,16 +9,22 @@ def subdirs
 end
 
 def in_each_subdir
+  failed_subdirs = []
   subdirs.each do |dir|
     cd File.expand_path(File.join(root_dir, dir))
     begin
       yield
     rescue
-      STDERR.puts "Error running in subdir %s: %s (%p):\n\t%s" %
-        [ dir, $!.message, $!.class, $!.backtrace.join("\n\t") ]
+      failed_subdirs << dir
+      STDERR.puts "Error running in subdir %s: %s (%p)" %
+        [ dir, $!.message, $!.class, ]
     end
   end
   cd root_dir
+
+  unless failed_subdirs.empty?
+    raise "Some subdirs failed: #{failed_subdirs.inspect}"
+  end
 end
 
 def cargo_data

@@ -30,7 +30,7 @@ pub fn main() {
             domain: opts.arg_domain.expect("No domain provided."),
         })
     } else if opts.cmd_create_open {
-        client.request(CreateOpen {
+        client.request(&CreateOpen {
             domain: opts.arg_domain.expect("No domain provided."),
             key: opts.arg_key.expect("No key provided."),
             multi_dest: opts.flag_multi_dest,

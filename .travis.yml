@@ -6,15 +6,7 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+before_install:
+  - gem install toml
 script:
-  - cargo build --verbose
-  - cargo test --verbose
-  - cd common
-  - cargo build --verbose
-  - cargo test --verbose
-  - cd ../client
-  - cargo build --verbose
-  - cargo test --verbose
-  - cd ../server
-  - cargo build --verbose
-  - cargo test --verbose
+  - rake test
