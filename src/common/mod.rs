@@ -306,6 +306,18 @@ mod tests {
     }
 
     #[test]
+    fn domain_list_keys_with_prefix_and_after() {
+        let backend = full_backend_fixture();
+        let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_2), Some("bar/prefix/key/98"), Some(10));
+        assert!(list_result.is_ok());
+
+        let list = list_result.unwrap();
+        for key in list.iter() {
+            assert!(key.starts_with(TEST_KEY_PREFIX_2), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_2);
+        }
+    }
+
+    #[test]
     fn domain_list_keys_prefix() {
         let backend = full_backend_fixture();
         let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_1), None, None);
