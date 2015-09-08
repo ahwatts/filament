@@ -6,13 +6,6 @@ use super::super::backend::TrackerBackend;
 pub mod evented;
 pub mod threaded;
 
-/// Something that can be handled by the tracker, i.e, a handler for a
-/// Request. Responsible for calling the appropriate method on the
-/// Backend and turning the response in to a Response.
-trait Handlable<B: TrackerBackend>: Request {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>>;
-}
-
 /// The tracker object.
 pub struct Tracker<B: TrackerBackend> {
     backend: B,
@@ -32,16 +25,16 @@ impl<B: TrackerBackend> Tracker<B> {
         let args = toks.next().unwrap_or(&[]);
 
         match op.map(|bs| str::from_utf8(bs)) {
-            Some(Ok("create_domain")) => CreateDomain::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("create_open")) => CreateOpen::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("create_close")) => CreateClose::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("file_info")) => FileInfo::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("get_paths")) => GetPaths::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("rename")) => Rename::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("updateclass")) => UpdateClass::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("delete")) => Delete::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("list_keys")) => ListKeys::from_bytes(args).and_then(|r| r.handle(&self.backend)),
-            Some(Ok("noop")) => Noop::from_bytes(args).and_then(|r| r.handle(&self.backend)),
+            Some(Ok("create_domain")) => self.handle_request(CreateDomain::from_bytes(args), &B::create_domain),
+            Some(Ok("create_open"))   => self.handle_request(CreateOpen::from_bytes(args),   &B::create_open),
+            Some(Ok("create_close"))  => self.handle_request(CreateClose::from_bytes(args),  &B::create_close),
+            Some(Ok("file_info"))     => self.handle_request(FileInfo::from_bytes(args),     &B::file_info),
+            Some(Ok("get_paths"))     => self.handle_request(GetPaths::from_bytes(args),     &B::get_paths),
+            Some(Ok("rename"))        => self.handle_request(Rename::from_bytes(args),       &B::rename),
+            Some(Ok("updateclass"))   => self.handle_request(UpdateClass::from_bytes(args),  &empty_handler::<B, UpdateClass>),
+            Some(Ok("delete"))        => self.handle_request(Delete::from_bytes(args),       &B::delete),
+            Some(Ok("list_keys"))     => self.handle_request(ListKeys::from_bytes(args),     &B::list_keys),
+            Some(Ok("noop"))          => self.handle_request(Noop::from_bytes(args),         &empty_handler::<B, Noop>),
 
             Some(Ok(""))     => Err(MogError::UnknownCommand(None)),
             Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
@@ -49,68 +42,14 @@ impl<B: TrackerBackend> Tracker<B> {
             None => Err(MogError::UnknownCommand(None)),
         }
     }
-}
 
-impl<B: TrackerBackend> Handlable<B> for CreateDomain {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.create_domain(self).map(|r| Box::new(r) as Box<Response>)
+    pub fn handle_request<Req, Res, F>(&self, request: MogResult<Req>, handler_fn: &F) -> MogResult<Box<Response>>
+        where Req: Request + Sized + 'static, Res: Response + Sized + 'static, F: Fn(&B, &Req) -> MogResult<Res>
+    {
+        request.and_then(|req| handler_fn(&self.backend, &req).map(|res| Box::new(res) as Box<Response>))
     }
 }
 
-impl<B: TrackerBackend> Handlable<B> for CreateOpen {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.create_open(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for CreateClose {
-    fn handle(&self, _backend: &B) -> MogResult<Box<Response>> {
-        // There actually are implementations of this on the backend,
-        // but they don't do anything at the moment, and there's not
-        // much point in writing code here if it's not going to be
-        // used. We'll just leave this blank for now.
-        Ok(Box::new(()) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for GetPaths {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.get_paths(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for FileInfo {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.file_info(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for Rename {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.rename(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for UpdateClass {
-    fn handle(&self, _backend: &B) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for Delete {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.delete(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for ListKeys {
-    fn handle(&self, backend: &B) -> MogResult<Box<Response>> {
-        backend.list_keys(self).map(|r| Box::new(r) as Box<Response>)
-    }
-}
-
-impl<B: TrackerBackend> Handlable<B> for Noop {
-    fn handle(&self, _backend: &B) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
-    }
+fn empty_handler<B: TrackerBackend, Req: Request + Sized + 'static>(_backend: &B, _request: &Req) -> MogResult<()> {
+    Ok(())
 }
