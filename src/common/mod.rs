@@ -75,7 +75,8 @@ impl Backend {
         let prefix = prefix.unwrap_or("");
         let limit = limit.unwrap_or(1000);
         Ok(try!(self.domain(domain_name)).files()
-            .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
+            .filter(|&(k, _)| k.starts_with(prefix))
+            .skip_while(|&(k, _)| k <= after_key)
             .take(limit)
             .map(|(k, _)| k.to_string())
             .collect())
