@@ -3,7 +3,7 @@ use mogilefs_common::requests::*;
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
-use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend, TrackerMetadata};
+use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend};
 use super::{MemDomain, MemFileInfo};
 use time;
 use url::Url;
@@ -40,7 +40,7 @@ impl MemBackend {
         let fid = self.domains.len() + 1;
         let url = self.url_for_key(&req.domain, &req.key);
         let domain = try!(self.domain_mut(&req.domain));
-        let mut file_info = MemFileInfo::new(fid as u64, &req.key);
+        let file_info = MemFileInfo::new(fid as u64, &req.key);
         try!(domain.add_file(&req.key, file_info));
 
         let mut response = CreateOpenResponse {
@@ -52,6 +52,7 @@ impl MemBackend {
         Ok(response)
     }
 
+    #[allow(dead_code)]
     fn create_close(&mut self, _req: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
         // There's really nothing to do here; we presumably could
         // verify that the file was uploaded to the URL, but ehh.
@@ -210,7 +211,7 @@ impl TrackerBackend for SyncMemBackend {
         try!(self.0.write()).create_open(&request)
     }
 
-    fn create_close(&self, request: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
+    fn create_close(&self, _request: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
         // There's nothing to do here. See the equivalent method on
         // the actual backend. There's no need acquire the mutex and
         // call it, since we're not going to be doing anything with

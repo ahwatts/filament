@@ -7,8 +7,7 @@ use std::net::{SocketAddr, TcpStream};
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
-use super::backend::{TrackerBackend, TrackerMetadata};
-use url::Url;
+use super::backend::TrackerBackend;
 
 enum RequestInner {
     // Real(mogilefs_common::Request),

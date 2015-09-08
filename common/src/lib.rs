@@ -20,6 +20,7 @@ pub mod requests {
     pub use request::{GetPaths, GetPathsResponse};
     pub use request::{FileInfo, FileInfoResponse};
     pub use request::Rename;
+    pub use request::UpdateClass;
     pub use request::Delete;
     pub use request::{ListKeys, ListKeysResponse};
     pub use request::Noop;

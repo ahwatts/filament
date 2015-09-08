@@ -434,7 +434,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn multiple_requests_in_a_write() {
         let mut server = fixture_server();
         let server_addr = server.handler.listener.local_addr().unwrap();
