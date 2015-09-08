@@ -119,27 +119,27 @@ impl TrackerBackend for ProxyTrackerBackend {
         unimplemented!()
     }
 
-    fn create_close(&self, _domain: &str, _key: &str, _path: &Url, _size: u64) -> MogResult<()> {
+    fn create_close(&self, _req: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
         unimplemented!()
     }
 
-    fn get_paths(&self, _domain: &str, _key: &str) -> MogResult<Vec<Url>> {
+    fn get_paths(&self, _req: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+        unimplemented!()
+    }
+    
+    fn file_info(&self, _req: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+        unimplemented!()
+    }
+    
+    fn delete(&self, _req: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
         unimplemented!()
     }
 
-    fn file_info(&self, _domain: &str, _key: &str) -> MogResult<TrackerMetadata> {
+    fn rename(&self, _req: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
         unimplemented!()
     }
 
-    fn delete(&self, _domain: &str, _key: &str) -> MogResult<()> {
-        unimplemented!()
-    }
-
-    fn rename(&self, _domain: &str, _from: &str, _to: &str) -> MogResult<()> {
-        unimplemented!()
-    }
-
-    fn list_keys(&self, _domain: &str, _prefix: Option<&str>, _after_key: Option<&str>, _limit: Option<usize>) -> MogResult<Vec<String>> {
+    fn list_keys(&self, req: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
         unimplemented!()
     }
 }

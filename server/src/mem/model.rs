@@ -73,6 +73,7 @@ impl<'a> Iterator for Files<'a> {
 
 #[derive(Debug)]
 pub struct MemFileInfo {
+    fid: u64,
     key: String,
     pub content: Option<Vec<u8>>,
     pub size: Option<u64>,
@@ -80,13 +81,18 @@ pub struct MemFileInfo {
 }
 
 impl MemFileInfo {
-    pub fn new(key: &str) -> MemFileInfo {
+    pub fn new(fid: u64, key: &str) -> MemFileInfo {
         MemFileInfo {
+            fid: fid,
             key: key.to_string(),
             content: None,
             size: None,
             mtime: None,
         }
+    }
+
+    pub fn fid(&self) -> u64 {
+        self.fid
     }
 
     pub fn key(&self) -> &str {
@@ -172,7 +178,7 @@ mod tests {
         let content: Vec<u8> = b"New file content".iter().cloned().collect();
 
         {   // Add a new file to the domain.
-            let mut file = MemFileInfo::new(new_key);
+            let mut file = MemFileInfo::new(5, new_key);
             file.content = Some(content.clone());
             file.size = Some(content.len() as u64);
             domain.add_file(new_key, file).unwrap();
@@ -182,16 +188,18 @@ mod tests {
             let file = domain.file(new_key);
             assert!(file.is_some());
             let file = file.unwrap();
+            assert_eq!(5, file.fid());
             assert_eq!(new_key, file.key());
             assert_eq!(Some(&content), file.content.as_ref());
             assert_eq!(Some(content.len() as u64), file.size);
         }
 
         {   // Try adding a duplicate key to the domain, which should create a new empty file.
-            let file = MemFileInfo::new(TEST_KEY_1);
+            let file = MemFileInfo::new(6, TEST_KEY_1);
             let result = domain.add_file(TEST_KEY_1, file);
             assert!(result.is_ok());
             let file = result.unwrap();
+            assert_eq!(6, file.fid());
             assert_eq!(TEST_KEY_1, file.key());
             assert_eq!(None, file.content);
             assert_eq!(None, file.size);
@@ -250,6 +258,7 @@ pub mod test_support {
             let key_p2 = format!("{}/key/{}", TEST_KEY_PREFIX_2, i+1);
 
             domain.files.insert(key_p1.clone(), MemFileInfo {
+                fid: 1,
                 key: key_p1,
                 content: None,
                 size: None,
@@ -257,6 +266,7 @@ pub mod test_support {
             });
 
             domain.files.insert(key_p2.clone(), MemFileInfo {
+                fid: 2,
                 key: key_p2,
                 content: None,
                 size: None,
@@ -269,6 +279,7 @@ pub mod test_support {
 
     pub fn file_1_fixture() -> MemFileInfo {
         MemFileInfo {
+            fid: 3,
             key: TEST_KEY_1.to_string(),
             content: Some(Vec::from(TEST_CONTENT_1)),
             size: Some(TEST_CONTENT_1.len() as u64),
@@ -278,6 +289,7 @@ pub mod test_support {
 
     pub fn file_2_fixture() -> MemFileInfo {
         MemFileInfo {
+            fid: 4,
             key: TEST_KEY_2.to_string(),
             content: None,
             size: None,

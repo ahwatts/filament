@@ -40,7 +40,7 @@ impl MemBackend {
         let fid = self.domains.len() + 1;
         let url = self.url_for_key(&req.domain, &req.key);
         let domain = try!(self.domain_mut(&req.domain));
-        let file_info = MemFileInfo::new(&req.key);
+        let mut file_info = MemFileInfo::new(fid as u64, &req.key);
         try!(domain.add_file(&req.key, file_info));
 
         let mut response = CreateOpenResponse {
@@ -52,50 +52,54 @@ impl MemBackend {
         Ok(response)
     }
 
-    pub fn create_close(&mut self, _domain: &str, _key: &str, _path: &Url, _size: u64) -> MogResult<()> {
+    fn create_close(&mut self, _req: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
         // There's really nothing to do here; we presumably could
         // verify that the file was uploaded to the URL, but ehh.
         Ok(())
     }
 
-    pub fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata> {
-        self.domain(domain)
-            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
+    fn get_paths(&self, req: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+        let paths = try!(self.domain(&req.domain)
+                         .and_then(|d| d.file(&req.key).ok_or(MogError::UnknownKey(req.key.clone())))
+                         .map(|_| vec![ self.url_for_key(&req.domain, &req.key) ]));
+        Ok(GetPathsResponse(paths))
+    }
+    
+    fn file_info(&self, req: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+        self.domain(&req.domain)
+            .and_then(|d| d.file(&req.key).ok_or(MogError::UnknownKey(req.key.clone())))
             .map(|file_info| {
-                TrackerMetadata {
-                    size: file_info.size.unwrap_or(0),
-                    domain: domain.to_string(),
-                    key: key.to_string(),
+                FileInfoResponse {
+                    fid: file_info.fid(),
+                    devcount: 1,
+                    length: file_info.size.unwrap_or(0),
+                    domain: req.domain.clone(),
+                    class: "default".to_string(),
+                    key: file_info.key().to_string(),
                 }
             })
     }
-
-    pub fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
-        self.domain(domain)
-            .and_then(|d| d.file(key).ok_or(MogError::UnknownKey(key.to_string())))
-            .map(|_| vec![ self.url_for_key(domain, key) ])
-    }
-
-    pub fn delete(&mut self, domain: &str, key: &str) -> MogResult<()> {
-        try!(self.domain_mut(domain))
-            .remove_file(key)
+    
+    fn delete(&mut self, req: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
+        try!(self.domain_mut(&req.domain))
+            .remove_file(&req.key)
             .map(|_| ())
-            .ok_or(MogError::UnknownKey(key.to_string()))
+            .ok_or(MogError::UnknownKey(req.key.clone()))
     }
 
-    pub fn rename(&mut self, domain: &str, from: &str, to: &str) -> MogResult<()> {
-        self.domain_mut(domain).and_then(|d| d.rename(from, to))
+    fn rename(&mut self, req: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
+        self.domain_mut(&req.domain).and_then(|d| d.rename(&req.from_key, &req.to_key))
     }
 
-    pub fn list_keys(&self, domain_name: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
-        let after_key = after_key.unwrap_or("");
-        let prefix = prefix.unwrap_or("");
-        let limit = limit.unwrap_or(1000);
-        Ok(try!(self.domain(domain_name)).files()
-           .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
-           .take(limit)
-           .map(|(k, _)| k.to_string())
-           .collect())
+    fn list_keys(&self, req: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
+        let after_key = req.after.as_ref().map(|s| s.as_ref()).unwrap_or("");
+        let prefix = req.prefix.as_ref().map(|s| s.as_ref()).unwrap_or("");
+        let limit = req.limit.unwrap_or(1000);
+        Ok(ListKeysResponse(try!(self.domain(&req.domain)).files()
+                            .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
+                            .take(limit as usize)
+                            .map(|(k, _)| k.to_string())
+                            .collect()))
     }
 
     // Storage server methods.
@@ -206,7 +210,7 @@ impl TrackerBackend for SyncMemBackend {
         try!(self.0.write()).create_open(&request)
     }
 
-    fn create_close(&self, _domain: &str, _key: &str, _url: &Url, _size: u64) -> MogResult<()> {
+    fn create_close(&self, request: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
         // There's nothing to do here. See the equivalent method on
         // the actual backend. There's no need acquire the mutex and
         // call it, since we're not going to be doing anything with
@@ -214,24 +218,24 @@ impl TrackerBackend for SyncMemBackend {
         Ok(())
     }
 
-    fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata> {
-        try!(self.0.read()).file_info(domain, key)
+    fn get_paths(&self, request: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+        try!(self.0.read()).get_paths(&request)
+    }
+    
+    fn file_info(&self, request: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+        try!(self.0.read()).file_info(&request)
+    }
+    
+    fn delete(&self, request: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
+        try!(self.0.write()).delete(&request)
     }
 
-    fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>> {
-        try!(self.0.read()).get_paths(domain, key)
+    fn rename(&self, request: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
+        try!(self.0.write()).rename(&request)
     }
 
-    fn delete(&self, domain: &str, key: &str) -> MogResult<()> {
-        try!(self.0.write()).delete(domain, key)
-    }
-
-    fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()> {
-        try!(self.0.write()).rename(domain, from, to)
-    }
-
-    fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>> {
-        try!(self.0.read()).list_keys(domain, prefix, after_key, limit)
+    fn list_keys(&self, request: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
+        try!(self.0.read()).list_keys(&request)
     }
 }
 
@@ -394,41 +398,62 @@ mod tests {
     #[test]
     fn domain_list_keys() {
         let backend = backend_fixture();
-        let list_result = backend.list_keys(TEST_DOMAIN, None, None, None);
+        let request = ListKeys { domain: TEST_DOMAIN.to_string(), prefix: None, after: None, limit: None };
+        let list_result = backend.list_keys(&request);
         assert!(list_result.is_ok());
-        assert_eq!(vec![ TEST_KEY_1, TEST_KEY_2 ], list_result.unwrap());
+        assert_eq!(vec![ TEST_KEY_1, TEST_KEY_2 ], list_result.unwrap().0);
     }
 
     #[test]
     fn domain_list_keys_limit() {
         let backend = full_backend_fixture();
-        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10));
+        let list_result = backend.list_keys(&ListKeys{
+            domain: TEST_FULL_DOMAIN.to_string(),
+            prefix: None,
+            after: None,
+            limit: Some(10)
+        });
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
-        assert_eq!(10, list.len());
-        assert!(list[0] < list[9]);
+        assert_eq!(10, list.0.len());
+        assert!(list.0[0] < list.0[9]);
     }
 
     #[test]
     fn domain_list_keys_after() {
         let backend = full_backend_fixture();
-        let first_list = backend.list_keys(TEST_FULL_DOMAIN, None, None, Some(10)).unwrap();
-        let after_key = first_list.iter().last().unwrap();
+        let first_list = backend.list_keys(&ListKeys {
+            domain: TEST_FULL_DOMAIN.to_string(),
+            prefix: None,
+            after: None,
+            limit: Some(10),
+        }).unwrap();
+        let after_key = first_list.0.iter().last().unwrap();
 
-        let list_result = backend.list_keys(TEST_FULL_DOMAIN, None, Some(after_key), None);
+        let list_result = backend.list_keys(&ListKeys {
+            domain: TEST_FULL_DOMAIN.to_string(),
+            prefix: None,
+            after: Some(after_key.clone()),
+            limit: None
+        });
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
-        assert!(after_key < &list[0]);
-        assert!(&list[0] < list.iter().last().unwrap());
+        assert!(after_key < &list.0[0]);
+        assert!(&list.0[0] < list.0.iter().last().unwrap());
     }
 
     #[test]
     fn domain_list_keys_prefix() {
         let backend = full_backend_fixture();
-        let list_result = backend.list_keys(TEST_FULL_DOMAIN, Some(TEST_KEY_PREFIX_1), None, None);
+        let list_result = backend.list_keys(&ListKeys {
+            domain: TEST_FULL_DOMAIN.to_string(),
+            prefix: Some(TEST_KEY_PREFIX_1.to_string()),
+            after: None,
+            limit: None,
+        });
         assert!(list_result.is_ok());
         let list = list_result.unwrap();
-        for key in list.iter() {
+        for key in list.0.iter() {
             assert!(key.starts_with(TEST_KEY_PREFIX_1), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_1);
         }
     }
@@ -438,14 +463,14 @@ mod tests {
         let mut backend = backend_fixture();
 
         {
-            let delete_result = backend.delete(TEST_DOMAIN, TEST_KEY_1);
+            let delete_result = backend.delete(&Delete { domain: TEST_DOMAIN.to_string(), key: TEST_KEY_1.to_string() });
             assert!(matches!(delete_result, Ok(())));
         }
 
         assert!(backend.domains[TEST_DOMAIN].file(TEST_KEY_1).is_none());
 
         {
-            let delete_result_2 = backend.delete(TEST_DOMAIN, TEST_KEY_1);
+            let delete_result_2 = backend.delete(&Delete { domain: TEST_DOMAIN.to_string(), key: TEST_KEY_1.to_string() });
             assert!(matches!(delete_result_2, Err(MogError::UnknownKey(ref k)) if k == TEST_KEY_1))
         }
     }

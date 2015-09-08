@@ -577,7 +577,7 @@ impl ToArgs for ListKeys {
 /// response = "OK key_4=Photo/120418/image/thumb&key_6=Photo/12285/image/thumb&key_5=Photo/12285/image&key_count=10&key_10=Photo/126010/image/thumb&key_7=Photo/126009/image&key_8=Photo/126009/image/thumb&key_1=Photo/1105/image&key_3=Photo/120418/image&next_after=Photo/126010/image/thumb&key_2=Photo/1105/image/thumb&key_9=Photo/126010/image\r\n"
 /// ```
 #[derive(Debug)]
-pub struct ListKeysResponse(Vec<String>);
+pub struct ListKeysResponse(pub Vec<String>);
 
 impl Response for ListKeysResponse {}
 

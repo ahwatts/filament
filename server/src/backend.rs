@@ -6,15 +6,13 @@ use url::Url;
 
 pub trait TrackerBackend: Send + Sync {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType>;
-
-    fn create_open(&self, req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType>;
-    fn create_close(&self, domain: &str, key: &str, path: &Url, size: u64) -> MogResult<()>;
-    fn get_paths(&self, domain: &str, key: &str) -> MogResult<Vec<Url>>;
-    fn file_info(&self, domain: &str, key: &str) -> MogResult<TrackerMetadata>;
-    fn delete(&self, domain: &str, key: &str) -> MogResult<()>;
-    fn rename(&self, domain: &str, from: &str, to: &str) -> MogResult<()>;
-
-    fn list_keys(&self, domain: &str, prefix: Option<&str>, after_key: Option<&str>, limit: Option<usize>) -> MogResult<Vec<String>>;
+    fn create_open  (&self, req: &CreateOpen)   -> MogResult<<CreateOpen   as Request>::ResponseType>;
+    fn create_close (&self, req: &CreateClose)  -> MogResult<<CreateClose  as Request>::ResponseType>;
+    fn get_paths    (&self, req: &GetPaths)     -> MogResult<<GetPaths     as Request>::ResponseType>;
+    fn file_info    (&self, req: &FileInfo)     -> MogResult<<FileInfo     as Request>::ResponseType>;
+    fn delete       (&self, req: &Delete)       -> MogResult<<Delete       as Request>::ResponseType>;
+    fn rename       (&self, req: &Rename)       -> MogResult<<Rename       as Request>::ResponseType>;
+    fn list_keys    (&self, req: &ListKeys)     -> MogResult<<ListKeys     as Request>::ResponseType>;
 }
 
 #[derive(Debug)]
