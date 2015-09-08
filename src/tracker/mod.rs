@@ -140,9 +140,10 @@ impl Tracker {
     fn list_keys(&self, request: &Request) -> MogResult<Response> {
         let args = request.args_hash();
         let domain = try!(args.get("domain").ok_or(MogError::NoDomain));
+        let prefix = args.get("prefix").map(|a| *a);
         let limit = args.get("limit").map(|lim| usize::from_str_radix(lim, 10).unwrap_or(1000));
         let after = args.get("after").map(|a| *a);
-        let keys = try!(self.backend.list_keys(domain, None, after, limit));
+        let keys = try!(self.backend.list_keys(domain, prefix, after, limit));
 
         let mut response_args = vec![ ("key_count".to_string(), keys.len().to_string()) ];
         for (i, key) in keys.iter().enumerate() {
