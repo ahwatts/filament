@@ -84,19 +84,19 @@ impl MogClientTransport {
                     let len = resp_line.len();
                     resp_line = resp_line.into_iter().take(len - 2).collect();
                 }
-                response_from_bytes::<R>(&resp_line)
+                response_from_bytes(&request, &resp_line)
             }
         }
     }
 }
 
-fn response_from_bytes<R: Request>(bytes: &[u8]) -> MogResult<Box<Response>> {
+fn response_from_bytes<R: Request>(request: &R, bytes: &[u8]) -> MogResult<Box<Response>> {
     let mut toks = bytes.splitn(2, |&b| b == b' ');
     let op = toks.next();
     let args = toks.next().unwrap_or(&[]);
 
     match op {
-        Some(b"OK") => R::response_from_bytes(&args),
+        Some(b"OK") => request.response_from_bytes(&args),
         Some(b"ERR") => Err(MogError::from_bytes(&args)),
         o @ _ => {
             let err_str = o.map(|bs| {

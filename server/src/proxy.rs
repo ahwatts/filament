@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use mogilefs_common::{Response, MogError, MogResult};
+use mogilefs_common::{Request, Response, MogError, MogResult};
 use mogilefs_common::requests::*;
 use rand;
 use std::net::{SocketAddr, TcpStream};
@@ -10,7 +10,7 @@ use std::thread::{self, JoinHandle};
 use super::backend::TrackerBackend;
 
 enum RequestInner {
-    // Real(mogilefs_common::Request),
+    Real(Box<Request>),
     Stop,
 }
 
@@ -73,8 +73,7 @@ impl ProxyTrackerBackend {
         Ok(())
     }
 
-    fn send_request(&mut self, // req: mogilefs_common::Request
-                    ) -> MogResult<Box<Response>> {
+    fn send_request<R: Request + 'static>(&mut self, req: R) -> MogResult<Box<Response>> {
         if self.conn_thread_sender.is_none() {
             try!(self.create_conn_thread());
         }
@@ -82,8 +81,10 @@ impl ProxyTrackerBackend {
         let (tx, rx) = mpsc::channel();
         let sender = try!(self.conn_thread_sender_clone());
 
-        // try!(sender.send(Request { inner: RequestInner::Real(req), respond: tx }));
-        rx.recv().map_err(|e| MogError::from(e))
+        try!(sender.send(ProxyRequest { inner: RequestInner::Real(Box::new(req)), respond: tx }));
+        rx.recv()
+            .map_err(|e| MogError::from(e))
+            .and_then(|inner| inner)
     }
 }
 
@@ -102,9 +103,9 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<ProxyRequest>) {
                 info!("Stopping and closing connection thread...");
                 break;
             },
-            // RequestInner::Real(inner) => {
-            //     debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
-            // },
+            RequestInner::Real(inner) => {
+                debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
+            },
         }
     }
 }
