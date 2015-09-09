@@ -1,9 +1,10 @@
 #![allow(dead_code, unused_variables)]
 
+use mogilefs_client::MogClient;
 use mogilefs_common::{Request, Response, MogError, MogResult};
 use mogilefs_common::requests::*;
-use rand;
-use std::net::{SocketAddr, TcpStream};
+use std::any::Any;
+use std::net::SocketAddr;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
@@ -16,11 +17,11 @@ enum RequestInner {
 
 struct ProxyRequest {
     inner: RequestInner,
-    respond: Sender<MogResult<Box<Response>>>,
+    respond: Sender<ProxyResponse>,
 }
 
 struct ProxyResponse {
-    inner: Response,
+    inner: MogResult<Box<Response>>,
 }
 
 pub struct ProxyTrackerBackend {
@@ -30,18 +31,14 @@ pub struct ProxyTrackerBackend {
 }
 
 impl ProxyTrackerBackend {
-    pub fn new(trackers: &[SocketAddr]) -> ProxyTrackerBackend {
-        ProxyTrackerBackend {
+    pub fn new(trackers: &[SocketAddr]) -> MogResult<ProxyTrackerBackend> {
+        let mut backend = ProxyTrackerBackend {
             trackers: trackers.to_owned(),
             conn_thread_handle: None,
             conn_thread_sender: None,
-        }
-    }
-
-    fn random_tracker_addr(&self) -> MogResult<SocketAddr> {
-        let mut rng = rand::thread_rng();
-        let mut sample = rand::sample(&mut rng, self.trackers.iter(), 1);
-        sample.pop().cloned().ok_or(MogError::NoTrackers)
+        };
+        try!(backend.create_conn_thread());
+        Ok(backend)
     }
 
     fn with_conn_thread_sender<F, T>(&self, callback: F) -> MogResult<T>
@@ -61,92 +58,104 @@ impl ProxyTrackerBackend {
         self.with_conn_thread_sender(|locked| Ok(locked.clone()))
     }
 
-    fn create_conn_thread(&mut self) -> MogResult<()> {
+    pub fn create_conn_thread(&mut self) -> MogResult<()> {
         let (tx, rx) = mpsc::channel::<ProxyRequest>();
-        let tracker_addr = try!(self.random_tracker_addr());
+        let trackers = self.trackers.clone();
 
         self.conn_thread_sender = Some(Mutex::new(tx));
         self.conn_thread_handle = Some(thread::spawn(move|| {
-            connection_thread(tracker_addr, rx);
+            connection_thread(&trackers, rx);
         }));
 
         Ok(())
     }
 
-    fn send_request<R: Request + 'static>(&mut self, req: R) -> MogResult<Box<Response>> {
-        if self.conn_thread_sender.is_none() {
-            try!(self.create_conn_thread());
-        }
-
+    fn send_request<Req, Res>(&self, req: Req) -> MogResult<Res>
+        where Req: Request + 'static, Res: Response + Any + Clone
+    {
         let (tx, rx) = mpsc::channel();
         let sender = try!(self.conn_thread_sender_clone());
 
         try!(sender.send(ProxyRequest { inner: RequestInner::Real(Box::new(req)), respond: tx }));
         rx.recv()
             .map_err(|e| MogError::from(e))
-            .and_then(|inner| inner)
+            .and_then(|pr| {
+                match (&pr.inner as &Any).downcast_ref::<Res>() {
+                    Some(response) => {
+                        Ok(response.clone())
+                    }
+                    None => {
+                        Err(MogError::Other("Wrong response type".to_string(), Some(format!("response = {:?}", pr.inner))))
+                    }
+                }
+            })
     }
 }
 
-fn connection_thread(addr: SocketAddr, requests: Receiver<ProxyRequest>) {
-    let conn = match TcpStream::connect(addr) {
-        Ok(stream) => stream,
-        Err(e) => {
-            error!("Failed to connect to {:?}: {}", addr, e);
-            return;
-        }
-    };
+fn connection_thread(trackers: &[SocketAddr], requests: Receiver<ProxyRequest>) {
+    let mut conn = MogClient::new(trackers);
 
-    for request in requests.iter() {
-        match request.inner {
+    for proxy_request in requests.iter() {
+        let response = match proxy_request.inner {
             RequestInner::Stop => {
                 info!("Stopping and closing connection thread...");
                 break;
             },
-            RequestInner::Real(inner) => {
-                debug!("Sending request {:?} to {:?}...", inner, conn.peer_addr());
+            RequestInner::Real(request) => {
+                debug!("Sending request {:?} to {:?}", request, conn);
+                let response = conn.request(request);
+                debug!("Got response {:?} from {:?}", response, conn);
+                response
             },
-        }
+        };
+
+        proxy_request.respond.send(ProxyResponse { inner: response })
+            .unwrap_or_else(|err| {
+                error!("Error sending response back to requesting thread: {}", err);
+            });
     }
 }
 
+// fn downcast_response<Q: Any + 'static, R: Response + Any + 'static>(response: Box<Q>) -> Result<Box<R>, Box<Any>> {
+//     (response as Box<Any>).downcast::<R>()
+// }
+
 impl TrackerBackend for ProxyTrackerBackend {
-    fn create_domain(&self, _req: &CreateDomain) -> MogResult<CreateDomain> {
-        unimplemented!()
+    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
+        self.send_request(req.clone())
     }
 
-    fn create_open(&self, _req: &CreateOpen) -> MogResult<CreateOpenResponse> {
-        unimplemented!()
+    fn create_open(&self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
+        self.send_request(req.clone())
     }
 
-    fn create_close(&self, _req: &CreateClose) -> MogResult<()> {
-        unimplemented!()
+    fn create_close(&self, req: &CreateClose) -> MogResult<()> {
+        self.send_request(req.clone())
     }
 
-    fn get_paths(&self, _req: &GetPaths) -> MogResult<GetPathsResponse> {
-        unimplemented!()
+    fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
+        self.send_request(req.clone())
     }
     
-    fn file_info(&self, _req: &FileInfo) -> MogResult<FileInfoResponse> {
-        unimplemented!()
+    fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
+        self.send_request(req.clone())
     }
     
-    fn delete(&self, _req: &Delete) -> MogResult<()> {
-        unimplemented!()
+    fn delete(&self, req: &Delete) -> MogResult<()> {
+        self.send_request(req.clone())
     }
 
-    fn rename(&self, _req: &Rename) -> MogResult<()> {
-        unimplemented!()
+    fn rename(&self, req: &Rename) -> MogResult<()> {
+        self.send_request(req.clone())
     }
 
     fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
-        unimplemented!()
+        self.send_request(req.clone())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use mogilefs_common::MogError;
     use std::net::{SocketAddr, TcpListener, ToSocketAddrs};
     use std::sync::mpsc::{self, Sender};
     use std::thread::{self, JoinHandle};
@@ -171,40 +180,12 @@ mod tests {
     #[test]
     fn initial_state() {
         let addr_list = tracker_addr_list();
-        let backend = ProxyTrackerBackend::new(&addr_list);
+        let backend = ProxyTrackerBackend::new(&addr_list).unwrap();
         assert_eq!(addr_list, backend.trackers);
-        assert!(matches!(backend.conn_thread_handle, None));
-        assert!(matches!(backend.conn_thread_sender, None));
-        assert!(matches!(backend.conn_thread_sender_clone(), Err(MogError::NoConnection)));
-        assert!(matches!(backend.with_conn_thread_sender(move|_| Ok(())), Err(MogError::NoConnection)))
-    }
-
-    #[test]
-    fn no_trackers() {
-        let backend = ProxyTrackerBackend::new(&[]);
-        assert!(matches!(backend.random_tracker_addr(), Err(MogError::NoTrackers)));
-    }
-
-    #[test]
-    fn random_tracker_addr() {
-        let addr_list = tracker_addr_list();
-        let backend = ProxyTrackerBackend::new(&addr_list);
-        let mut seen: Vec<bool> = addr_list.iter().map(|_| false).collect();
-        let (mut loops, max_loops) = (0, addr_list.len() * 100);
-
-        loop {
-            loops += 1;
-            let addr = backend.random_tracker_addr().unwrap();
-            let index = addr_list.iter().position(|&a| a == addr);
-            assert!(index.is_some());
-            seen[index.unwrap()] = true;
-            if seen.iter().all(|&s| s) || loops >= max_loops {
-                break;
-            }
-        }
-
-        debug!("Seen all addrs after {} loops.", loops);
-        assert!(seen.iter().all(|&s| s));
+        assert!(matches!(backend.conn_thread_handle, Some(..)));
+        assert!(matches!(backend.conn_thread_sender, Some(..)));
+        assert!(matches!(backend.conn_thread_sender_clone(), Ok(..)));
+        assert!(matches!(backend.with_conn_thread_sender(move|_| Ok(())), Ok(())))
     }
 
     #[test]
@@ -213,14 +194,14 @@ mod tests {
         let (req_tx, req_rx) = mpsc::channel();
 
         // Gosh, it would be great if I could time this out somehow by using Stable Rust...
-        let conn_thread = thread::spawn(move|| connection_thread(listener.local_addr().unwrap().clone(), req_rx));
+        let conn_thread = thread::spawn(move|| connection_thread(&[ listener.local_addr().unwrap().clone() ], req_rx));
         stop_conn_thread(conn_thread, req_tx);
     }
 
     #[test]
     fn creates_conn_thread() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let mut backend = ProxyTrackerBackend::new(&[ listener.local_addr().unwrap() ]);
+        let mut backend = ProxyTrackerBackend::new(&[ listener.local_addr().unwrap() ]).unwrap();
         assert!(backend.create_conn_thread().is_ok());
 
         assert!(backend.conn_thread_handle.is_some());

@@ -14,6 +14,14 @@ pub trait Request: Debug + ToArgs + Sync + Send {
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>>;
 }
 
+impl<R: Request + ?Sized> Request for Box<R> {
+    fn op(&self) -> &'static str { (**self).op() }
+
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
+        (**self).response_from_bytes(bytes)
+    }
+}
+
 /// The response to a tracker request.
 pub trait Response: Debug + ToArgs + Sync + Send {}
 
@@ -45,7 +53,7 @@ impl<R: Response> Renderable for R {
 /// request = "create_domain domain=test_domain_2\r\n"
 /// response = "OK domain=test_domain_2\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CreateDomain {
     pub domain: String,
 }
@@ -88,7 +96,7 @@ impl ToArgs for CreateDomain {
 /// request = "create_open key=test/key/1&multi_dest=1&domain=test_domain_2\r\n"
 /// response = "OK devid_1=1&path_1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid&dev_count=1&fid=1927\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CreateOpen {
     pub domain: String,
     pub key: String,
@@ -146,7 +154,7 @@ impl ToArgs for CreateOpen {
 /// request = "create_open key=test/key/1&multi_dest=1&domain=test_domain_2\r\n"
 /// response = "OK devid_1=1&path_1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid&dev_count=1&fid=1927\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CreateOpenResponse {
     pub fid: u64,
     pub devcount: u64,
@@ -200,7 +208,7 @@ impl FromBytes for CreateOpenResponse {
 /// request = "create_close fid=1927&key=test/key/1&domain=test_domain_2&devid=1&path=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid&size=4\r\n"
 /// response = "OK \r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CreateClose {
     pub domain: String,
     pub key: String,
@@ -266,7 +274,7 @@ impl ToArgs for CreateClose {
 /// request = "get_paths domain=test_domain_2&key=test/key/1&noverify=1&zone=\r\n"
 /// response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetPaths {
     pub domain: String,
     pub key: String,
@@ -324,7 +332,7 @@ impl ToArgs for GetPaths {
 /// request = "get_paths domain=test_domain_2&key=test/key/1&noverify=1&zone=\r\n"
 /// response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetPathsResponse(pub Vec<Url>);
 
 impl Response for GetPathsResponse {}
@@ -365,7 +373,7 @@ impl ToArgs for GetPathsResponse {
 /// request = "file_info domain=test_domain_2&key=test/key/1\r\n"
 /// response = "OK fid=1927&devcount=1&length=4&domain=test_domain_2&class=default&key=test/key/1\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileInfo {
     pub domain: String,
     pub key: String,
@@ -410,7 +418,7 @@ impl ToArgs for FileInfo {
 /// request = "file_info domain=test_domain_2&key=test/key/1\r\n"
 /// response = "OK fid=1927&devcount=1&length=4&domain=test_domain_2&class=default&key=test/key/1\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileInfoResponse {
     pub fid: u64,
     pub devcount: u64,
@@ -458,7 +466,7 @@ impl ToArgs for FileInfoResponse {
 /// request = "rename domain=test_domain_2&from_key=test/key/1&to_key=test/key/2\r\n"
 /// response = "OK \r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Rename {
     pub domain: String,
     pub from_key: String,
@@ -507,7 +515,7 @@ impl ToArgs for Rename {
 /// request = "updateclass domain=test_domain_2&key=test/key/2&class=new_class\r\n"
 /// response = "OK \r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UpdateClass {
     pub domain: String,
     pub key: String,
@@ -556,7 +564,7 @@ impl ToArgs for UpdateClass {
 /// request = "delete domain=test_domain_2&key=test/key/2\r\n"
 /// response = "OK \r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Delete {
     pub domain: String,
     pub key: String,
@@ -601,7 +609,7 @@ impl ToArgs for Delete {
 /// request = "list_keys domain=development_public&prefix=Photo&after=&limit=10\r\n"
 /// response = "OK key_4=Photo/120418/image/thumb&key_6=Photo/12285/image/thumb&key_5=Photo/12285/image&key_count=10&key_10=Photo/126010/image/thumb&key_7=Photo/126009/image&key_8=Photo/126009/image/thumb&key_1=Photo/1105/image&key_3=Photo/120418/image&next_after=Photo/126010/image/thumb&key_2=Photo/1105/image/thumb&key_9=Photo/126010/image\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListKeys {
     pub domain: String,
     pub prefix: Option<String>,
@@ -665,7 +673,7 @@ impl ToArgs for ListKeys {
 /// request = "list_keys domain=rn_development_public&prefix=Photo&after=&limit=10\r\n"
 /// response = "OK key_4=Photo/120418/image/thumb&key_6=Photo/12285/image/thumb&key_5=Photo/12285/image&key_count=10&key_10=Photo/126010/image/thumb&key_7=Photo/126009/image&key_8=Photo/126009/image/thumb&key_1=Photo/1105/image&key_3=Photo/120418/image&next_after=Photo/126010/image/thumb&key_2=Photo/1105/image/thumb&key_9=Photo/126010/image\r\n"
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListKeysResponse(pub Vec<String>);
 
 impl Response for ListKeysResponse {}
