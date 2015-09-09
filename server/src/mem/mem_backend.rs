@@ -52,13 +52,6 @@ impl MemBackend {
         Ok(response)
     }
 
-    #[allow(dead_code)]
-    fn create_close(&mut self, _req: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
-        // There's really nothing to do here; we presumably could
-        // verify that the file was uploaded to the URL, but ehh.
-        Ok(())
-    }
-
     fn get_paths(&self, req: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
         let paths = try!(self.domain(&req.domain)
                          .and_then(|d| d.file(&req.key).ok_or(MogError::UnknownKey(req.key.clone())))

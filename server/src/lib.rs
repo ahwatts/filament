@@ -1,6 +1,7 @@
 extern crate iron;
 extern crate libc;
 extern crate mio;
+extern crate mogilefs_client;
 extern crate mogilefs_common;
 extern crate rand;
 extern crate threadpool;

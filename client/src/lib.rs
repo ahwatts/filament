@@ -51,7 +51,6 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    #[allow(unused_assignments)]
     pub fn do_request<R: Request>(&mut self, request: R) -> MogResult<Box<Response>> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
         let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
@@ -202,33 +201,3 @@ impl ConnectionState {
         }
     }
 }
-
-// fn reset_connection(&mut self) -> MogResult<()> {
-//     self.stream = None;
-//     self.ensure_connected()
-// }
-
-// fn handle_ioerror(&mut self, io_err: &io::Error) -> MogResult<()> {
-//     use std::io::ErrorKind::*;
-
-//     warn!("Handling I/O error: {}", io_err);
-
-//     match io_err.kind() {
-//         ConnectionReset | ConnectionAborted | NotConnected | BrokenPipe | TimedOut | Interrupted => {
-//             self.reset_connection()
-//         },
-//         _ => Ok(())
-//     }
-// }
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_file_info() {
-//         let mut client = MogClient::new(&[ "127.0.0.1:7001" ]);
-//         let response = client.file_info("rn_development_private", "Song/225322/image");
-//         println!("response = {:?}", response);
-//     }
-// }
