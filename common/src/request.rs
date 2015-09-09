@@ -8,8 +8,8 @@ use super::util::{FromBytes, ToArgs, ToUrlencodedString};
 use url::Url;
 
 /// A tracker request.
-pub trait Request: Debug + ToArgs {
-    type ResponseType: Response;
+pub trait Request: Debug + ToArgs + Sync + Send {
+    type ResponseType: Response + FromBytes + 'static;
     fn op(&self) -> &'static str;
 }
 
@@ -21,6 +21,8 @@ impl<R: Response> Response for Box<R> {}
 impl Response for Box<Response> {}
 
 impl Response for () {}
+
+impl Response for HashMap<String, String> {}
 
 /// Something which can be rendered to a string for the MogileFS
 /// tracker's line-based protocol.
@@ -160,6 +162,27 @@ impl ToArgs for CreateOpenResponse {
     }
 }
 
+impl FromBytes for CreateOpenResponse {
+    fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpenResponse> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let fid = try!(args.extract_required_int("fid", MogError::NoFid));
+        let devcount = try!(args.extract_required_int("dev_count", MogError::Other("No device count".to_string(), None)));
+        let mut paths = HashMap::new();
+
+        for i in (1..(devcount + 1)) {
+            let devid = try!(args.extract_required_int(&format!("devid_{}", i), MogError::NoDevid));
+            let url = try!(args.extract_required_url(&format!("path_{}", i), MogError::NoPath));
+            paths.insert(devid, url);
+        }
+
+        Ok(CreateOpenResponse {
+            fid: fid,
+            devcount: devcount,
+            paths: paths,
+        })
+    }
+}
+
 /// A `create_close` request.
 ///
 /// Looks like this:
@@ -289,6 +312,20 @@ pub struct GetPathsResponse(pub Vec<Url>);
 
 impl Response for GetPathsResponse {}
 
+impl FromBytes for GetPathsResponse {
+    fn from_bytes(bytes: &[u8]) -> MogResult<GetPathsResponse> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let paths = try!(args.extract_required_int("paths", MogError::Other("No path count".to_string(), None)));
+        let mut response = GetPathsResponse(Vec::new());
+
+        for i in (1..(paths + 1)) {
+            response.0.push(try!(args.extract_required_url(&format!("path{}", i), MogError::NoPath)));
+        }
+
+        Ok(response)
+    }
+}
+
 impl ToArgs for GetPathsResponse {
     fn to_args(&self) -> Vec<(String, String)> {
         let mut args = vec!{
@@ -363,6 +400,21 @@ pub struct FileInfoResponse {
 }
 
 impl Response for FileInfoResponse {}
+
+impl FromBytes for FileInfoResponse {
+    fn from_bytes(bytes: &[u8]) -> MogResult<FileInfoResponse> {
+        let mut args = ArgsHash::from_bytes(bytes);
+
+        Ok(FileInfoResponse {
+            fid: try!(args.extract_required_int("fid", MogError::NoFid)),
+            devcount: try!(args.extract_required_int("devcount", MogError::Other("No device count".to_string(), None))),
+            length: try!(args.extract_required_int("length", MogError::Other("No file size".to_string(), None))),
+            domain: try!(args.extract_required_string("domain", MogError::NoDomain)),
+            class: try!(args.extract_required_string("class", MogError::NoClass)),
+            key: try!(args.extract_required_string("key", MogError::NoKey)),
+        })
+    }
+}
 
 impl ToArgs for FileInfoResponse {
     fn to_args(&self) -> Vec<(String, String)> {
@@ -580,6 +632,20 @@ impl ToArgs for ListKeys {
 pub struct ListKeysResponse(pub Vec<String>);
 
 impl Response for ListKeysResponse {}
+
+impl FromBytes for ListKeysResponse {
+    fn from_bytes(bytes: &[u8]) -> MogResult<ListKeysResponse> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let key_count = try!(args.extract_required_int("key_count", MogError::Other("No key count".to_string(), None)));
+        let mut response = ListKeysResponse(Vec::new());
+
+        for i in (1..(key_count + 1)) {
+            response.0.push(try!(args.extract_required_string(&format!("key_{}", i), MogError::NoKey)));
+        }
+
+        Ok(response)
+    }
+}
 
 impl ToArgs for ListKeysResponse {
     fn to_args(&self) -> Vec<(String, String)> {

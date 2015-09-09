@@ -51,6 +51,12 @@ impl<B: FromBytes> FromBytes for Box<B> {
     }
 }
 
+impl FromBytes for () {
+    fn from_bytes(_bytes: &[u8]) -> MogResult<()> {
+        Ok(())
+    }
+}
+
 /// A trait abstracting the ability to convert something in to a
 /// tuple-vec or string hash of arguments, obviously discarding any
 /// type-safety.
@@ -72,6 +78,25 @@ impl<T: ToArgs + ?Sized> ToArgs for Box<T> {
     }
 }
 
+impl ToArgs for () {
+    fn to_args(&self) -> Vec<(String, String)> {
+        vec![]
+    }
+}
+
+impl ToArgs for HashMap<String, String> {
+    fn to_args(&self) -> Vec<(String, String)> {
+        let mut args = Vec::new();
+        for (k, v) in self.iter() {
+            args.push((k.clone(), v.clone()));
+        }
+        args
+    }
+}
+
+/// A trait abstracting something which can be url-encoded. This lets
+/// us paper over the difference between a response, which is as query
+/// string, and an error message, which is just a string.
 pub trait ToUrlencodedString {
     fn to_urlencoded_string(&self) -> String;
 }
@@ -79,19 +104,6 @@ pub trait ToUrlencodedString {
 impl<T: ToArgs> ToUrlencodedString for T {
     fn to_urlencoded_string(&self) -> String {
         form_urlencoded::serialize(self.to_args())
-    }
-}
-
-// impl<'a, T: ToArgs + ?Sized> ToArgs for &'a T {
-//     fn to_args(&self) -> Vec<(String, String)> {
-//         use std::ops::Deref;
-//         self.deref().to_args()
-//     }
-// }
-
-impl ToArgs for () {
-    fn to_args(&self) -> Vec<(String, String)> {
-        vec![]
     }
 }
 
