@@ -36,41 +36,41 @@ pub fn main() {
             multi_dest: opts.flag_multi_dest,
             size: opts.flag_size,
         })
-    // } else if opts.cmd_create_close {
-    //     client.request(&CreateClose {
-    //         domain: opts.arg_domain.expect("No domain provided."),
-    //         key: opts.arg_key.expect("No key provided."),
-    //         fid: opts.arg_fid.expect("No fid provided."),
-    //         devid: opts.arg_devid.expect("No devid provided."),
-    //         path: opts.arg_path.expect("No URL provided."),
-    //         checksum: opts.flag_checksum,
-    //     })
-    // } else if opts.cmd_file_info {
-    //     client.request(&FileInfo {
-    //         domain: opts.arg_domain.expect("No domain provided."),
-    //         key: opts.arg_key.expect("No key provided."),
-    //     })
-    // } else if opts.cmd_rename {
-    //     client.request(&Rename {
-    //         domain: opts.arg_domain.expect("No domain provided."),
-    //         from_key: opts.arg_from_key.expect("No source key provided."),
-    //         to_key: opts.arg_to_key.expect("No destination key provided."),
-    //     })
-    // } else if opts.cmd_update_class {
-    //     client.request(&UpdateClass {
-    //         domain: opts.arg_domain.expect("No domain provided."),
-    //         key: opts.arg_key.expect("No key provided."),
-    //         new_class: opts.arg_new_class.expect("No class name provided."),
-    //     })
-    // } else if opts.cmd_list_keys {
-    //     client.request(&ListKeys {
-    //         domain: opts.arg_domain.expect("No domain provided."),
-    //         prefix: opts.flag_prefix,
-    //         after: opts.flag_after,
-    //         limit: opts.flag_limit,
-    //     })
-    // } else if opts.cmd_noop {
-    //     client.request(&Noop)
+    } else if opts.cmd_create_close {
+        client.request(CreateClose {
+            domain: opts.arg_domain.expect("No domain provided."),
+            key: opts.arg_key.expect("No key provided."),
+            fid: opts.arg_fid.expect("No fid provided."),
+            devid: opts.arg_devid.expect("No devid provided."),
+            path: opts.arg_path.expect("No URL provided."),
+            checksum: opts.flag_checksum,
+        })
+    } else if opts.cmd_file_info {
+        client.request(FileInfo {
+            domain: opts.arg_domain.expect("No domain provided."),
+            key: opts.arg_key.expect("No key provided."),
+        })
+    } else if opts.cmd_rename {
+        client.request(Rename {
+            domain: opts.arg_domain.expect("No domain provided."),
+            from_key: opts.arg_from_key.expect("No source key provided."),
+            to_key: opts.arg_to_key.expect("No destination key provided."),
+        })
+    } else if opts.cmd_update_class {
+        client.request(UpdateClass {
+            domain: opts.arg_domain.expect("No domain provided."),
+            key: opts.arg_key.expect("No key provided."),
+            new_class: opts.arg_new_class.expect("No class name provided."),
+        })
+    } else if opts.cmd_list_keys {
+        client.request(ListKeys {
+            domain: opts.arg_domain.expect("No domain provided."),
+            prefix: opts.flag_prefix,
+            after: opts.flag_after,
+            limit: opts.flag_limit,
+        })
+    } else if opts.cmd_noop {
+        client.request(Noop)
     } else {
         Err(MogError::Other(format!("No command provided?!?"), None))
     };
