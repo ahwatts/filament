@@ -68,7 +68,10 @@ impl MogError {
 
         let mut toks = bytes.split(|&b| b == b' ');
         let op = toks.next();
-        let msg = toks.next().map(|m| percent_encoding::lossy_utf8_percent_decode(m));
+        let msg = toks.next().map(|m| {
+            percent_encoding::lossy_utf8_percent_decode(m)
+                .replace("+", " ")
+        });
 
         match op.map(|o| str::from_utf8(o)) {
             Some(Ok("no_class")) => NoClass,
