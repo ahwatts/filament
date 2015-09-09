@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use mogilefs_common::{Request, Response, MogError, MogResult};
+use mogilefs_common::{Response, MogError, MogResult};
 use mogilefs_common::requests::*;
 use rand;
 use std::net::{SocketAddr, TcpStream};
@@ -110,35 +110,35 @@ fn connection_thread(addr: SocketAddr, requests: Receiver<ProxyRequest>) {
 }
 
 impl TrackerBackend for ProxyTrackerBackend {
-    fn create_domain(&self, _req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
+    fn create_domain(&self, _req: &CreateDomain) -> MogResult<CreateDomain> {
         unimplemented!()
     }
 
-    fn create_open(&self, _req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
+    fn create_open(&self, _req: &CreateOpen) -> MogResult<CreateOpenResponse> {
         unimplemented!()
     }
 
-    fn create_close(&self, _req: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
+    fn create_close(&self, _req: &CreateClose) -> MogResult<()> {
         unimplemented!()
     }
 
-    fn get_paths(&self, _req: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+    fn get_paths(&self, _req: &GetPaths) -> MogResult<GetPathsResponse> {
         unimplemented!()
     }
     
-    fn file_info(&self, _req: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+    fn file_info(&self, _req: &FileInfo) -> MogResult<FileInfoResponse> {
         unimplemented!()
     }
     
-    fn delete(&self, _req: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
+    fn delete(&self, _req: &Delete) -> MogResult<()> {
         unimplemented!()
     }
 
-    fn rename(&self, _req: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
+    fn rename(&self, _req: &Rename) -> MogResult<()> {
         unimplemented!()
     }
 
-    fn list_keys(&self, req: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
+    fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
         unimplemented!()
     }
 }

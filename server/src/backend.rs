@@ -1,18 +1,18 @@
-use mogilefs_common::{MogResult, Request};
+use mogilefs_common::MogResult;
 use mogilefs_common::requests::*;
 use std::io::{Read, Write};
 use time::Tm;
 use url::Url;
 
 pub trait TrackerBackend: Send + Sync {
-    fn create_domain(&self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType>;
-    fn create_open  (&self, req: &CreateOpen)   -> MogResult<<CreateOpen   as Request>::ResponseType>;
-    fn create_close (&self, req: &CreateClose)  -> MogResult<<CreateClose  as Request>::ResponseType>;
-    fn get_paths    (&self, req: &GetPaths)     -> MogResult<<GetPaths     as Request>::ResponseType>;
-    fn file_info    (&self, req: &FileInfo)     -> MogResult<<FileInfo     as Request>::ResponseType>;
-    fn delete       (&self, req: &Delete)       -> MogResult<<Delete       as Request>::ResponseType>;
-    fn rename       (&self, req: &Rename)       -> MogResult<<Rename       as Request>::ResponseType>;
-    fn list_keys    (&self, req: &ListKeys)     -> MogResult<<ListKeys     as Request>::ResponseType>;
+    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain>;
+    fn create_open  (&self, req: &CreateOpen)   -> MogResult<CreateOpenResponse>;
+    fn create_close (&self, req: &CreateClose)  -> MogResult<()>;
+    fn get_paths    (&self, req: &GetPaths)     -> MogResult<GetPathsResponse>;
+    fn file_info    (&self, req: &FileInfo)     -> MogResult<FileInfoResponse>;
+    fn delete       (&self, req: &Delete)       -> MogResult<()>;
+    fn rename       (&self, req: &Rename)       -> MogResult<()>;
+    fn list_keys    (&self, req: &ListKeys)     -> MogResult<ListKeysResponse>;
 }
 
 pub trait StorageBackend: Send + Sync {

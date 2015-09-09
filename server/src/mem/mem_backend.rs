@@ -1,4 +1,4 @@
-use mogilefs_common::{MogError, MogResult, Request};
+use mogilefs_common::{MogError, MogResult};
 use mogilefs_common::requests::*;
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
@@ -26,7 +26,7 @@ impl MemBackend {
 
     // Tracker methods.
 
-    pub fn create_domain(&mut self, req: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
+    pub fn create_domain(&mut self, req: &CreateDomain) -> MogResult<CreateDomain> {
         if self.domains.contains_key(&req.domain) {
             Err(MogError::DomainExists(req.domain.clone()))
         } else {
@@ -36,7 +36,7 @@ impl MemBackend {
         }
     }
 
-    pub fn create_open(&mut self, req: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
+    pub fn create_open(&mut self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
         let fid = self.domains.len() + 1;
         let url = self.url_for_key(&req.domain, &req.key);
         let domain = try!(self.domain_mut(&req.domain));
@@ -52,14 +52,14 @@ impl MemBackend {
         Ok(response)
     }
 
-    fn get_paths(&self, req: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+    fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
         let paths = try!(self.domain(&req.domain)
                          .and_then(|d| d.file(&req.key).ok_or(MogError::UnknownKey(req.key.clone())))
                          .map(|_| vec![ self.url_for_key(&req.domain, &req.key) ]));
         Ok(GetPathsResponse(paths))
     }
     
-    fn file_info(&self, req: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+    fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
         self.domain(&req.domain)
             .and_then(|d| d.file(&req.key).ok_or(MogError::UnknownKey(req.key.clone())))
             .map(|file_info| {
@@ -74,18 +74,18 @@ impl MemBackend {
             })
     }
     
-    fn delete(&mut self, req: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
+    fn delete(&mut self, req: &Delete) -> MogResult<()> {
         try!(self.domain_mut(&req.domain))
             .remove_file(&req.key)
             .map(|_| ())
             .ok_or(MogError::UnknownKey(req.key.clone()))
     }
 
-    fn rename(&mut self, req: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
+    fn rename(&mut self, req: &Rename) -> MogResult<()> {
         self.domain_mut(&req.domain).and_then(|d| d.rename(&req.from_key, &req.to_key))
     }
 
-    fn list_keys(&self, req: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
+    fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
         let after_key = req.after.as_ref().map(|s| s.as_ref()).unwrap_or("");
         let prefix = req.prefix.as_ref().map(|s| s.as_ref()).unwrap_or("");
         let limit = req.limit.unwrap_or(1000);
@@ -196,15 +196,15 @@ impl SyncMemBackend {
 }
 
 impl TrackerBackend for SyncMemBackend {
-    fn create_domain(&self, request: &CreateDomain) -> MogResult<<CreateDomain as Request>::ResponseType> {
+    fn create_domain(&self, request: &CreateDomain) -> MogResult<CreateDomain> {
         try!(self.0.write()).create_domain(&request)
     }
 
-    fn create_open(&self, request: &CreateOpen) -> MogResult<<CreateOpen as Request>::ResponseType> {
+    fn create_open(&self, request: &CreateOpen) -> MogResult<CreateOpenResponse> {
         try!(self.0.write()).create_open(&request)
     }
 
-    fn create_close(&self, _request: &CreateClose) -> MogResult<<CreateClose as Request>::ResponseType> {
+    fn create_close(&self, _request: &CreateClose) -> MogResult<()> {
         // There's nothing to do here. See the equivalent method on
         // the actual backend. There's no need acquire the mutex and
         // call it, since we're not going to be doing anything with
@@ -212,23 +212,23 @@ impl TrackerBackend for SyncMemBackend {
         Ok(())
     }
 
-    fn get_paths(&self, request: &GetPaths) -> MogResult<<GetPaths as Request>::ResponseType> {
+    fn get_paths(&self, request: &GetPaths) -> MogResult<GetPathsResponse> {
         try!(self.0.read()).get_paths(&request)
     }
     
-    fn file_info(&self, request: &FileInfo) -> MogResult<<FileInfo as Request>::ResponseType> {
+    fn file_info(&self, request: &FileInfo) -> MogResult<FileInfoResponse> {
         try!(self.0.read()).file_info(&request)
     }
     
-    fn delete(&self, request: &Delete) -> MogResult<<Delete as Request>::ResponseType> {
+    fn delete(&self, request: &Delete) -> MogResult<()> {
         try!(self.0.write()).delete(&request)
     }
 
-    fn rename(&self, request: &Rename) -> MogResult<<Rename as Request>::ResponseType> {
+    fn rename(&self, request: &Rename) -> MogResult<()> {
         try!(self.0.write()).rename(&request)
     }
 
-    fn list_keys(&self, request: &ListKeys) -> MogResult<<ListKeys as Request>::ResponseType> {
+    fn list_keys(&self, request: &ListKeys) -> MogResult<ListKeysResponse> {
         try!(self.0.read()).list_keys(&request)
     }
 }

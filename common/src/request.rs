@@ -9,8 +9,9 @@ use url::Url;
 
 /// A tracker request.
 pub trait Request: Debug + ToArgs + Sync + Send {
-    type ResponseType: Response + FromBytes + 'static;
+    // type ResponseType: Response + FromBytes + 'static;
     fn op(&self) -> &'static str;
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>>;
 }
 
 /// The response to a tracker request.
@@ -50,8 +51,12 @@ pub struct CreateDomain {
 }
 
 impl Request for CreateDomain {
-    type ResponseType = CreateDomain;
+    // type ResponseType = CreateDomain;
     fn op(&self) -> &'static str { "create_domain" }
+
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>> {
+        CreateDomain::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    }
 }
 
 impl Response for CreateDomain {}
@@ -92,8 +97,12 @@ pub struct CreateOpen {
 }
 
 impl Request for CreateOpen {
-    type ResponseType = CreateOpenResponse;
+    // type ResponseType = CreateOpenResponse;
     fn op(&self) -> &'static str { "create_open" }
+
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>> {
+        CreateOpenResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    }
 }
 
 impl FromBytes for CreateOpen {
@@ -202,8 +211,12 @@ pub struct CreateClose {
 }
 
 impl Request for CreateClose {
-    type ResponseType = ();
+    // type ResponseType = ();
     fn op(&self) -> &'static str { "create_close" }
+
+    fn response_from_bytes(_bytes: &[u8]) -> MogResult<Box<Response>> {
+        Ok(Box::new(()) as Box<Response>)
+    }
 }
 
 impl FromBytes for CreateClose {
@@ -262,8 +275,12 @@ pub struct GetPaths {
 }
 
 impl Request for GetPaths {
-    type ResponseType = GetPathsResponse;
+    // type ResponseType = GetPathsResponse;
     fn op(&self) -> &'static str { "get_paths" }
+
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>> {
+        GetPathsResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    }
 }
 
 impl FromBytes for GetPaths {
@@ -355,8 +372,12 @@ pub struct FileInfo {
 }
 
 impl Request for FileInfo {
-    type ResponseType = FileInfoResponse;
+    // type ResponseType = FileInfoResponse;
     fn op(&self) -> &'static str { "file_info" }
+
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>> {
+        FileInfoResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    }
 }
 
 impl FromBytes for FileInfo {
@@ -445,8 +466,12 @@ pub struct Rename {
 }
 
 impl Request for Rename {
-    type ResponseType = ();
+    // type ResponseType = ();
     fn op(&self) -> &'static str { "rename" }
+
+    fn response_from_bytes(_bytes: &[u8]) -> MogResult<Box<Response>> {
+        Ok(Box::new(()) as Box<Response>)
+    }
 }
 
 impl FromBytes for Rename {
@@ -490,8 +515,12 @@ pub struct UpdateClass {
 }
 
 impl Request for UpdateClass {
-    type ResponseType = ();
+    // type ResponseType = ();
     fn op(&self) -> &'static str { "updateclass" }
+
+    fn response_from_bytes(_bytes: &[u8]) -> MogResult<Box<Response>> {
+        Ok(Box::new(()) as Box<Response>)
+    }
 }
 
 impl FromBytes for UpdateClass {
@@ -534,8 +563,12 @@ pub struct Delete {
 }
 
 impl Request for Delete {
-    type ResponseType = ();
+    // type ResponseType = ();
     fn op(&self) -> &'static str { "delete" }
+
+    fn response_from_bytes(_bytes: &[u8]) -> MogResult<Box<Response>> {
+        Ok(Box::new(()) as Box<Response>)
+    }
 }
 
 impl FromBytes for Delete {
@@ -577,8 +610,12 @@ pub struct ListKeys {
 }
 
 impl Request for ListKeys {
-    type ResponseType = ListKeysResponse;
+    // type ResponseType = ListKeysResponse;
     fn op(&self) -> &'static str { "list_keys" }
+
+    fn response_from_bytes(bytes: &[u8]) -> MogResult<Box<Response>> {
+        ListKeysResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    }
 }
 
 impl FromBytes for ListKeys {
@@ -676,8 +713,12 @@ impl ToArgs for ListKeysResponse {
 pub struct Noop;
 
 impl Request for Noop {
-    type ResponseType = ();
+    // type ResponseType = ();
     fn op(&self) -> &'static str { "noop" }
+
+    fn response_from_bytes(_bytes: &[u8]) -> MogResult<Box<Response>> {
+        Ok(Box::new(()) as Box<Response>)
+    }
 }
 
 impl FromBytes for Noop {

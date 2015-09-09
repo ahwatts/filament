@@ -6,7 +6,7 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use bufstream::BufStream;
-use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs, FromBytes};
+use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
 use std::io::{self, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use url::{form_urlencoded, percent_encoding};
@@ -84,19 +84,19 @@ impl MogClientTransport {
                     let len = resp_line.len();
                     resp_line = resp_line.into_iter().take(len - 2).collect();
                 }
-                response_from_bytes::<R::ResponseType>(&resp_line)
+                response_from_bytes::<R>(&resp_line)
             }
         }
     }
 }
 
-fn response_from_bytes<R: Response + FromBytes + 'static>(bytes: &[u8]) -> MogResult<Box<Response>> {
+fn response_from_bytes<R: Request>(bytes: &[u8]) -> MogResult<Box<Response>> {
     let mut toks = bytes.splitn(2, |&b| b == b' ');
     let op = toks.next();
     let args = toks.next().unwrap_or(&[]);
 
     match op {
-        Some(b"OK") => R::from_bytes(&args).map(|r| Box::new(r) as Box<Response>),
+        Some(b"OK") => R::response_from_bytes(&args),
         Some(b"ERR") => Err(MogError::from_bytes(&args)),
         o @ _ => {
             let err_str = o.map(|bs| {
