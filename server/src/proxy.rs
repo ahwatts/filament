@@ -1,9 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
 use mogilefs_client::MogClient;
-use mogilefs_common::{Request, Response, MogError, MogResult};
+use mogilefs_common::{Request, Response, MogError, MogResult, ToUrlencodedString, FromBytes};
 use mogilefs_common::requests::*;
-use std::any::Any;
 use std::net::SocketAddr;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
@@ -59,19 +58,24 @@ impl ProxyTrackerBackend {
     }
 
     pub fn create_conn_thread(&mut self) -> MogResult<()> {
-        let (tx, rx) = mpsc::channel::<ProxyRequest>();
-        let trackers = self.trackers.clone();
+        match self.conn_thread_handle {
+            Some(..) => Ok(()),
+            None => {
+                let (tx, rx) = mpsc::channel::<ProxyRequest>();
+                let trackers = self.trackers.clone();
 
-        self.conn_thread_sender = Some(Mutex::new(tx));
-        self.conn_thread_handle = Some(thread::spawn(move|| {
-            connection_thread(&trackers, rx);
-        }));
+                self.conn_thread_sender = Some(Mutex::new(tx));
+                self.conn_thread_handle = Some(thread::spawn(move|| {
+                    connection_thread(&trackers, rx);
+                }));
 
-        Ok(())
+                Ok(())
+            }
+        }
     }
 
     fn send_request<Req, Res>(&self, req: Req) -> MogResult<Res>
-        where Req: Request + 'static, Res: Response + Any + Clone
+        where Req: Request + 'static, Res: Response + FromBytes
     {
         let (tx, rx) = mpsc::channel();
         let sender = try!(self.conn_thread_sender_clone());
@@ -79,15 +83,10 @@ impl ProxyTrackerBackend {
         try!(sender.send(ProxyRequest { inner: RequestInner::Real(Box::new(req)), respond: tx }));
         rx.recv()
             .map_err(|e| MogError::from(e))
-            .and_then(|pr| {
-                match (&pr.inner as &Any).downcast_ref::<Res>() {
-                    Some(response) => {
-                        Ok(response.clone())
-                    }
-                    None => {
-                        Err(MogError::Other("Wrong response type".to_string(), Some(format!("response = {:?}", pr.inner))))
-                    }
-                }
+            .and_then(|pr| pr.inner)
+            .and_then(|abstract_response| {
+                // This is a horrible, horrible way to do this. I apologize.
+                Res::from_bytes(abstract_response.to_urlencoded_string().as_bytes())
             })
     }
 }
@@ -102,9 +101,9 @@ fn connection_thread(trackers: &[SocketAddr], requests: Receiver<ProxyRequest>) 
                 break;
             },
             RequestInner::Real(request) => {
-                debug!("Sending request {:?} to {:?}", request, conn);
+                debug!("Sending request {:?} to {:?}", request, conn.peer_addr());
                 let response = conn.request(request);
-                debug!("Got response {:?} from {:?}", response, conn);
+                debug!("Got response {:?} from {:?}", response, conn.peer_addr());
                 response
             },
         };
@@ -115,10 +114,6 @@ fn connection_thread(trackers: &[SocketAddr], requests: Receiver<ProxyRequest>) 
             });
     }
 }
-
-// fn downcast_response<Q: Any + 'static, R: Response + Any + 'static>(response: Box<Q>) -> Result<Box<R>, Box<Any>> {
-//     (response as Box<Any>).downcast::<R>()
-// }
 
 impl TrackerBackend for ProxyTrackerBackend {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {

@@ -29,6 +29,10 @@ impl MogClient {
         info!("response = {:?}", resp_rslt);
         resp_rslt
     }
+
+    pub fn peer_addr(&self) -> Option<SocketAddr> {
+        self.transport.stream.as_ref().and_then(|s| s.peer_addr())
+    }
 }
 
 #[derive(Debug)]
@@ -124,6 +128,15 @@ impl ConnectionState {
         match self {
             &ConnectionState::Connected(..) => true,
             _ => false,
+        }
+    }
+
+    fn peer_addr(&self) -> Option<SocketAddr> {
+        match self {
+            &ConnectionState::Connected(ref stream) => {
+                stream.get_ref().peer_addr().ok()
+            },
+            _ => None,
         }
     }
 

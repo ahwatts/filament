@@ -16,6 +16,7 @@ use mogilefs_server::backend::TrackerBackend;
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::tracker::Tracker;
 use mogilefs_server::net::storage::StorageHandler;
+use mogilefs_server::proxy::ProxyTrackerBackend;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use std::thread;
@@ -38,20 +39,30 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
-    let backend = SyncMemBackend::new(MemBackend::new(opts.flag_base_url.clone()));
-    let tracker = Tracker::new(backend.clone());
+    if opts.cmd_mem_tracker {
+        let backend = SyncMemBackend::new(MemBackend::new(opts.flag_base_url.clone()));
+        let tracker = Tracker::new(backend.clone());
 
-    let storage_addr = opts.flag_storage_ip.0.clone();
-    let storage_threads = opts.flag_storage_threads;
-    thread::spawn(move|| {
-        let iron = Iron::new(Chain::new(StorageHandler::new(backend)));
-        println!("Storage server (Iron) listening on {:?}", storage_addr);
-        iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
-    });
+        let storage_addr = opts.flag_storage_ip.0.clone();
+        let storage_threads = opts.flag_storage_threads;
+        thread::spawn(move|| {
+            let iron = Iron::new(Chain::new(StorageHandler::new(backend)));
+            println!("Storage server (Iron) listening on {:?}", storage_addr);
+            iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
+        });
 
-    match opts.flag_tracker_io {
-        TrackerIoType::Evented => run_evented(&opts, tracker),
-        TrackerIoType::Threaded => run_threaded(&opts, tracker),
+        match opts.flag_tracker_io {
+            TrackerIoType::Evented => run_evented(&opts, tracker),
+            TrackerIoType::Threaded => run_threaded(&opts, tracker),
+        }
+    } else if opts.cmd_proxy_tracker {
+        let backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
+        let tracker = Tracker::new(backend);
+
+        match opts.flag_tracker_io {
+            TrackerIoType::Evented => run_evented(&opts, tracker),
+            TrackerIoType::Threaded => run_threaded(&opts, tracker),
+        }
     }
 }
 
@@ -92,26 +103,40 @@ static USAGE: &'static str = "
 A quasi-workalike for the MogileFS tracker daemon.
 
 Usage:
-  filament [options]
+  filament (-h | --help | -v | --version)
+  filament mem-tracker [options]
+  filament proxy-tracker [options]
 
 General Options:
   -h, --help                 Print this help message.
   -v, --version              Print the version information.
 
-Tracker Options:
+General Tracker Options:
   --tracker-ip=IP            The ip:port for the tracker to listen on. [default: 0.0.0.0:7002]
   -t N, --tracker-threads=N  How many tracker threads to run.          [default: 4]
   -i T, --tracker-io=T       Which I/O model the tracker should use.   [default: Evented]
                              (can be Threaded or Evented)
 
-Storage Options:
+General Storage Options:
   --storage-ip=IP            The ip:port for the storage server to listen on. [default: 0.0.0.0:7503]
   -s N, --storage-threads=N  How many storage threads to run.                 [default: 4]
   -u URL, --base-url=URL     The base URL for the storage server.             [default: http://127.0.0.1:7503/]
+
+
+In-Memory Tracker (mem-tracker) Options:
+  (all General Tracker Options and General Storage Options supported)
+
+Proxy Tracker (proxy-tracker) Options:
+  (all General Tracker Options and General Storage Options supported)
+  Tracker Options:
+    --real-trackers=IPS      A comma-separated list of actual trackers that we're proxying for. [default: 127.0.0.1:7001]
 ";
 
 #[derive(Debug, RustcDecodable)]
 struct Options {
+    cmd_mem_tracker: bool,
+    cmd_proxy_tracker: bool,
+
     flag_tracker_ip: WrapSocketAddr,
     flag_tracker_threads: usize,
     flag_tracker_io: TrackerIoType,
@@ -119,6 +144,8 @@ struct Options {
     flag_storage_ip: WrapSocketAddr,
     flag_storage_threads: usize,
     flag_base_url: Url,
+
+    flag_real_trackers: SocketAddrList,
 }
 
 // Need to wrap SocketAddr with our own type so that we can implement
@@ -141,4 +168,29 @@ impl Decodable for WrapSocketAddr {
 enum TrackerIoType {
     Threaded,
     Evented,
+}
+
+#[derive(Debug)]
+pub struct SocketAddrList(Vec<SocketAddr>);
+
+impl SocketAddrList {
+    pub fn as_slice(&self) -> &[SocketAddr] {
+        &self.0
+    }
+}
+
+impl Decodable for SocketAddrList {
+    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
+        use std::str::FromStr;
+
+        let addrs_str = try!(d.read_str());
+        let mut addrs = Vec::new();
+
+        for addr_str in addrs_str.split(',') {
+            let addr = try!(SocketAddr::from_str(addr_str).map_err(|e| d.error(&format!("Unable to parse address {:?}: {:?}", addr_str, e))));
+            addrs.push(addr);
+        }
+
+        Ok(SocketAddrList(addrs))
+    }
 }
