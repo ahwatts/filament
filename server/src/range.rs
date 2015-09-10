@@ -1,10 +1,11 @@
-#![allow(unused_imports)]
-
 use iron::headers::{Range, ByteRangeSpec, ContentRange, ContentRangeSpec, ContentLength};
 use iron::modifier::{Modifier, Set};
+use iron::response::ResponseBody;
 use iron::status::Status;
-use iron::{AroundMiddleware, Handler, IronError, IronResult, Request, Response};
-use std::io::{Read, Cursor};
+use iron::{typemap, AroundMiddleware, Handler, IronResult, Request, Response};
+use std::io::{self, Read, Cursor};
+use std::iter;
+use plugin::{Plugin, Pluggable};
 
 struct RangeHandler<H: Handler> {
     handler: H
@@ -46,99 +47,106 @@ impl RangeModifier {
 }
 
 impl Modifier<Response> for RangeModifier {
-    fn modify(self, _response: &mut Response) {
-        error!("!!!!!!!!!!! Not modifying response for range: {:?}", self);
+    fn modify(self, response: &mut Response) {
+        if self.0.len() != 1 { return; }
+        let range = self.0.into_iter().next().unwrap();
+
+        let orig_body = response.get::<BodyExtractor>();
+        if orig_body.is_err() { return; }
+        let orig_body = orig_body.unwrap();
+
+        debug!("Limiting response to range: {:?} of {:?}", range, orig_body.len());
+
+        response.status = Some(Status::PartialContent);
+        match range {
+            ByteRangeSpec::FromTo(from, to) => modify_from_to(response, orig_body, from, to),
+            ByteRangeSpec::AllFrom(from) => modify_all_from(response, orig_body, from),
+            ByteRangeSpec::Last(to) => modify_last(response, orig_body, to),
+        }
     }
 }
 
-// fn modify_response_for_ranges(response: &mut Response, ranges: &[ByteRangeSpec]) -> IronResult<()> {
-//     match ranges.len() {
-//         0 => Ok(()), // Just return the result unmodified... ?
-//         1 => modify_response_for_range(response, &ranges[0]),
-//         _ => Ok(()), // Don't bother handling multiple-range requests for now.
-//     }
-// }
+fn modify_from_to(response: &mut Response, orig_body: Vec<u8>, from: u64, to: u64) {
+    let orig_len = orig_body.len();
+    let req_len = to - from + 1;
+    let new_body: Vec<u8> = orig_body.into_iter()
+        .skip(from as usize)
+        .take(req_len as usize)
+        .collect();
 
-// fn modify_response_for_range(response: &mut Response, range: &ByteRangeSpec) -> IronResult<()> {
-//     if response.body.is_none() {
-//         return Ok(())
-//     }
+    let res_from = from;
+    let res_to = res_from + (new_body.len() as u64) - 1;
+    response.headers.set(ContentRange(ContentRangeSpec::Bytes {
+        range: Some((res_from, res_to)),
+        instance_length: Some(orig_len as u64),
+    }));
 
-//     let mut old_body = response.body.take().unwrap();
-//     let mut body_vec = vec![];
-//     match old_body.read_to_end(&mut body_vec) {
-//         Err(e) => {
-//             return Err(IronError::new(e, (Status::InternalServerError,)));
-//         },
-//         _ => {}
-//     }
+    response.set_mut(new_body);
+}
 
-//     debug!("Limiting response to range: {:?} of {:?}", range, body_vec.len());
+fn modify_all_from(response: &mut Response, orig_body: Vec<u8>, from: u64) {
+    let orig_len = orig_body.len();
+    let new_body: Vec<u8> = orig_body.into_iter()
+        .skip(from as usize)
+        .collect();
 
-//     response.status = Some(Status::PartialContent);
-//     match range {
-//         &ByteRangeSpec::FromTo(from, to) => {
-//             let req_len = to - from + 1;
-//             let new_body_vec: Vec<u8> = body_vec.iter()
-//                 .skip(from as usize)
-//                 .take(req_len as usize)
-//                 .cloned()
-//                 .collect();
+    let res_from = from;
+    let res_to = res_from + (new_body.len() as u64) - 1;
+    response.headers.set(ContentRange(ContentRangeSpec::Bytes {
+        range: Some((res_from, res_to)),
+        instance_length: Some(orig_len as u64),
+    }));
 
-//             let res_from = from;
-//             let res_to = res_from + (new_body_vec.len() as u64) - 1;
-//             response.headers.set(ContentRange(ContentRangeSpec::Bytes {
-//                 range: Some((res_from, res_to)),
-//                 instance_length: Some(body_vec.len() as u64),
-//             }));
-//             response.headers.set(ContentLength(new_body_vec.len() as u64));
-//             response.body = Some(Box::new(Cursor::new(new_body_vec)));
-//             Ok(())
-//         },
-//         &ByteRangeSpec::AllFrom(from) => {
-//             let new_body_vec: Vec<u8> = body_vec.iter()
-//                 .skip(from as usize)
-//                 .cloned()
-//                 .collect();
+    response.set_mut(new_body);
+}
 
-//             let res_from = from;
-//             let res_to = res_from + (new_body_vec.len() as u64) - 1;
+fn modify_last(response: &mut Response, orig_body: Vec<u8>, to: u64) {
+    let orig_len = orig_body.len();
 
-//             response.headers.set(ContentRange(ContentRangeSpec::Bytes {
-//                 range: Some((res_from, res_to)),
-//                 instance_length: Some(body_vec.len() as u64),
-//             }));
-//             response.headers.set(ContentLength(new_body_vec.len() as u64));
-//             response.body = Some(Box::new(Cursor::new(new_body_vec)));
-//             Ok(())
-//         },
-//         &ByteRangeSpec::Last(n) => {
-//             if n > (body_vec.len() as u64) {
-//                 response.headers.set(ContentRange(ContentRangeSpec::Bytes {
-//                     range: Some((0, (body_vec.len() as u64) - 1)),
-//                     instance_length: Some(body_vec.len() as u64),
-//                 }));
-//                 response.headers.set(ContentLength(body_vec.len() as u64));
-//                 response.body = Some(Box::new(Cursor::new(body_vec)));
-//                 Ok(())
-//             } else {
-//                 let req_from = (body_vec.len() as u64) - n;
-//                 let new_body_vec: Vec<u8> = body_vec.iter()
-//                     .skip(req_from as usize)
-//                     .cloned()
-//                     .collect();
+    if to > (orig_len as u64) {
+        response.headers.set(ContentRange(ContentRangeSpec::Bytes {
+            range: Some((0, (orig_len as u64) - 1)),
+            instance_length: Some(orig_len as u64),
+        }));
 
-//                 let res_from = req_from;
-//                 let res_to = res_from + (new_body_vec.len() as u64) - 1;
+        response.set_mut(orig_body);
+    } else {
+        let req_from = (orig_len as u64) - to;
+        let new_body: Vec<u8> = orig_body.into_iter()
+            .skip(req_from as usize)
+            .collect();
 
-//                 response.headers.set(ContentRange(ContentRangeSpec::Bytes {
-//                     range: Some((res_from, res_to)),
-//                     instance_length: Some(body_vec.len() as u64),
-//                 }));
-//                 response.headers.set(ContentLength(new_body_vec.len() as u64));
-//                 response.body = Some(Box::new(Cursor::new(new_body_vec)));
-//                 Ok(())
-//             }
-//         },
-//     }
-// }
+        let res_from = req_from;
+        let res_to = res_from + (new_body.len() as u64) - 1;
+        response.headers.set(ContentRange(ContentRangeSpec::Bytes {
+            range: Some((res_from, res_to)),
+            instance_length: Some(orig_len as u64),
+        }));
+
+        response.set_mut(new_body);
+    }
+}
+
+struct BodyExtractor;
+
+impl typemap::Key for BodyExtractor {
+    type Value = Vec<u8>;
+}
+
+impl Plugin<Response> for BodyExtractor {
+    type Error = io::Error;
+
+    fn eval(response: &mut Response) -> Result<Vec<u8>, io::Error> {
+        match &mut response.body {
+            &mut Some(ref mut writer) => {
+                let content_length = response.headers.get::<ContentLength>().map(|h| h.0).unwrap_or(0);
+                let mut body: Vec<u8> = iter::repeat(0u8).take(content_length as usize).collect();
+                try!(writer.write_body(&mut ResponseBody::new(Cursor::new(body.as_mut()))));
+                Ok(body)
+            },
+            &mut None => {
+                Ok(vec![])
+            }
+        }
+    }
+}

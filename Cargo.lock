@@ -253,6 +253,7 @@ dependencies = [
  "mio 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_client 0.2.0-nightly",
  "mogilefs_common 0.2.0-nightly",
+ "plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",

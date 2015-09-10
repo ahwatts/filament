@@ -3,6 +3,7 @@ extern crate libc;
 extern crate mio;
 extern crate mogilefs_client;
 extern crate mogilefs_common;
+extern crate plugin;
 extern crate rand;
 extern crate threadpool;
 extern crate time;
