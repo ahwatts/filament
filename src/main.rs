@@ -17,6 +17,7 @@ use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::tracker::Tracker;
 use mogilefs_server::net::storage::StorageHandler;
 use mogilefs_server::proxy::ProxyTrackerBackend;
+use mogilefs_server::range::RangeMiddleware;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use std::thread;
@@ -46,7 +47,9 @@ fn main() {
         let storage_addr = opts.flag_storage_ip.0.clone();
         let storage_threads = opts.flag_storage_threads;
         thread::spawn(move|| {
-            let iron = Iron::new(Chain::new(StorageHandler::new(backend)));
+            let mut chain = Chain::new(StorageHandler::new(backend));
+            chain.around(RangeMiddleware);
+            let iron = Iron::new(chain);
             println!("Storage server (Iron) listening on {:?}", storage_addr);
             iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
         });

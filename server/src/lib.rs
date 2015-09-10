@@ -23,6 +23,7 @@ pub mod ctrlc;
 pub mod mem;
 pub mod net;
 pub mod proxy;
+pub mod range;
 
 #[cfg(test)]
 pub mod test_support {
