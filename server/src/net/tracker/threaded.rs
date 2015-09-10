@@ -50,15 +50,19 @@ fn handle_connection<B: TrackerBackend>(mut writer: TcpStream, tracker: Arc<Trac
 
     for line in reader.split(b'\n') {
         let mut line = try!(line);
+        debug!("request line = {:?}", String::from_utf8_lossy(&line));
         if line.last() == Some(&b'\r') { line.pop(); }
         let response = tracker.handle_bytes(line.as_ref());
 
         // Despite both arms being identical, I have to break it out
         // because the result itself is not Renderable.
-        match response {
-            Ok(resp) => try!(writer.write_all(resp.render().as_bytes())),
-            Err(e) => try!(writer.write_all(&e.render().as_bytes())),
-        }
+        let rendered = match response {
+            Ok(resp) => resp.render(),
+            Err(e) => e.render(),
+        };
+
+        debug!("response line = {:?}", rendered);
+        try!(write!(writer, "{}\r\n", rendered));
     }
 
     Ok(())

@@ -167,7 +167,7 @@ impl ToArgs for CreateOpenResponse {
     fn to_args(&self) -> Vec<(String, String)> {
         let mut args = vec!{
             ("fid".to_string(), self.fid.to_string()),
-            ("devcount".to_string(), self.devcount.to_string()),
+            ("dev_count".to_string(), self.devcount.to_string()),
         };
 
         for (i, (devid, url)) in self.paths.iter().enumerate() {

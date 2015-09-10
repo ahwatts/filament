@@ -46,7 +46,10 @@ impl<B: TrackerBackend> Tracker<B> {
     pub fn handle_request<Req, Res, F>(&self, request: MogResult<Req>, handler_fn: &F) -> MogResult<Box<Response>>
         where Req: Request + Sized + 'static, Res: Response + Sized + 'static, F: Fn(&B, &Req) -> MogResult<Res>
     {
-        request.and_then(|req| handler_fn(&self.backend, &req).map(|res| Box::new(res) as Box<Response>))
+        info!("request = {:?}", request);
+        let response = request.and_then(|req| handler_fn(&self.backend, &req).map(|res| Box::new(res) as Box<Response>));
+        info!("response = {:?}", response);
+        response
     }
 }
 

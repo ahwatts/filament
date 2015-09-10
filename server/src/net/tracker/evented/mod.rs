@@ -320,6 +320,8 @@ impl<B: 'static + TrackerBackend> Connection<B> {
                 reader.read_to_end(&mut rest).unwrap();
             }
 
+            debug!("request_line = {:?}", String::from_utf8_lossy(&request));
+
             // Cut the delimiter off of the request.
             let len = request.len();
             request = request.into_iter().take(len - 2).collect();
@@ -332,6 +334,7 @@ impl<B: 'static + TrackerBackend> Connection<B> {
     }
 
     fn write_response(&mut self, event_loop: &mut EventLoop<Handler<B>>, response_bytes: &[u8]) -> EventedResult<()> {
+        debug!("response_line = {:?}", String::from_utf8_lossy(response_bytes));
         self.out_buf.write(response_bytes).unwrap();
         self.current = None;
         self.maybe_dispatch_request(event_loop);
