@@ -90,7 +90,8 @@ impl MemBackend {
         let prefix = req.prefix.as_ref().map(|s| s.as_ref()).unwrap_or("");
         let limit = req.limit.unwrap_or(1000);
         Ok(ListKeysResponse(try!(self.domain(&req.domain)).files()
-                            .skip_while(|&(k, _)| k <= after_key || !k.starts_with(prefix))
+                            .filter(|&(k, _)| k.starts_with(prefix))
+                            .skip_while(|&(k, _)| k <= after_key)
                             .take(limit as usize)
                             .map(|(k, _)| k.to_string())
                             .collect()))
@@ -449,6 +450,23 @@ mod tests {
         let list = list_result.unwrap();
         for key in list.0.iter() {
             assert!(key.starts_with(TEST_KEY_PREFIX_1), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_1);
+        }
+    }
+
+    #[test]
+    fn domain_list_keys_with_prefix_and_after() {
+        let backend = full_backend_fixture();
+        let list_result = backend.list_keys(&ListKeys {
+            domain: TEST_FULL_DOMAIN.to_string(),
+            prefix: Some(TEST_KEY_PREFIX_2.to_string()),
+            after: Some("bar/prefix/key/98".to_string()),
+            limit: Some(10),
+        });
+
+        assert!(list_result.is_ok());
+        let list = list_result.unwrap();
+        for key in list.0.iter() {
+            assert!(key.starts_with(TEST_KEY_PREFIX_2), "key {:?} doesn't start with {:?}", key, TEST_KEY_PREFIX_2);
         }
     }
 
