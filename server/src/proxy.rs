@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use mogilefs_client::MogClient;
 use mogilefs_common::{Request, Response, MogError, MogResult, ToUrlencodedString, FromBytes};
 use mogilefs_common::requests::*;
@@ -6,6 +7,10 @@ use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
 use super::backend::TrackerBackend;
+
+thread_local!{
+    static SENDER: RefCell<Option<Sender<ProxyRequest>>> = RefCell::new(None)
+}
 
 enum RequestInner {
     Real(Box<Request>),
@@ -41,18 +46,29 @@ impl ProxyTrackerBackend {
     fn with_conn_thread_sender<F, T>(&self, callback: F) -> MogResult<T>
         where F: FnOnce(&Sender<ProxyRequest>) -> MogResult<T>
     {
-        let sender_mutex = try!(self.conn_thread_sender.as_ref().ok_or(MogError::NoConnection));
-        match sender_mutex.lock() {
-            Ok(locked) => callback(&locked),
-            Err(poisoned) => {
-                let locked = poisoned.into_inner();
-                callback(&locked)
+        SENDER.with(|sender_cell| {
+            let mut sender_opt = sender_cell.borrow_mut();
+
+            if sender_opt.is_none() {
+                *sender_opt = Some(try!(self.conn_thread_sender_clone()));
             }
-        }
+
+            match *sender_opt {
+                Some(ref mut sender) => callback(sender),
+                None => Err(MogError::NoConnection),
+            }
+        })
     }
 
     fn conn_thread_sender_clone(&self) -> MogResult<Sender<ProxyRequest>> {
-        self.with_conn_thread_sender(|locked| Ok(locked.clone()))
+        let sender_mutex = try!(self.conn_thread_sender.as_ref().ok_or(MogError::NoConnection));
+        match sender_mutex.lock() {
+            Ok(locked) => Ok(locked.clone()),
+            Err(poisoned) => {
+                let locked = poisoned.into_inner();
+                Ok(locked.clone())
+            }
+        }
     }
 
     pub fn create_conn_thread(&mut self) -> MogResult<()> {
@@ -76,9 +92,12 @@ impl ProxyTrackerBackend {
         where Req: Request + 'static, Res: Response + FromBytes
     {
         let (tx, rx) = mpsc::channel();
-        let sender = try!(self.conn_thread_sender_clone());
 
-        try!(sender.send(ProxyRequest { inner: RequestInner::Real(Box::new(req)), respond: tx }));
+        try!(self.with_conn_thread_sender(|sender| {
+            sender.send(ProxyRequest { inner: RequestInner::Real(Box::new(req)), respond: tx })
+                .map_err(|e| MogError::from(e))
+        }));
+
         rx.recv()
             .map_err(|e| MogError::from(e))
             .and_then(|pr| pr.inner)
