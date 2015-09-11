@@ -23,7 +23,7 @@ impl KeyUrlFinder {
         let mut new_path = Vec::from(key_url.path().unwrap());
         new_path.extend(key.split("/").map(|s| s.to_string()));
         new_path.push("a.jpg".to_string());
-        new_path = new_path.into_iter().skip_while(|p| p == "").collect();
+        new_path = new_path.into_iter().filter(|p| p != "").collect();
         *key_url.path_mut().unwrap() = new_path;
         key_url
     }
