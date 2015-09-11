@@ -1,3 +1,4 @@
+extern crate hyper;
 extern crate iron;
 extern crate libc;
 extern crate mio;
@@ -21,6 +22,7 @@ extern crate regex;
 
 pub mod backend;
 pub mod ctrlc;
+pub mod finder;
 pub mod mem;
 pub mod net;
 pub mod proxy;

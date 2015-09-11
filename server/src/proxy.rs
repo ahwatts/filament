@@ -166,28 +166,26 @@ impl TrackerBackend for ProxyTrackerBackend {
     }
 }
 
-pub trait AlternateFn: Fn(&str, &str) -> MogResult<FileInfoResponse> {}
-impl<F: Fn(&str, &str) -> MogResult<FileInfoResponse>> AlternateFn for F {}
-
-pub struct ProxyWithAlternateBackend<F: AlternateFn> {
-    backend: ProxyTrackerBackend,
-    alternate: F,
+pub trait AlternateFileFinder {
+    fn file_info(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse>;
+    fn get_paths(&self, domain: &str, key: &str) -> MogResult<GetPathsResponse>;
 }
 
-impl<F: AlternateFn> ProxyWithAlternateBackend<F> {
-    pub fn new(backend: ProxyTrackerBackend, alternate: F) -> ProxyWithAlternateBackend<F> {
+pub struct ProxyWithAlternateBackend<F: AlternateFileFinder> {
+    backend: ProxyTrackerBackend,
+    finder: F,
+}
+
+impl<F: AlternateFileFinder> ProxyWithAlternateBackend<F> {
+    pub fn new(backend: ProxyTrackerBackend, finder: F) -> ProxyWithAlternateBackend<F> {
         ProxyWithAlternateBackend {
             backend: backend,
-            alternate: alternate,
+            finder: finder,
         }
-    }
-
-    pub fn alternate_file(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse> {
-        (self.alternate)(domain, key)
     }
 }
 
-impl<F: AlternateFn + Send + Sync + 'static> TrackerBackend for ProxyWithAlternateBackend<F> {
+impl<F: AlternateFileFinder + Send + Sync + 'static> TrackerBackend for ProxyWithAlternateBackend<F> {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
         self.backend.send_request(req.clone())
     }
@@ -201,7 +199,16 @@ impl<F: AlternateFn + Send + Sync + 'static> TrackerBackend for ProxyWithAlterna
     }
 
     fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
-        self.backend.send_request(req.clone())
+        let response = self.backend.send_request(req.clone());
+        debug!("In alternate: original response = {:?}", response);
+        match response {
+            o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
+                let alt_paths = self.finder.get_paths(&req.domain, &req.key);
+                debug!("request: {:?} had error {:?}, alternate paths: {:?}", req, o, alt_paths);
+                alt_paths.map_err(|_| o.unwrap_err())
+            },
+            r @ _ => r,
+        }
     }
     
     fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
@@ -209,9 +216,9 @@ impl<F: AlternateFn + Send + Sync + 'static> TrackerBackend for ProxyWithAlterna
         debug!("In alternate: original response = {:?}", response);
         match response {
             o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
-                let alt = self.alternate_file(&req.domain, &req.key);
-                debug!("request: {:?} had error {:?}, alternate file: {:?}", req, o, alt);
-                o
+                let alt_file_info = self.finder.file_info(&req.domain, &req.key);
+                debug!("request: {:?} had error {:?}, alternate file: {:?}", req, o, alt_file_info);
+                alt_file_info.map_err(|_| o.unwrap_err())
             },
             r @ _ => r,
         }
