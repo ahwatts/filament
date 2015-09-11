@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_variables)]
-
 use mogilefs_client::MogClient;
 use mogilefs_common::{Request, Response, MogError, MogResult, ToUrlencodedString, FromBytes};
 use mogilefs_common::requests::*;
