@@ -149,6 +149,70 @@ impl TrackerBackend for ProxyTrackerBackend {
     }
 }
 
+pub trait AlternateFn: Fn(&str, &str) -> MogResult<FileInfoResponse> {}
+impl<F: Fn(&str, &str) -> MogResult<FileInfoResponse>> AlternateFn for F {}
+
+pub struct ProxyWithAlternateBackend<F: AlternateFn> {
+    backend: ProxyTrackerBackend,
+    alternate: F,
+}
+
+impl<F: AlternateFn> ProxyWithAlternateBackend<F> {
+    pub fn new(backend: ProxyTrackerBackend, alternate: F) -> ProxyWithAlternateBackend<F> {
+        ProxyWithAlternateBackend {
+            backend: backend,
+            alternate: alternate,
+        }
+    }
+
+    pub fn alternate_file(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse> {
+        (self.alternate)(domain, key)
+    }
+}
+
+impl<F: AlternateFn + Send + Sync + 'static> TrackerBackend for ProxyWithAlternateBackend<F> {
+    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
+        self.backend.send_request(req.clone())
+    }
+
+    fn create_open(&self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
+        self.backend.send_request(req.clone())
+    }
+
+    fn create_close(&self, req: &CreateClose) -> MogResult<()> {
+        self.backend.send_request(req.clone())
+    }
+
+    fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
+        self.backend.send_request(req.clone())
+    }
+    
+    fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
+        let response = self.backend.send_request(req.clone());
+        debug!("In alternate: original response = {:?}", response);
+        match response {
+            o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
+                let alt = self.alternate_file(&req.domain, &req.key);
+                debug!("request: {:?} had error {:?}, alternate file: {:?}", req, o, alt);
+                o
+            },
+            r @ _ => r,
+        }
+    }
+    
+    fn delete(&self, req: &Delete) -> MogResult<()> {
+        self.backend.send_request(req.clone())
+    }
+
+    fn rename(&self, req: &Rename) -> MogResult<()> {
+        self.backend.send_request(req.clone())
+    }
+
+    fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
+        self.backend.send_request(req.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::{SocketAddr, TcpListener, ToSocketAddrs};

@@ -80,6 +80,8 @@ impl MogError {
             Some(Ok("no_fid")) => NoFid,
             Some(Ok("no_path")) => NoPath,
             Some(Ok("unknown_command")) => UnknownCommand(msg),
+            Some(Ok("unknown_key")) => UnknownKey(msg.unwrap_or(String::new())),
+            Some(Ok("unreg_domain")) => UnregDomain(msg.unwrap_or(String::new())),
             Some(Ok(s)) => Other(s.to_string(), msg),
             Some(Err(utf8e)) => Utf8(utf8e),
             None => UnknownCommand(None),

@@ -2,7 +2,9 @@
 
 extern crate docopt;
 extern crate env_logger;
+extern crate hyper;
 extern crate iron;
+extern crate mogilefs_common;
 extern crate mogilefs_server;
 extern crate rustc_serialize;
 extern crate url;
@@ -11,12 +13,15 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
+use hyper::header::ContentLength;
 use iron::{Chain, Iron, Protocol};
+use mogilefs_common::{MogError, MogResult};
+use mogilefs_common::requests::FileInfoResponse;
 use mogilefs_server::backend::TrackerBackend;
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
-use mogilefs_server::net::tracker::Tracker;
 use mogilefs_server::net::storage::StorageHandler;
-use mogilefs_server::proxy::ProxyTrackerBackend;
+use mogilefs_server::net::tracker::Tracker;
+use mogilefs_server::proxy::{ProxyTrackerBackend, ProxyWithAlternateBackend};
 use mogilefs_server::range::RangeMiddleware;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
@@ -59,14 +64,38 @@ fn main() {
             TrackerIoType::Threaded => run_threaded(&opts, tracker),
         }
     } else if opts.cmd_proxy_tracker {
-        let backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
-        let tracker = Tracker::new(backend);
+        let base_backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
+        let alt_backend = ProxyWithAlternateBackend::new(base_backend, alternate_file);
+        let tracker = Tracker::new(alt_backend);
 
         match opts.flag_tracker_io {
             TrackerIoType::Evented => run_evented(&opts, tracker),
             TrackerIoType::Threaded => run_threaded(&opts, tracker),
         }
     }
+}
+
+fn alternate_file(domain: &str, key: &str) -> MogResult<FileInfoResponse> {
+    let client = hyper::Client::new();
+    let url_str = format!("http://www.domain.com/{}/a.jpg", key);
+
+    let response = try!{
+        client.get(&url_str).send().map_err(|e| {
+            MogError::Other("alternate file error".to_string(), Some(format!("{}", e)))
+        })
+    };
+
+    debug!("Alternate file response = {:?}", response);
+    // Err(MogError::Other("alternate file worked".to_string(), None))
+
+    Ok(FileInfoResponse {
+        fid: 0,
+        devcount: 1,
+        length: response.headers.get::<ContentLength>().map(|clh| clh.0).unwrap_or(0),
+        domain: domain.to_string(),
+        class: "external".to_string(),
+        key: key.to_string(),
+    })
 }
 
 fn run_evented<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>) {
