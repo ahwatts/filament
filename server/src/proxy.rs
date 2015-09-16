@@ -1,7 +1,8 @@
-use std::cell::RefCell;
 use mogilefs_client::MogClient;
-use mogilefs_common::{Request, Response, MogError, MogResult, ToUrlencodedString, FromBytes};
 use mogilefs_common::requests::*;
+use mogilefs_common::{Request, Response, MogError, MogResult};
+use std::any::Any;
+use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
@@ -23,7 +24,7 @@ struct ProxyRequest {
 }
 
 struct ProxyResponse {
-    inner: MogResult<Box<Response>>,
+    inner: MogResult<Response>,
 }
 
 pub struct ProxyTrackerBackend {
@@ -88,9 +89,7 @@ impl ProxyTrackerBackend {
         }
     }
 
-    fn send_request<Req, Res>(&self, req: Req) -> MogResult<Res>
-        where Req: Request + 'static, Res: Response + FromBytes
-    {
+    fn send_request<Req: Request + 'static, Res: Any>(&self, req: Req) -> MogResult<Res> {
         let (tx, rx) = mpsc::channel();
 
         try!(self.with_conn_thread_sender(|sender| {
@@ -103,7 +102,13 @@ impl ProxyTrackerBackend {
             .and_then(|pr| pr.inner)
             .and_then(|abstract_response| {
                 // This is a horrible, horrible way to do this. I apologize.
-                Res::from_bytes(abstract_response.to_urlencoded_string().as_bytes())
+                // Res::from_bytes(abstract_response.to_urlencoded_string().as_bytes())
+
+                // This is a (mostly) less horrible way to do this.
+                abstract_response.downcast::<Res>()
+                    .ok_or(MogError::Other(
+                        "Unknown response type".to_string(),
+                        None))
             })
     }
 }

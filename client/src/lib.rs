@@ -23,7 +23,7 @@ impl MogClient {
         }
     }
 
-    pub fn request<R: Request + ToArgs>(&mut self, req: R) -> MogResult<Box<Response>> {
+    pub fn request<R: Request + ToArgs>(&mut self, req: R) -> MogResult<Response> {
         info!("request = {:?}", req);
         let resp_rslt = self.transport.do_request(req);
         info!("response = {:?}", resp_rslt);
@@ -55,7 +55,7 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    pub fn do_request<R: Request>(&mut self, request: R) -> MogResult<Box<Response>> {
+    pub fn do_request<R: Request>(&mut self, request: R) -> MogResult<Response> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
         let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
         let mut resp_line = Vec::new();
@@ -94,7 +94,7 @@ impl MogClientTransport {
     }
 }
 
-fn response_from_bytes<R: Request>(request: &R, bytes: &[u8]) -> MogResult<Box<Response>> {
+fn response_from_bytes<R: Request>(request: &R, bytes: &[u8]) -> MogResult<Response> {
     let mut toks = bytes.splitn(2, |&b| b == b' ');
     let op = toks.next();
     let args = toks.next().unwrap_or(&[]);

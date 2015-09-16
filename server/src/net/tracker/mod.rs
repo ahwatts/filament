@@ -1,5 +1,6 @@
 use mogilefs_common::requests::*;
-use mogilefs_common::{MogError, MogResult, Request, Response, FromBytes};
+use mogilefs_common::{MogError, MogResult, Request, Response, ToResponse, FromBytes};
+use std::fmt::Debug;
 use std::str;
 use super::super::backend::TrackerBackend;
 
@@ -19,7 +20,7 @@ impl<B: TrackerBackend> Tracker<B> {
     }
 
     /// Handle a request.
-    pub fn handle_bytes(&self, request_bytes: &[u8]) -> MogResult<Box<Response>> {
+    pub fn handle_bytes(&self, request_bytes: &[u8]) -> MogResult<Response> {
         let mut toks = request_bytes.split(|&b| b == b' ');
         let op = toks.next();
         let args = toks.next().unwrap_or(&[]);
@@ -43,13 +44,13 @@ impl<B: TrackerBackend> Tracker<B> {
         }
     }
 
-    pub fn handle_request<Req, Res, F>(&self, request: MogResult<Req>, handler_fn: &F) -> MogResult<Box<Response>>
-        where Req: Request + Sized + 'static, Res: Response + Sized + 'static, F: Fn(&B, &Req) -> MogResult<Res>
+    pub fn handle_request<Req, Res, F>(&self, request: MogResult<Req>, handler_fn: &F) -> MogResult<Response>
+        where Req: Request, Res: Debug + ToResponse, F: Fn(&B, &Req) -> MogResult<Res>
     {
         info!("request = {:?}", request);
-        let response = request.and_then(|req| handler_fn(&self.backend, &req).map(|res| Box::new(res) as Box<Response>));
+        let response = request.and_then(|req| handler_fn(&self.backend, &req)); // .map(|res| Box::new(res) as Box<Response>));
         info!("response = {:?}", response);
-        response
+        response.map(|r| r.to_response())
     }
 }
 

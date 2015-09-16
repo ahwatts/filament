@@ -1,5 +1,6 @@
 //! Request (and response) traits and types.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use super::args_hash::ArgsHash;
@@ -9,29 +10,95 @@ use url::Url;
 
 /// A tracker request.
 pub trait Request: Debug + ToArgs + Sync + Send {
-    // type ResponseType: Response + FromBytes + 'static;
+    // type ResponseType: Response;
     fn op(&self) -> &'static str;
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>>;
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response>;
 }
 
 impl<R: Request + ?Sized> Request for Box<R> {
     fn op(&self) -> &'static str { (**self).op() }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
         (**self).response_from_bytes(bytes)
     }
 }
 
 /// The response to a tracker request.
-pub trait Response: Debug + ToArgs + Sync + Send {}
+#[derive(Debug)]
+pub enum Response {
+    Empty,
+    CreateDomain(CreateDomain),
+    CreateOpen(CreateOpenResponse),
+    FileInfo(FileInfoResponse),
+    GetPaths(GetPathsResponse),
+    ListKeys(ListKeysResponse),
+}
 
-impl<R: Response> Response for Box<R> {}
+impl Response {
+    pub fn downcast<T: Any>(self) -> Option<T> {
+        use self::Response::*;
 
-impl Response for Box<Response> {}
+        match self {
+            Empty           => downcast(()),
+            CreateDomain(r) => downcast(r),
+            CreateOpen(r)   => downcast(r),
+            FileInfo(r)     => downcast(r),
+            GetPaths(r)     => downcast(r),
+            ListKeys(r)     => downcast(r),
+        }
+    }
+}
 
-impl Response for () {}
+impl ToArgs for Response {
+    fn to_args(&self) -> Vec<(String, String)> {
+        use self::Response::*;
+        match self {
+            &Empty               => vec![],
+            &CreateDomain(ref r) => r.to_args(),
+            &CreateOpen(ref r)   => r.to_args(),
+            &FileInfo(ref r)     => r.to_args(),
+            &GetPaths(ref r)     => r.to_args(),
+            &ListKeys(ref r)     => r.to_args(),
+        }
+    }
+}
 
-impl Response for HashMap<String, String> {}
+fn downcast<F: Any, T: Any>(thing: F) -> Option<T> {
+    // Can't move v out of borrowed context...
+    // (&thing as &Any).downcast_ref::<T>().map(|v| *v)
+
+    // It seems really expensive to move something out to the heap and
+    // back just to cast it to a different type, but the alternative
+    // is to downcast a ref and clone it...
+    let any_thing: Box<Any> = Box::new(thing);
+    match any_thing.downcast::<T>() {
+        Ok(boxed) => Some(*boxed),
+        Err(_) => {
+            // This case returns you the Box<Any> that you passed in
+            // to downcast. Since I obviously can't convert it in to a
+            // T, I guess we can just lose the object to the ether?
+            None
+        },
+    }
+}
+
+pub trait ToResponse {
+    fn to_response(self) -> Response;
+}
+
+impl ToResponse for () {
+    fn to_response(self) -> Response {
+        Response::Empty
+    }
+}
+
+// pub trait Response: Debug + ToArgs + Sync + Send {}
+
+// impl<R: Response + ?Sized> Response for Box<R> {}
+
+// impl Response for () {}
+
+// impl Response for HashMap<String, String> {}
 
 /// Something which can be rendered to a string for the MogileFS
 /// tracker's line-based protocol.
@@ -39,7 +106,7 @@ pub trait Renderable {
     fn render(&self) -> String;
 }
 
-impl<R: Response> Renderable for R {
+impl Renderable for Response {
     fn render(&self) -> String {
         format!("OK {}", self.to_urlencoded_string())
     }
@@ -62,12 +129,19 @@ impl Request for CreateDomain {
     // type ResponseType = CreateDomain;
     fn op(&self) -> &'static str { "create_domain" }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
-        CreateDomain::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        // CreateDomain::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+        Ok(Response::CreateDomain(try!(CreateDomain::from_bytes(bytes))))
     }
 }
 
-impl Response for CreateDomain {}
+// impl Response for CreateDomain {}
+
+impl ToResponse for CreateDomain {
+    fn to_response(self) -> Response {
+        Response::CreateDomain(self)
+    }
+}
 
 impl FromBytes for CreateDomain {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateDomain> {
@@ -108,8 +182,9 @@ impl Request for CreateOpen {
     // type ResponseType = CreateOpenResponse;
     fn op(&self) -> &'static str { "create_open" }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
-        CreateOpenResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        // CreateOpenResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+        Ok(Response::CreateOpen(try!(CreateOpenResponse::from_bytes(bytes))))
     }
 }
 
@@ -161,7 +236,13 @@ pub struct CreateOpenResponse {
     pub paths: HashMap<u64, Url>,
 }
 
-impl Response for CreateOpenResponse {}
+// impl Response for CreateOpenResponse {}
+
+impl ToResponse for CreateOpenResponse {
+    fn to_response(self) -> Response {
+        Response::CreateOpen(self)
+    }
+}
 
 impl ToArgs for CreateOpenResponse {
     fn to_args(&self) -> Vec<(String, String)> {
@@ -222,8 +303,9 @@ impl Request for CreateClose {
     // type ResponseType = ();
     fn op(&self) -> &'static str { "create_close" }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
     }
 }
 
@@ -286,8 +368,9 @@ impl Request for GetPaths {
     // type ResponseType = GetPathsResponse;
     fn op(&self) -> &'static str { "get_paths" }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
-        GetPathsResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        // GetPathsResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+        Ok(Response::GetPaths(try!(GetPathsResponse::from_bytes(bytes))))
     }
 }
 
@@ -335,7 +418,13 @@ impl ToArgs for GetPaths {
 #[derive(Debug, Clone)]
 pub struct GetPathsResponse(pub Vec<Url>);
 
-impl Response for GetPathsResponse {}
+// impl Response for GetPathsResponse {}
+
+impl ToResponse for GetPathsResponse {
+    fn to_response(self) -> Response {
+        Response::GetPaths(self)
+    }
+}
 
 impl FromBytes for GetPathsResponse {
     fn from_bytes(bytes: &[u8]) -> MogResult<GetPathsResponse> {
@@ -383,8 +472,9 @@ impl Request for FileInfo {
     // type ResponseType = FileInfoResponse;
     fn op(&self) -> &'static str { "file_info" }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
-        FileInfoResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        // FileInfoResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+       Ok(Response::FileInfo(try!(FileInfoResponse::from_bytes(bytes))))
     }
 }
 
@@ -428,7 +518,13 @@ pub struct FileInfoResponse {
     pub key: String,
 }
 
-impl Response for FileInfoResponse {}
+// impl Response for FileInfoResponse {}
+
+impl ToResponse for FileInfoResponse {
+    fn to_response(self) -> Response {
+        Response::FileInfo(self)
+    }
+}
 
 impl FromBytes for FileInfoResponse {
     fn from_bytes(bytes: &[u8]) -> MogResult<FileInfoResponse> {
@@ -477,8 +573,9 @@ impl Request for Rename {
     // type ResponseType = ();
     fn op(&self) -> &'static str { "rename" }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
     }
 }
 
@@ -526,8 +623,9 @@ impl Request for UpdateClass {
     // type ResponseType = ();
     fn op(&self) -> &'static str { "updateclass" }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
     }
 }
 
@@ -574,8 +672,9 @@ impl Request for Delete {
     // type ResponseType = ();
     fn op(&self) -> &'static str { "delete" }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
     }
 }
 
@@ -621,8 +720,9 @@ impl Request for ListKeys {
     // type ResponseType = ListKeysResponse;
     fn op(&self) -> &'static str { "list_keys" }
 
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Box<Response>> {
-        ListKeysResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        // ListKeysResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
+        Ok(Response::ListKeys(try!(ListKeysResponse::from_bytes(bytes))))
     }
 }
 
@@ -676,7 +776,13 @@ impl ToArgs for ListKeys {
 #[derive(Debug, Clone)]
 pub struct ListKeysResponse(pub Vec<String>);
 
-impl Response for ListKeysResponse {}
+// impl Response for ListKeysResponse {}
+
+impl ToResponse for ListKeysResponse {
+    fn to_response(self) -> Response {
+        Response::ListKeys(self)
+    }
+}
 
 impl FromBytes for ListKeysResponse {
     fn from_bytes(bytes: &[u8]) -> MogResult<ListKeysResponse> {
@@ -724,8 +830,9 @@ impl Request for Noop {
     // type ResponseType = ();
     fn op(&self) -> &'static str { "noop" }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Box<Response>> {
-        Ok(Box::new(()) as Box<Response>)
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
     }
 }
 

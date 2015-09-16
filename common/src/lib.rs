@@ -6,7 +6,7 @@ extern crate url;
 extern crate matches;
 
 pub use error::{MogError, MogResult};
-pub use request::{Request, Response, Renderable};
+pub use request::{Request, Response, ToResponse, Renderable};
 pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
 
 /// The specific request types, in a separate module for easy

@@ -5,7 +5,7 @@ use mogilefs_common::{MogResult, Response};
 pub enum Notification {
     CloseConnection(Token),
     Shutdown,
-    Response(Token, MogResult<Box<Response>>),
+    Response(Token, MogResult<Response>),
 }
 
 impl Notification {
