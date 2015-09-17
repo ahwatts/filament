@@ -13,9 +13,10 @@ thread_local!{
     static SENDER: RefCell<Option<Sender<ProxyRequest>>> = RefCell::new(None)
 }
 
+#[allow(dead_code)]
 enum RequestInner {
     Real(Box<Request>),
-    Stop,
+    Stop, // the Stop variant isn't used in non-test code yet.
 }
 
 struct ProxyRequest {

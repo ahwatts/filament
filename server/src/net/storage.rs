@@ -77,8 +77,8 @@ fn domain_and_key_from_path(path: &Vec<String>) -> Result<(String, String), Stri
 
     match (d_index, k_index) {
         (Some(d), Some(k)) => {
-            let domain = path[(d+1)..k].connect("/");
-            let key = path[(k+1)..].connect("/");
+            let domain = path[(d+1)..k].join("/");
+            let key = path[(k+1)..].join("/");
             (Ok((domain, key)))
         },
         _ => {
