@@ -1,14 +1,13 @@
 use mio::tcp::{Shutdown, TcpListener, TcpStream};
 use mio::util::Slab;
 use mio::{self, EventLoop, EventSet, PollOpt, Token, TryRead, TryWrite};
-use mogilefs_common::{BufReadMb, Renderable};
+use mogilefs_common::{Backend, BufReadMb, Renderable};
 use self::notification::Notification;
 use self::tracker_pool::TrackerPool;
 use std::io::{BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
 use super::Tracker;
-use super::super::super::backend::TrackerBackend;
 use super::super::super::ctrlc::CtrlC;
 
 pub use self::error::{EventedError, EventedResult};
@@ -25,12 +24,12 @@ lazy_static!{
     static ref EDGE_ONESHOT: PollOpt = PollOpt::edge() | PollOpt::oneshot();
 }
 
-pub struct EventedListener<B: 'static + TrackerBackend> {
+pub struct EventedListener<B: 'static + Backend> {
     event_loop: EventLoop<Handler<B>>,
     handler: Handler<B>,
 }
 
-impl<B: TrackerBackend> EventedListener<B> {
+impl<B: Backend> EventedListener<B> {
     pub fn new<T>(addr: T, tracker: Tracker<B>, max_conns: usize, threads: usize) -> EventedResult<EventedListener<B>>
         where T: ToSocketAddrs
     {
@@ -56,14 +55,14 @@ impl<B: TrackerBackend> EventedListener<B> {
     }
 }
 
-struct Handler<B: TrackerBackend> {
+struct Handler<B: Backend> {
     listener: TcpListener,
     token: Token,
     conns: Slab<Connection<B>>,
     tracker: Rc<TrackerPool<B>>,
 }
 
-impl<B: 'static + TrackerBackend> Handler<B> {
+impl<B: 'static + Backend> Handler<B> {
     pub fn new<T: ToSocketAddrs>(sock_addr: T, max_conns: usize, pool: TrackerPool<B>) -> EventedResult<Handler<B>> {
         let sock_addr = try!(try!(sock_addr.to_socket_addrs()).next().ok_or(EventedError::NoListenAddr));
         let token = Token(0);
@@ -140,7 +139,7 @@ impl<B: 'static + TrackerBackend> Handler<B> {
     }
 }
 
-impl<B: 'static + TrackerBackend> mio::Handler for Handler<B> {
+impl<B: 'static + Backend> mio::Handler for Handler<B> {
     type Timeout = usize;
     type Message = Notification;
 
@@ -228,7 +227,7 @@ impl<B: 'static + TrackerBackend> mio::Handler for Handler<B> {
     }
 }
 
-struct Connection<B: TrackerBackend> {
+struct Connection<B: Backend> {
     stream: TcpStream,
     token: Token,
     in_buf: Vec<u8>,
@@ -237,7 +236,7 @@ struct Connection<B: TrackerBackend> {
     current: Option<Vec<u8>>,
 }
 
-impl<B: 'static + TrackerBackend> Connection<B> {
+impl<B: 'static + Backend> Connection<B> {
     pub fn new(stream: TcpStream, token: Token, tracker: Rc<TrackerPool<B>>) -> Connection<B> {
         Connection {
             stream: stream,

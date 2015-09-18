@@ -3,16 +3,24 @@
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::str;
 use super::args_hash::ArgsHash;
+use super::backend::{Backend, Operation};
 use super::error::{MogError, MogResult};
 use super::util::{FromBytes, ToArgs, ToUrlencodedString};
 use url::Url;
 
 /// A tracker request.
 pub trait Request: Debug + ToArgs + Sync + Send {
-    // type ResponseType: Response;
     fn op(&self) -> &'static str;
-    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response>;
+    fn response_from_bytes(&self, &[u8]) -> MogResult<Response>;
+    fn perform(&self, &Backend) -> MogResult<Response>;
+}
+
+impl<B: Backend, R: Request + ?Sized> Operation<B> for R {
+    fn operate(&self, backend: &B) -> MogResult<Response> {
+        self.perform(backend)
+    }
 }
 
 impl<R: Request + ?Sized> Request for Box<R> {
@@ -20,6 +28,36 @@ impl<R: Request + ?Sized> Request for Box<R> {
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
         (**self).response_from_bytes(bytes)
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        (**self).perform(backend)
+    }
+}
+
+impl FromBytes for Box<Request> {
+    fn from_bytes(bytes: &[u8]) -> MogResult<Box<Request>> {
+        let mut toks = bytes.split(|&b| b == b' ');
+        let op = toks.next();
+        let args = toks.next().unwrap_or(&[]);
+
+        match op.map(|bs| str::from_utf8(bs)) {
+            Some(Ok("create_domain")) => CreateDomain::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("create_open"))   => CreateOpen::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("create_close"))  => CreateClose::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("file_info"))     => FileInfo::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("get_paths"))     => GetPaths::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("rename"))        => Rename::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("updateclass"))   => UpdateClass::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("delete"))        => Delete::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("list_keys"))     => ListKeys::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("noop"))          => Noop::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+
+            Some(Ok(""))     => Err(MogError::UnknownCommand(None)),
+            Some(Ok(string)) => Err(MogError::UnknownCommand(Some(string.to_string()))),
+            Some(Err(utf8e)) => Err(MogError::Utf8(utf8e)),
+            None => Err(MogError::UnknownCommand(None)),
+        }
     }
 }
 
@@ -92,14 +130,6 @@ impl ToResponse for () {
     }
 }
 
-// pub trait Response: Debug + ToArgs + Sync + Send {}
-
-// impl<R: Response + ?Sized> Response for Box<R> {}
-
-// impl Response for () {}
-
-// impl Response for HashMap<String, String> {}
-
 /// Something which can be rendered to a string for the MogileFS
 /// tracker's line-based protocol.
 pub trait Renderable {
@@ -126,12 +156,14 @@ pub struct CreateDomain {
 }
 
 impl Request for CreateDomain {
-    // type ResponseType = CreateDomain;
     fn op(&self) -> &'static str { "create_domain" }
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
-        // CreateDomain::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
-        Ok(Response::CreateDomain(try!(CreateDomain::from_bytes(bytes))))
+        CreateDomain::from_bytes(bytes).map(|r| r.to_response())
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.create_domain(self).map(|r| r.to_response())
     }
 }
 
@@ -179,12 +211,14 @@ pub struct CreateOpen {
 }
 
 impl Request for CreateOpen {
-    // type ResponseType = CreateOpenResponse;
     fn op(&self) -> &'static str { "create_open" }
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
-        // CreateOpenResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
-        Ok(Response::CreateOpen(try!(CreateOpenResponse::from_bytes(bytes))))
+        CreateOpenResponse::from_bytes(bytes).map(|r| r.to_response())
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.create_open(self).map(|r| r.to_response())
     }
 }
 
@@ -300,12 +334,14 @@ pub struct CreateClose {
 }
 
 impl Request for CreateClose {
-    // type ResponseType = ();
     fn op(&self) -> &'static str { "create_close" }
 
     fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        // Ok(Box::new(()) as Box<Response>)
         Ok(Response::Empty)
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.create_close(self).map(|r| r.to_response())
     }
 }
 
@@ -365,12 +401,14 @@ pub struct GetPaths {
 }
 
 impl Request for GetPaths {
-    // type ResponseType = GetPathsResponse;
     fn op(&self) -> &'static str { "get_paths" }
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
-        // GetPathsResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
-        Ok(Response::GetPaths(try!(GetPathsResponse::from_bytes(bytes))))
+        GetPathsResponse::from_bytes(bytes).map(|r| r.to_response())
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.get_paths(self).map(|r| r.to_response())
     }
 }
 
@@ -469,12 +507,14 @@ pub struct FileInfo {
 }
 
 impl Request for FileInfo {
-    // type ResponseType = FileInfoResponse;
     fn op(&self) -> &'static str { "file_info" }
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
-        // FileInfoResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
-       Ok(Response::FileInfo(try!(FileInfoResponse::from_bytes(bytes))))
+        FileInfoResponse::from_bytes(bytes).map(|r| r.to_response())
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.file_info(self).map(|r| r.to_response())
     }
 }
 
@@ -570,12 +610,14 @@ pub struct Rename {
 }
 
 impl Request for Rename {
-    // type ResponseType = ();
     fn op(&self) -> &'static str { "rename" }
 
     fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        // Ok(Box::new(()) as Box<Response>)
         Ok(Response::Empty)
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.rename(self).map(|r| r.to_response())
     }
 }
 
@@ -620,11 +662,14 @@ pub struct UpdateClass {
 }
 
 impl Request for UpdateClass {
-    // type ResponseType = ();
     fn op(&self) -> &'static str { "updateclass" }
 
     fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
+    }
+
+    fn perform(&self, _backend: &Backend) -> MogResult<Response> {
+        // backend.update_class(self).map(|r| r.to_response())
         Ok(Response::Empty)
     }
 }
@@ -669,12 +714,14 @@ pub struct Delete {
 }
 
 impl Request for Delete {
-    // type ResponseType = ();
     fn op(&self) -> &'static str { "delete" }
 
     fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        // Ok(Box::new(()) as Box<Response>)
         Ok(Response::Empty)
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.delete(self).map(|r| r.to_response())
     }
 }
 
@@ -717,12 +764,14 @@ pub struct ListKeys {
 }
 
 impl Request for ListKeys {
-    // type ResponseType = ListKeysResponse;
     fn op(&self) -> &'static str { "list_keys" }
 
     fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
-        // ListKeysResponse::from_bytes(bytes).map(|resp| Box::new(resp) as Box<Response>)
-        Ok(Response::ListKeys(try!(ListKeysResponse::from_bytes(bytes))))
+        ListKeysResponse::from_bytes(bytes).map(|r| r.to_response())
+    }
+
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.list_keys(self).map(|r| r.to_response())
     }
 }
 
@@ -827,11 +876,13 @@ impl ToArgs for ListKeysResponse {
 pub struct Noop;
 
 impl Request for Noop {
-    // type ResponseType = ();
     fn op(&self) -> &'static str { "noop" }
 
     fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        // Ok(Box::new(()) as Box<Response>)
+        Ok(Response::Empty)
+    }
+
+    fn perform(&self, _backend: &Backend) -> MogResult<Response> {
         Ok(Response::Empty)
     }
 }

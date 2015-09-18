@@ -1,19 +1,7 @@
 use mogilefs_common::MogResult;
-use mogilefs_common::requests::*;
 use std::io::{Read, Write};
 use time::Tm;
 use url::Url;
-
-pub trait TrackerBackend: Send + Sync {
-    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain>;
-    fn create_open  (&self, req: &CreateOpen)   -> MogResult<CreateOpenResponse>;
-    fn create_close (&self, req: &CreateClose)  -> MogResult<()>;
-    fn get_paths    (&self, req: &GetPaths)     -> MogResult<GetPathsResponse>;
-    fn file_info    (&self, req: &FileInfo)     -> MogResult<FileInfoResponse>;
-    fn delete       (&self, req: &Delete)       -> MogResult<()>;
-    fn rename       (&self, req: &Rename)       -> MogResult<()>;
-    fn list_keys    (&self, req: &ListKeys)     -> MogResult<ListKeysResponse>;
-}
 
 pub trait StorageBackend: Send + Sync {
     fn url_for_key(&self, domain: &str, key: &str) -> Url;

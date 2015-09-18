@@ -13,7 +13,7 @@ extern crate url;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
-use mogilefs_server::backend::TrackerBackend;
+use mogilefs_common::Backend;
 use mogilefs_server::finder::KeyUrlFinder;
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::storage::StorageHandler;
@@ -83,7 +83,7 @@ fn main() {
     }
 }
 
-fn run_evented<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>) {
+fn run_evented<B: Backend + 'static>(opts: &Options, tracker: Tracker<B>) {
     use mogilefs_server::net::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
@@ -101,7 +101,7 @@ fn run_evented<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>)
      });
 }
 
-fn run_threaded<B: 'static + TrackerBackend>(opts: &Options, tracker: Tracker<B>) {
+fn run_threaded<B: Backend + 'static>(opts: &Options, tracker: Tracker<B>) {
     use mogilefs_server::net::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(

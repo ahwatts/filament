@@ -1,16 +1,16 @@
 use mio::{Sender, Token};
+use mogilefs_common::Backend;
 use std::sync::Arc;
 use super::notification::Notification;
 use super::super::Tracker;
-use super::super::super::super::backend::TrackerBackend;
 use threadpool::ThreadPool;
 
-pub struct TrackerPool<B: TrackerBackend> {
+pub struct TrackerPool<B: Backend> {
     thread_pool: ThreadPool,
     tracker: Arc<Tracker<B>>,
 }
 
-impl<B: 'static + TrackerBackend> TrackerPool<B> {
+impl<B: 'static + Backend> TrackerPool<B> {
     pub fn new(tracker: Tracker<B>, threads: usize) -> TrackerPool<B> {
         TrackerPool {
             thread_pool: ThreadPool::new(threads),

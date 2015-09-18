@@ -5,6 +5,7 @@ extern crate url;
 #[macro_use]
 extern crate matches;
 
+pub use backend::{Backend, Operation};
 pub use error::{MogError, MogResult};
 pub use request::{Request, Response, ToResponse, Renderable};
 pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
@@ -25,6 +26,7 @@ pub mod requests {
 }
 
 mod args_hash;
+mod backend;
 mod error;
 // mod response;
 mod request;

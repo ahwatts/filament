@@ -1,9 +1,9 @@
-use mogilefs_common::{MogError, MogResult};
+use mogilefs_common::{Backend, MogError, MogResult};
 use mogilefs_common::requests::*;
 use std::collections::HashMap;
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, RwLock};
-use super::super::backend::{StorageBackend, StorageMetadata, TrackerBackend};
+use super::super::backend::{StorageBackend, StorageMetadata};
 use super::{MemDomain, MemFileInfo};
 use time;
 use url::Url;
@@ -196,7 +196,7 @@ impl SyncMemBackend {
     }
 }
 
-impl TrackerBackend for SyncMemBackend {
+impl Backend for SyncMemBackend {
     fn create_domain(&self, request: &CreateDomain) -> MogResult<CreateDomain> {
         try!(self.0.write()).create_domain(&request)
     }
@@ -268,10 +268,9 @@ pub fn url_for_key(base_url: &Url, domain: &str, key: &str) -> Url {
 
 #[cfg(test)]
 mod tests {
-    use mogilefs_common::MogError;
+    use mogilefs_common::{Backend, MogError};
     use mogilefs_common::requests::*;
     use std::io::Cursor;
-    use super::super::super::backend::TrackerBackend;
     use super::super::super::test_support::*;
 
     #[test]

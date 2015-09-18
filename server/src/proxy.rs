@@ -1,13 +1,12 @@
 use mogilefs_client::MogClient;
 use mogilefs_common::requests::*;
-use mogilefs_common::{Request, Response, MogError, MogResult};
+use mogilefs_common::{Backend, Request, Response, MogError, MogResult};
 use std::any::Any;
 use std::cell::RefCell;
 use std::net::SocketAddr;
 use std::sync::Mutex;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread::{self, JoinHandle};
-use super::backend::TrackerBackend;
 
 thread_local!{
     static SENDER: RefCell<Option<Sender<ProxyRequest>>> = RefCell::new(None)
@@ -138,7 +137,7 @@ fn connection_thread(trackers: &[SocketAddr], requests: Receiver<ProxyRequest>) 
     }
 }
 
-impl TrackerBackend for ProxyTrackerBackend {
+impl Backend for ProxyTrackerBackend {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
         self.send_request(req.clone())
     }
@@ -191,7 +190,7 @@ impl<F: AlternateFileFinder> ProxyWithAlternateBackend<F> {
     }
 }
 
-impl<F: AlternateFileFinder + Send + Sync + 'static> TrackerBackend for ProxyWithAlternateBackend<F> {
+impl<F: AlternateFileFinder + Send + Sync + 'static> Backend for ProxyWithAlternateBackend<F> {
     fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
         self.backend.send_request(req.clone())
     }

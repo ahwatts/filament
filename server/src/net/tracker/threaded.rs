@@ -2,16 +2,15 @@ use std::io::{self, Write, BufRead, BufReader};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::sync::Arc;
 use std::thread;
-use super::super::super::backend::TrackerBackend;
 use super::Tracker;
-use mogilefs_common::Renderable;
+use mogilefs_common::{Backend, Renderable};
 
-pub struct ThreadedListener<B: TrackerBackend> {
+pub struct ThreadedListener<B: Backend> {
     listener: TcpListener,
     tracker: Arc<Tracker<B>>,
 }
 
-impl<B: 'static + TrackerBackend> ThreadedListener<B> {
+impl<B: 'static + Backend> ThreadedListener<B> {
     pub fn new<S: ToSocketAddrs>(addr: S, tracker: Tracker<B>) -> Result<ThreadedListener<B>, io::Error> {
         Ok(ThreadedListener {
             listener: try!(TcpListener::bind(addr)),
@@ -45,7 +44,7 @@ impl<B: 'static + TrackerBackend> ThreadedListener<B> {
     }
 }
 
-fn handle_connection<B: TrackerBackend>(mut writer: TcpStream, tracker: Arc<Tracker<B>>) -> Result<(), io::Error> {
+fn handle_connection<B: Backend>(mut writer: TcpStream, tracker: Arc<Tracker<B>>) -> Result<(), io::Error> {
     let reader = BufReader::new(try!(writer.try_clone()));
 
     for line in reader.split(b'\n') {
