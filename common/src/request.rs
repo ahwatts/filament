@@ -12,8 +12,17 @@ use url::Url;
 
 /// A tracker request.
 pub trait Request: Debug + ToArgs + Sync + Send {
+    /// Return the "op code", or the first bit before the query
+    /// string, for this request type.
     fn op(&self) -> &'static str;
+
+    /// Construct the appropriate response type for this request. This
+    /// method shouldn't need to use the receiver `self`, but it is
+    /// included to make the trait object-safe.
     fn response_from_bytes(&self, &[u8]) -> MogResult<Response>;
+
+    /// Perform this request's action on the `Backend`. Ultimately
+    /// forwards `self` on to one of the methods in `Backend`.
     fn perform(&self, &Backend) -> MogResult<Response>;
 }
 
@@ -120,6 +129,7 @@ fn downcast<F: Any, T: Any>(thing: F) -> Option<T> {
     }
 }
 
+/// Something which can be coerced in to a `Response`.
 pub trait ToResponse {
     fn to_response(self) -> Response;
 }

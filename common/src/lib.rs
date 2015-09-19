@@ -10,8 +10,8 @@ pub use error::{MogError, MogResult};
 pub use request::{Request, Response, ToResponse, Renderable};
 pub use util::{BufReadMb, FromBytes, ToArgs, ToUrlencodedString};
 
-/// The specific request types, in a separate module for easy
-/// globbing.
+/// The specific request / response types, in a separate module for
+/// easy globbing.
 pub mod requests {
     pub use request::CreateDomain;
     pub use request::{CreateOpen, CreateOpenResponse};
@@ -28,6 +28,5 @@ pub mod requests {
 mod args_hash;
 mod backend;
 mod error;
-// mod response;
 mod request;
 mod util;

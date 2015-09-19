@@ -63,6 +63,7 @@ impl MogError {
         }
     }
 
+    /// Constructs a `MogError` from the bytes provided.
     pub fn from_bytes(bytes: &[u8]) -> MogError {
         use self::MogError::*;
 

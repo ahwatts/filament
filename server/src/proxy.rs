@@ -1,3 +1,7 @@
+//! A backend implementation which proxies the requests to a set of
+//! real trackers, possibly doing some monkeying with them in the
+//! process.
+
 use mogilefs_client::MogClient;
 use mogilefs_common::requests::*;
 use mogilefs_common::{Backend, Request, Response, MogError, MogResult};
@@ -27,6 +31,7 @@ struct ProxyResponse {
     inner: MogResult<Response>,
 }
 
+/// The main `Backend` implementation for a proxy backend.
 pub struct ProxyTrackerBackend {
     trackers: Vec<SocketAddr>,
     conn_thread_handle: Option<JoinHandle<()>>,
@@ -72,6 +77,7 @@ impl ProxyTrackerBackend {
         }
     }
 
+    /// Start the thread with the connection to the real trackers.
     pub fn create_conn_thread(&mut self) -> MogResult<()> {
         match self.conn_thread_handle {
             Some(..) => Ok(()),
@@ -171,11 +177,15 @@ impl Backend for ProxyTrackerBackend {
     }
 }
 
+/// A thing that will look for a file in an alternate location.
 pub trait AlternateFileFinder {
     fn file_info(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse>;
     fn get_paths(&self, domain: &str, key: &str) -> MogResult<GetPathsResponse>;
 }
 
+/// A wrapper around the `ProxyTrackerBackend` which will use an
+/// `AlternateFileFinder` to find missing files in an alternate
+/// location.
 pub struct ProxyWithAlternateBackend<F: AlternateFileFinder> {
     backend: ProxyTrackerBackend,
     finder: F,

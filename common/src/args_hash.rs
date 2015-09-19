@@ -2,10 +2,13 @@ use std::collections::HashMap;
 use super::error::{MogError, MogResult};
 use url::{form_urlencoded, Url};
 
+/// A wrapper around a `HashMap<String, String>` with utility methods
+/// to retrieve particular data types from it.
 #[derive(Debug, Clone)]
 pub struct ArgsHash(HashMap<String, String>);
 
 impl ArgsHash {
+    /// Constructs a new `ArgsHash`
     pub fn from_bytes(bytes: &[u8]) -> ArgsHash {
         let args = form_urlencoded::parse(bytes);
         let mut rv = HashMap::new();
@@ -15,14 +18,23 @@ impl ArgsHash {
         ArgsHash(rv)
     }
 
+    /// Removes and returs a `String` associated with `key` from the
+    /// hash. Returns `missing_error` if there is no value associated
+    /// with that `key`.
     pub fn extract_required_string(&mut self, key: &str, missing_error: MogError) -> MogResult<String> {
         self.0.remove(key).and_is_not_blank().ok_or(missing_error)
     }
 
+    /// Removes and returs a `u64` associated with `key` from the
+    /// hash. Returns `missing_error` if there is no value associated
+    /// with that `key`.
     pub fn extract_required_int(&mut self, key: &str, missing_error: MogError) -> MogResult<u64> {
         self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok()).ok_or(missing_error)
     }
 
+    /// Removes and returs a `Url` associated with `key` from the
+    /// hash. Returns `missing_error` if there is no value associated
+    /// with that `key`.
     pub fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
         match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
             Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
@@ -30,14 +42,21 @@ impl ArgsHash {
         }
     }
 
+    /// Removes and returs a `String` associated with `key` from the
+    /// hash, if it is present.
     pub fn extract_optional_string(&mut self, key: &str) -> Option<String> {
         self.0.remove(key)
     }
 
+    /// Removes and returs a `u64` associated with `key` from the
+    /// hash, if it is present.
     pub fn extract_optional_int(&mut self, key: &str) -> Option<u64> {
         self.0.remove(key).and_then(|f| u64::from_str_radix(&f, 10).ok())
     }
 
+    /// Removes and returs a `bool` associated with `key` from the
+    /// hash, if it is present. The strings "t", "true", and "1" are
+    /// all considered to be true, regardless of case.
     pub fn extract_bool_value(&mut self, key: &str, default: bool) -> bool {
         match self.0.remove(key) {
             v @ Some(..) => v.is_truthy(),
@@ -45,17 +64,17 @@ impl ArgsHash {
         }
     }
 
+    /// A helper function to extract a required argument with key
+    /// "domain".
     pub fn extract_domain(&mut self) -> MogResult<String> {
         self.extract_required_string("domain", MogError::NoDomain)
     }
 
+    /// A helper function to extract a required argument with key
+    /// "key".
     pub fn extract_key(&mut self) -> MogResult<String> {
         self.extract_required_string("key", MogError::NoKey)
     }
-
-    // pub fn as_hash(&self) -> &HashMap<String, String> {
-    //     &self.0
-    // }
 }
 
 trait OptionStringExt<S: AsRef<str>>: Sized {
