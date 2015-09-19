@@ -29,7 +29,7 @@ impl<B: Backend> Tracker<B> {
 
     pub fn handle_request(&self, request: &Request) -> MogResult<Response> {
         info!("request = {:?}", request);
-        let response = self.backend.perform(request);
+        let response = request.perform(&self.backend);
         info!("response = {:?}", response);
         response
     }

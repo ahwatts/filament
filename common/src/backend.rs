@@ -15,8 +15,4 @@ pub trait Backend: Send + Sync {
     fn delete       (&self, &Delete)       -> MogResult<()>;
     fn rename       (&self, &Rename)       -> MogResult<()>;
     fn list_keys    (&self, &ListKeys)     -> MogResult<ListKeysResponse>;
-
-    fn perform<Op: Operation<Self> + ?Sized>(&self, request: &Op) -> MogResult<Response> where Self: Sized {
-        request.operate(self)
-    }
 }
