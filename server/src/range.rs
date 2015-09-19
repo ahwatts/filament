@@ -1,3 +1,5 @@
+//! Iron middleware and modifier for handling HTTP Range headers.
+
 use iron::headers::{Range, ByteRangeSpec, ContentRange, ContentRangeSpec, ContentLength};
 use iron::modifier::{Modifier, Set};
 use iron::response::ResponseBody;
@@ -22,6 +24,11 @@ impl<H: Handler> Handler for RangeHandler<H> {
     }
 }
 
+/// "Around" middleware which handles a `Range` header.
+///
+/// Captures the `Range` header from the request, and then breaks up
+/// the response into the specified ranges, assuming the response is
+/// the whole content.
 pub struct RangeMiddleware;
 
 impl AroundMiddleware for RangeMiddleware {
@@ -30,14 +37,28 @@ impl AroundMiddleware for RangeMiddleware {
     }
 }
 
+/// A `Modifier` for `Response`s which slices up the body of the
+/// response into the range(s) specified in the request.
+///
+/// Currently does not handle multiple `Range`s specified in the
+/// request. If there isn't exactly one range in the request, this
+/// modifier returns the original response, unmodified.
 #[derive(Debug)]
 pub struct RangeModifier(Vec<ByteRangeSpec>);
 
 impl RangeModifier {
+    /// Create a `RangeModifier` from the request.
+    ///
+    /// If there is no `Range` header present, or the `Range` header
+    /// does not use bytes as its unit, returns `None`.
     pub fn from_request(request: &Request) -> Option<RangeModifier> {
         request.headers.get::<Range>().and_then(|r| RangeModifier::from_range_header(r))
     }
 
+    /// Create a `RangeModifier` from a `Range` header.
+    ///
+    /// If the `Range` header does not use bytes as its unit, returns
+    /// `None`.
     pub fn from_range_header(header: &Range) -> Option<RangeModifier> {
         match header {
             &Range::Bytes(ref spec_vec) => Some(RangeModifier(spec_vec.clone())),
