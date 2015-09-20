@@ -130,7 +130,7 @@ fn connection_thread(trackers: &[SocketAddr], requests: Receiver<ProxyRequest>) 
             },
             RequestInner::Real(request) => {
                 debug!("Sending request {:?} to {:?}", request, conn.peer_addr());
-                let response = conn.request(request);
+                let response = conn.request(&request);
                 debug!("Got response {:?} from {:?}", response, conn.peer_addr());
                 response
             },
