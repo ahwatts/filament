@@ -3,3 +3,5 @@
 *.rs   text
 *.toml text
 *.lock text
+
+/Cargo.lock eol=lf
