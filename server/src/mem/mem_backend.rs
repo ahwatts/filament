@@ -347,7 +347,7 @@ mod tests {
         //     Url::parse(format!("http://{}/{}", TEST_HOST, TEST_BASE_PATH).as_ref()).unwrap());
 
         {
-            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), key: "test/key/3".to_string(), multi_dest: true, size: None };
+            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), class: None, key: "test/key/3".to_string(), multi_dest: true, size: None };
             let mut backend = sync_backend.0.write().unwrap();
             let co_result = backend.create_open(&req);
             assert!(co_result.is_ok());
@@ -369,7 +369,7 @@ mod tests {
         }
 
         {
-            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), key: TEST_KEY_1.to_string(), multi_dest: true, size: None };
+            let req = CreateOpen { domain: TEST_DOMAIN.to_string(), class: None, key: TEST_KEY_1.to_string(), multi_dest: true, size: None };
             let mut backend = sync_backend.0.write().unwrap();
             let co_result = backend.create_open(&req);
             assert!(co_result.is_ok(), "Create open with duplicate key result was {:?}", co_result);

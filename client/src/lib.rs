@@ -7,7 +7,8 @@ extern crate url;
 
 use bufstream::BufStream;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
-use std::io::{self, Write};
+use mogilefs_common::requests::*;
+use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use url::{form_urlencoded, percent_encoding};
 
@@ -28,6 +29,15 @@ impl MogClient {
         let resp_rslt = self.transport.do_request(req);
         info!("response = {:?}", resp_rslt);
         resp_rslt
+    }
+
+    pub fn store_data<R: Read>(&mut self, domain: String, class: Option<String>, key: String, _data: &mut R) -> MogResult<Response> {
+        let open_req = CreateOpen { domain: domain.clone(), class: class, key: key.clone(), multi_dest: true, size: None };
+        let open_res = self.request(&open_req);
+
+        debug!("open_res = {:?}", open_res);
+
+        unimplemented!()
     }
 
     pub fn peer_addr(&self) -> Option<SocketAddr> {
@@ -212,5 +222,44 @@ impl ConnectionState {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use std::io::{self, Write};
+    use std::net::SocketAddr;
+    use std::str::FromStr;
+    // use super::*;
+
+    fn trackers_for_testing() -> Option<Vec<SocketAddr>> {
+        env::var("FILAMENT_TEST_TRACKERS").map(|val| {
+            val.split(",")
+                .into_iter()
+                .filter_map(|addr_str| SocketAddr::from_str(addr_str).ok())
+                .collect()
+        }).ok()
+    }
+
+    fn skip() {
+        write!(&mut io::stdout(), "(skipped) ").unwrap();
+    }
+
+    macro_rules! test_trackers {
+        () => {
+            match trackers_for_testing() {
+                Some(vec) => vec,
+                None => {
+                    skip();
+                    return;
+                },
+            }
+        }
+    }
+
+    #[test]
+    fn test_connection() {
+        let _trackers = test_trackers!();
     }
 }

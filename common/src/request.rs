@@ -215,6 +215,7 @@ impl ToArgs for CreateDomain {
 #[derive(Debug, Clone)]
 pub struct CreateOpen {
     pub domain: String,
+    pub class: Option<String>,
     pub key: String,
     pub multi_dest: bool,
     pub size: Option<u64>
@@ -236,12 +237,14 @@ impl FromBytes for CreateOpen {
     fn from_bytes(bytes: &[u8]) -> MogResult<CreateOpen> {
         let mut args = ArgsHash::from_bytes(bytes);
         let domain = try!(args.extract_domain());
+        let class = args.extract_optional_string("class");
         let key = try!(args.extract_key());
         let multi_dest = args.extract_bool_value("multi_dest", false);
         let size = args.extract_optional_int("size");
 
         Ok(CreateOpen {
             domain: domain,
+            class: class,
             key: key,
             multi_dest: multi_dest,
             size: size,
