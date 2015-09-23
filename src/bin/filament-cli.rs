@@ -51,6 +51,13 @@ pub fn main() {
             domain: opts.arg_domain.expect("No domain provided."),
             key: opts.arg_key.expect("No key provided."),
         })
+    } else if opts.cmd_get_paths {
+        client.request(&GetPaths {
+            domain: opts.arg_domain.expect("No domain provided."),
+            key: opts.arg_key.expect("No key provided."),
+            noverify: opts.flag_no_verify,
+            pathcount: opts.flag_path_count,
+        })
     } else if opts.cmd_rename {
         client.request(&Rename {
             domain: opts.arg_domain.expect("No domain provided."),
@@ -90,6 +97,7 @@ Usage:
   filament-cli [options] create-open <domain> <key> [--multi-dest --size=N]
   filament-cli [options] create-close <domain> <key> <fid> <devid> <path> [--checksum=STRING]
   filament-cli [options] file-info <domain> <key>
+  filament-cli [options] get-paths <domain> <key> [--no-verify --path-count=N]
   filament-cli [options] rename <domain> <from-key> <to-key>
   filament-cli [options] update-class <domain> <key> <new-class>
   filament-cli [options] list-keys <domain> [--prefix=PREFIX --after=AFTER --limit=N]
@@ -110,6 +118,8 @@ struct Options {
     flag_prefix: Option<String>,
     flag_after: Option<String>,
     flag_limit: Option<u64>,
+    flag_no_verify: bool,
+    flag_path_count: Option<u64>,
 
     arg_domain: Option<String>,
     arg_key: Option<String>,
@@ -124,6 +134,7 @@ struct Options {
     cmd_create_open: bool,
     cmd_create_close: bool,
     cmd_file_info: bool,
+    cmd_get_paths: bool,
     cmd_rename: bool,
     cmd_update_class: bool,
     cmd_list_keys: bool,
