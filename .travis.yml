@@ -7,6 +7,8 @@ matrix:
   allow_failures:
     - rust: nightly
 before_install:
+  - rvm install ruby-2.2
+  - rvm use ruby-2.2
   - gem install toml
 script:
   - rake build[verbose]

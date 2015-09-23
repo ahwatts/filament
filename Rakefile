@@ -366,7 +366,6 @@ def git_revision
   File.read("git-revision").strip
 end
 
-
 def release_filename
   metadata = cargo_data
   package = metadata["package"]
