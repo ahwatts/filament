@@ -341,17 +341,23 @@ class RustProjectTask < Rake::TaskLib
       desc "Clean #{name}"
       task :clean, [ :with_deps, :verbose ] do |t, args|
         args.with_defaults(verbose: false, with_deps: false)
+
         cmdline = [ "cargo", "clean" ]
 
         if args.verbose
           cmdline << "--verbose"
         end
 
-        unless args.with_deps
-          cmdline += [ "-p", name ]
+        if args.with_deps
+          do_in_dir { sh(&cmdline) }
+        else
+          do_in_dir do
+            ([ name ] + subprojects.map(&:name)).each do |package|
+              cmdline2 = cmdline + [ "-p", package ]
+              sh(*cmdline2)
+            end
+          end
         end
-
-        do_in_dir { sh(*cmdline) }
       end
     end
   end
