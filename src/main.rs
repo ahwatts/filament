@@ -8,23 +8,30 @@ extern crate mogilefs_server;
 extern crate rustc_serialize;
 extern crate url;
 
+#[cfg(feature = "with-ext")]
+extern crate filament_ext;
+
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
 use mogilefs_common::Backend;
-// use mogilefs_server::finder::KeyUrlFinder;
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::storage::StorageHandler;
 use mogilefs_server::net::tracker::Tracker;
-// use mogilefs_server::proxy::{ProxyTrackerBackend, ProxyWithAlternateBackend};
 use mogilefs_server::proxy::ProxyTrackerBackend;
 use mogilefs_server::range::RangeMiddleware;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use std::thread;
 use url::Url;
+
+#[cfg(feature = "with-ext")]
+use filament_ext::PublicFinder;
+
+#[cfg(feature = "with-ext")]
+use mogilefs_common::{BackendStack, AroundMiddleware};
 
 static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 static GIT_COMMIT: &'static str = include_str!("../git-revision");
@@ -63,25 +70,36 @@ fn main() {
         }
     } else if opts.cmd_proxy_tracker {
         let base_backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
+        run_proxy_tracker(base_backend, &opts);
+    }
+}
 
-        if opts.flag_alternate_base_url.is_some() {
-            // let finder = KeyUrlFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
-            // let alt_backend = ProxyWithAlternateBackend::new(base_backend, finder);
-            // let tracker = Tracker::new(alt_backend);
-            let tracker = Tracker::new(base_backend);
-
-            match opts.flag_tracker_io {
-                TrackerIoType::Evented => run_evented(&opts, tracker),
-                TrackerIoType::Threaded => run_threaded(&opts, tracker),
-            }
-        } else {
-            let tracker = Tracker::new(base_backend);
-            match opts.flag_tracker_io {
-                TrackerIoType::Evented => run_evented(&opts, tracker),
-                TrackerIoType::Threaded => run_threaded(&opts, tracker),
-            }
+#[cfg(feature = "with-ext")]
+fn run_proxy_tracker(backend: ProxyTrackerBackend, opts: &Options) {
+    if opts.flag_alternate_base_url.is_some() {
+        let mut stack = BackendStack::new(backend);
+        let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
+        stack.around(public_finder);
+        let tracker = Tracker::new(stack);
+        match opts.flag_tracker_io {
+            TrackerIoType::Evented => run_evented(&opts, tracker),
+            TrackerIoType::Threaded => run_threaded(&opts, tracker),
         }
+    } else {
+        let tracker = Tracker::new(backend);
+        match opts.flag_tracker_io {
+            TrackerIoType::Evented => run_evented(&opts, tracker),
+            TrackerIoType::Threaded => run_threaded(&opts, tracker),
+        }
+    }
+}
 
+#[cfg(not(feature = "with-ext"))]
+fn run_proxy_tracker(backend: ProxyTrackerBackend, opts: &Options) {
+    let tracker = Tracker::new(backend);
+    match opts.flag_tracker_io {
+        TrackerIoType::Evented => run_evented(&opts, tracker),
+        TrackerIoType::Threaded => run_threaded(&opts, tracker),
     }
 }
 
