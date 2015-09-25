@@ -4,7 +4,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::str;
 use super::args_hash::ArgsHash;
-use super::backend::{Backend, Operation};
+use super::backend::{Backend};
 use super::error::{MogError, MogResult};
 use super::util::{FromBytes, ToArgs, ToUrlencodedString};
 use url::Url;
@@ -23,12 +23,6 @@ pub trait Request: Debug + ToArgs + Sync + Send {
     /// Perform this request's action on the `Backend`. Ultimately
     /// forwards `self` on to one of the methods in `Backend`.
     fn perform(&self, &Backend) -> MogResult<Response>;
-}
-
-impl<B: Backend, R: Request + ?Sized> Operation<B> for R {
-    fn operate(&self, backend: &B) -> MogResult<Response> {
-        self.perform(backend)
-    }
 }
 
 impl<R: Request + ?Sized> Request for Box<R> {

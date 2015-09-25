@@ -9,13 +9,15 @@ pub struct Tracker<B: Backend> {
 }
 
 impl<B: Backend> Tracker<B> {
+    /// Create a new Tracker around a particular Backend.
     pub fn new(backend: B) -> Tracker<B> {
         Tracker {
             backend: backend,
         }
     }
 
-    /// Handle a request.
+    /// Parse the bytes of a MogileFS request from the network into a
+    /// Request, and hand that off to the Backend for processing.
     pub fn handle_bytes(&self, request_bytes: &[u8]) -> MogResult<Response> {
         match Box::<Request>::from_bytes(request_bytes) {
             Ok(request) => self.handle_request(&*request),
@@ -27,9 +29,10 @@ impl<B: Backend> Tracker<B> {
         }
     }
 
+    /// Handle a Request.
     pub fn handle_request(&self, request: &Request) -> MogResult<Response> {
         info!("request = {:?}", request);
-        let response = request.perform(&self.backend);
+        let response = self.backend.handle(request);
         info!("response = {:?}", response);
         response
     }
