@@ -1,7 +1,6 @@
 //! Request (and response) traits and types.
 
 use std::any::Any;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::str;
 use super::args_hash::ArgsHash;
@@ -279,8 +278,7 @@ impl ToArgs for CreateOpen {
 #[derive(Debug, Clone)]
 pub struct CreateOpenResponse {
     pub fid: u64,
-    pub devcount: u64,
-    pub paths: HashMap<u64, Url>,
+    pub paths: Vec<(u64, Url)>,
 }
 
 // impl Response for CreateOpenResponse {}
@@ -295,10 +293,10 @@ impl ToArgs for CreateOpenResponse {
     fn to_args(&self) -> Vec<(String, String)> {
         let mut args = vec!{
             ("fid".to_string(), self.fid.to_string()),
-            ("dev_count".to_string(), self.devcount.to_string()),
+            ("dev_count".to_string(), self.paths.len().to_string()),
         };
 
-        for (i, (devid, url)) in self.paths.iter().enumerate() {
+        for (i, &(ref devid, ref url)) in self.paths.iter().enumerate() {
             args.push((format!("devid_{}", i + 1), devid.to_string()));
             args.push((format!("path_{}", i + 1), url.to_string()));
         }
@@ -312,17 +310,16 @@ impl FromBytes for CreateOpenResponse {
         let mut args = ArgsHash::from_bytes(bytes);
         let fid = try!(args.extract_required_int("fid", MogError::NoFid));
         let devcount = try!(args.extract_required_int("dev_count", MogError::Other("No device count".to_string(), None)));
-        let mut paths = HashMap::new();
+        let mut paths = Vec::new();
 
         for i in (1..(devcount + 1)) {
             let devid = try!(args.extract_required_int(&format!("devid_{}", i), MogError::NoDevid));
             let url = try!(args.extract_required_url(&format!("path_{}", i), MogError::NoPath));
-            paths.insert(devid, url);
+            paths.push((devid, url));
         }
 
         Ok(CreateOpenResponse {
             fid: fid,
-            devcount: devcount,
             paths: paths,
         })
     }

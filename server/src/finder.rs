@@ -19,7 +19,6 @@ impl KeyUrlFinder {
 
     fn url_for_key(&self, _domain: &str, key: &str) -> Url {
         let mut key_url = self.base_url.clone();
-        debug!("key_url = {} ({:?})", key_url, key_url);
         let mut new_path = Vec::from(key_url.path().unwrap());
         new_path.extend(key.split("/").map(|s| s.to_string()));
         new_path.push("a.jpg".to_string());

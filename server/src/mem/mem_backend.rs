@@ -45,10 +45,9 @@ impl MemBackend {
 
         let mut response = CreateOpenResponse {
             fid: fid as u64,
-            devcount: 1,
-            paths: HashMap::new(),
+            paths: Vec::new(),
         };
-        response.paths.insert(1, url);
+        response.paths.push((1, url));
         Ok(response)
     }
 
@@ -354,7 +353,7 @@ mod tests {
             let co_response = co_result.unwrap();
             assert_eq!(1, co_response.paths.len());
             assert_eq!(
-                &Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, "test/key/3").as_ref()).unwrap(),
+                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, "test/key/3").as_ref()).unwrap(),
                 co_response.paths.iter().next().unwrap().1);
         }
 
@@ -376,7 +375,7 @@ mod tests {
             let co_response = co_result.unwrap();
             assert_eq!(1, co_response.paths.len());
             assert_eq!(
-                &Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1).as_ref()).unwrap(),
+                Url::parse(format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1).as_ref()).unwrap(),
                 co_response.paths.iter().next().unwrap().1);
         }
 
