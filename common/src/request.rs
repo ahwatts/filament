@@ -70,7 +70,7 @@ impl FromBytes for Box<Request> {
 }
 
 /// The response to a tracker request.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Response {
     Empty,
     CreateDomain(CreateDomain),
@@ -159,7 +159,7 @@ impl Renderable for Response {
 /// request = "create_domain domain=test_domain_2\r\n"
 /// response = "OK domain=test_domain_2\r\n"
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateDomain {
     pub domain: String,
 }
@@ -275,7 +275,7 @@ impl ToArgs for CreateOpen {
 /// request = "create_open key=test/key/1&multi_dest=1&domain=test_domain_2\r\n"
 /// response = "OK devid_1=1&path_1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid&dev_count=1&fid=1927\r\n"
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateOpenResponse {
     pub fid: u64,
     pub paths: Vec<(u64, Url)>,
@@ -463,7 +463,7 @@ impl ToArgs for GetPaths {
 /// request = "get_paths domain=test_domain_2&key=test/key/1&noverify=1&zone=\r\n"
 /// response = "OK paths=1&path1=http://127.0.0.1:7500/dev1/0/000/001/0000001927.fid\r\n"
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GetPathsResponse(pub Vec<Url>);
 
 // impl Response for GetPathsResponse {}
@@ -558,7 +558,7 @@ impl ToArgs for FileInfo {
 /// request = "file_info domain=test_domain_2&key=test/key/1\r\n"
 /// response = "OK fid=1927&devcount=1&length=4&domain=test_domain_2&class=default&key=test/key/1\r\n"
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileInfoResponse {
     pub fid: u64,
     pub devcount: u64,
@@ -832,7 +832,7 @@ impl ToArgs for ListKeys {
 /// request = "list_keys domain=rn_development_public&prefix=Photo&after=&limit=10\r\n"
 /// response = "OK key_4=Photo/120418/image/thumb&key_6=Photo/12285/image/thumb&key_5=Photo/12285/image&key_count=10&key_10=Photo/126010/image/thumb&key_7=Photo/126009/image&key_8=Photo/126009/image/thumb&key_1=Photo/1105/image&key_3=Photo/120418/image&next_after=Photo/126010/image/thumb&key_2=Photo/1105/image/thumb&key_9=Photo/126010/image\r\n"
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListKeysResponse(pub Vec<String>);
 
 // impl Response for ListKeysResponse {}

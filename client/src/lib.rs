@@ -5,6 +5,10 @@ extern crate url;
 
 #[macro_use] extern crate log;
 
+#[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
+
 use bufstream::BufStream;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
 use mogilefs_common::requests::*;
@@ -35,9 +39,13 @@ impl MogClient {
         let open_req = CreateOpen { domain: domain.clone(), class: class, key: key.clone(), multi_dest: true, size: None };
         let open_res = self.request(&open_req);
 
-        debug!("open_res = {:?}", open_res);
+        println!("open_res = {:?}", open_res);
 
         unimplemented!()
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.transport.is_connected()
     }
 
     pub fn peer_addr(&self) -> Option<SocketAddr> {
@@ -52,10 +60,17 @@ struct MogClientTransport {
 }
 
 impl MogClientTransport {
-    pub fn new<S: ToSocketAddrs + Sized>(tracker_addrs: &[S]) -> MogClientTransport {
+    fn new<S: ToSocketAddrs + Sized>(tracker_addrs: &[S]) -> MogClientTransport {
         MogClientTransport {
             hosts: tracker_addrs.iter().flat_map(|a| a.to_socket_addrs().unwrap()).collect(),
             stream: Some(ConnectionState::new()),
+        }
+    }
+
+    fn is_connected(&self) -> bool {
+        match self.stream.as_ref() {
+            Some(ref stream) => stream.is_connected(),
+            None => false,
         }
     }
 
@@ -65,7 +80,7 @@ impl MogClientTransport {
         sample.pop().cloned().ok_or(MogError::NoTrackers)
     }
 
-    pub fn do_request<R: Request + ?Sized>(&mut self, request: &R) -> MogResult<Response> {
+    fn do_request<R: Request + ?Sized>(&mut self, request: &R) -> MogResult<Response> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
         let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
         let mut resp_line = Vec::new();
@@ -227,11 +242,17 @@ impl ConnectionState {
 
 #[cfg(test)]
 mod tests {
+    use mogilefs_common::Response;
+    use mogilefs_common::requests::*;
     use std::env;
-    use std::io::{self, Write};
+    use std::io::{self, Cursor, Write};
     use std::net::SocketAddr;
     use std::str::FromStr;
-    // use super::*;
+    use super::*;
+
+    lazy_static!{
+        static ref TEST_DOMAIN: String = domain_for_testing();
+    }
 
     fn trackers_for_testing() -> Option<Vec<SocketAddr>> {
         env::var("FILAMENT_TEST_TRACKERS").map(|val| {
@@ -242,24 +263,45 @@ mod tests {
         }).ok()
     }
 
+    fn domain_for_testing() -> String {
+        env::var("FILAMENT_TEST_DOMAIN").ok().unwrap_or("filament_test".to_string())
+    }
+
     fn skip() {
         write!(&mut io::stdout(), "(skipped) ").unwrap();
     }
 
-    macro_rules! test_trackers {
+    macro_rules! test_conn {
         () => {
-            match trackers_for_testing() {
-                Some(vec) => vec,
-                None => {
-                    skip();
-                    return;
-                },
+            {
+                let trackers = match trackers_for_testing() {
+                    Some(vec) => vec,
+                    None => {
+                        skip();
+                        return;
+                    },
+                };
+                assert!(trackers.len() >= 1);
+                MogClient::new(&trackers)
             }
         }
     }
 
     #[test]
     fn test_connection() {
-        let _trackers = test_trackers!();
+        let mut conn = test_conn!();
+        let response = conn.request(&Noop);
+        assert!(response.is_ok());
+        assert_eq!(Response::Empty, response.ok().unwrap());
+        assert!(conn.is_connected());
+    }
+
+    #[test]
+    fn test_store_data() {
+        let mut conn = test_conn!();
+        let content: Vec<u8> = b"New file content".iter().cloned().collect();
+        let mut content_reader = Cursor::new(content);
+        let response = conn.store_data(TEST_DOMAIN.clone(), None, "test/key/1".to_string(), &mut content_reader);
+        assert!(response.is_ok());
     }
 }

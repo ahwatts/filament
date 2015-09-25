@@ -13,3 +13,6 @@ url = "~0.2.36"
 
 [dependencies.mogilefs_common]
 path = "../common"
+
+[dev-dependencies]
+lazy_static = "~0.1.14"
