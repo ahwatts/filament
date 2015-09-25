@@ -199,80 +199,80 @@ impl Backend for ProxyTrackerBackend {
     }
 }
 
-/// A thing that will look for a file in an alternate location.
-pub trait AlternateFileFinder {
-    fn file_info(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse>;
-    fn get_paths(&self, domain: &str, key: &str) -> MogResult<GetPathsResponse>;
-}
+// /// A thing that will look for a file in an alternate location.
+// pub trait AlternateFileFinder {
+//     fn file_info(&self, domain: &str, key: &str) -> MogResult<FileInfoResponse>;
+//     fn get_paths(&self, domain: &str, key: &str) -> MogResult<GetPathsResponse>;
+// }
 
-/// A wrapper around the `ProxyTrackerBackend` which will use an
-/// `AlternateFileFinder` to find missing files in an alternate
-/// location.
-pub struct ProxyWithAlternateBackend<F: AlternateFileFinder> {
-    backend: ProxyTrackerBackend,
-    finder: F,
-}
+// /// A wrapper around the `ProxyTrackerBackend` which will use an
+// /// `AlternateFileFinder` to find missing files in an alternate
+// /// location.
+// pub struct ProxyWithAlternateBackend<F: AlternateFileFinder> {
+//     backend: ProxyTrackerBackend,
+//     finder: F,
+// }
 
-impl<F: AlternateFileFinder> ProxyWithAlternateBackend<F> {
-    pub fn new(backend: ProxyTrackerBackend, finder: F) -> ProxyWithAlternateBackend<F> {
-        ProxyWithAlternateBackend {
-            backend: backend,
-            finder: finder,
-        }
-    }
-}
+// impl<F: AlternateFileFinder> ProxyWithAlternateBackend<F> {
+//     pub fn new(backend: ProxyTrackerBackend, finder: F) -> ProxyWithAlternateBackend<F> {
+//         ProxyWithAlternateBackend {
+//             backend: backend,
+//             finder: finder,
+//         }
+//     }
+// }
 
-impl<F: AlternateFileFinder + Send + Sync + 'static> Backend for ProxyWithAlternateBackend<F> {
-    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
-        self.backend.send_request(req)
-    }
+// impl<F: AlternateFileFinder + Send + Sync + 'static> Backend for ProxyWithAlternateBackend<F> {
+//     fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
+//         self.backend.send_request(req)
+//     }
 
-    fn create_open(&self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
-        self.backend.send_request(req)
-    }
+//     fn create_open(&self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
+//         self.backend.send_request(req)
+//     }
 
-    fn create_close(&self, req: &CreateClose) -> MogResult<()> {
-        self.backend.send_request(req)
-    }
+//     fn create_close(&self, req: &CreateClose) -> MogResult<()> {
+//         self.backend.send_request(req)
+//     }
 
-    fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
-        let response = self.backend.send_request(req);
-        debug!("In alternate: original response = {:?}", response);
-        match response {
-            o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
-                let alt_paths = self.finder.get_paths(&req.domain, &req.key);
-                debug!("request: {:?} had error {:?}, alternate paths: {:?}", req, o, alt_paths);
-                alt_paths.map_err(|_| o.unwrap_err())
-            },
-            r @ _ => r,
-        }
-    }
+//     fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
+//         let response = self.backend.send_request(req);
+//         debug!("In alternate: original response = {:?}", response);
+//         match response {
+//             o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
+//                 let alt_paths = self.finder.get_paths(&req.domain, &req.key);
+//                 debug!("request: {:?} had error {:?}, alternate paths: {:?}", req, o, alt_paths);
+//                 alt_paths.map_err(|_| o.unwrap_err())
+//             },
+//             r @ _ => r,
+//         }
+//     }
     
-    fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
-        let response = self.backend.send_request(req);
-        debug!("In alternate: original response = {:?}", response);
-        match response {
-            o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
-                let alt_file_info = self.finder.file_info(&req.domain, &req.key);
-                debug!("request: {:?} had error {:?}, alternate file: {:?}", req, o, alt_file_info);
-                alt_file_info.map_err(|_| o.unwrap_err())
-            },
-            r @ _ => r,
-        }
-    }
+//     fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
+//         let response = self.backend.send_request(req);
+//         debug!("In alternate: original response = {:?}", response);
+//         match response {
+//             o @ Err(MogError::UnknownKey(..)) | o @ Err(MogError::UnregDomain(..)) => {
+//                 let alt_file_info = self.finder.file_info(&req.domain, &req.key);
+//                 debug!("request: {:?} had error {:?}, alternate file: {:?}", req, o, alt_file_info);
+//                 alt_file_info.map_err(|_| o.unwrap_err())
+//             },
+//             r @ _ => r,
+//         }
+//     }
     
-    fn delete(&self, req: &Delete) -> MogResult<()> {
-        self.backend.send_request(req)
-    }
+//     fn delete(&self, req: &Delete) -> MogResult<()> {
+//         self.backend.send_request(req)
+//     }
 
-    fn rename(&self, req: &Rename) -> MogResult<()> {
-        self.backend.send_request(req)
-    }
+//     fn rename(&self, req: &Rename) -> MogResult<()> {
+//         self.backend.send_request(req)
+//     }
 
-    fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
-        self.backend.send_request(req)
-    }
-}
+//     fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
+//         self.backend.send_request(req)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

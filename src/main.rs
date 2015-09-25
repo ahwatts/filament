@@ -14,11 +14,12 @@ extern crate url;
 use docopt::Docopt;
 use iron::{Chain, Iron, Protocol};
 use mogilefs_common::Backend;
-use mogilefs_server::finder::KeyUrlFinder;
+// use mogilefs_server::finder::KeyUrlFinder;
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::storage::StorageHandler;
 use mogilefs_server::net::tracker::Tracker;
-use mogilefs_server::proxy::{ProxyTrackerBackend, ProxyWithAlternateBackend};
+// use mogilefs_server::proxy::{ProxyTrackerBackend, ProxyWithAlternateBackend};
+use mogilefs_server::proxy::ProxyTrackerBackend;
 use mogilefs_server::range::RangeMiddleware;
 use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
@@ -64,9 +65,10 @@ fn main() {
         let base_backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
 
         if opts.flag_alternate_base_url.is_some() {
-            let finder = KeyUrlFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
-            let alt_backend = ProxyWithAlternateBackend::new(base_backend, finder);
-            let tracker = Tracker::new(alt_backend);
+            // let finder = KeyUrlFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
+            // let alt_backend = ProxyWithAlternateBackend::new(base_backend, finder);
+            // let tracker = Tracker::new(alt_backend);
+            let tracker = Tracker::new(base_backend);
 
             match opts.flag_tracker_io {
                 TrackerIoType::Evented => run_evented(&opts, tracker),
