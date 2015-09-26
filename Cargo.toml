@@ -25,13 +25,8 @@ url = "~0.2.36"
 
 [dependencies.filament-ext]
 git = "ssh://git@github.com/reverbnation/filament-ext.git"
-optional = true
 
 [dependencies.iron]
 git = "https://github.com/ahwatts/iron.git"
 branch = "bug/http_10"
 default-features = false
-
-[features]
-default = []
-with-ext = [ "filament-ext" ]
