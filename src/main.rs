@@ -13,9 +13,9 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
-use filament_ext::PublicFinder;
+use filament_ext::{PublicFinder, SongFinder};
 use iron::{Chain, Iron, Protocol};
-use mogilefs_common::{Backend, BackendStack, AroundMiddleware};
+use mogilefs_common::{BackendStack, AroundMiddleware};
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
 use mogilefs_server::net::storage::StorageHandler;
 use mogilefs_server::net::tracker::Tracker;
@@ -43,9 +43,9 @@ fn main() {
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
-    if opts.cmd_mem_tracker {
+    let tracker = if opts.cmd_mem_tracker {
         let backend = SyncMemBackend::new(MemBackend::new(opts.flag_base_url.clone()));
-        let tracker = Tracker::new(backend.clone());
+        let stack = BackendStack::new(backend.clone());
 
         let storage_addr = opts.flag_storage_ip.0.clone();
         let storage_threads = opts.flag_storage_threads;
@@ -57,33 +57,34 @@ fn main() {
             iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
         });
 
-        match opts.flag_tracker_io {
-            TrackerIoType::Evented => run_evented(&opts, tracker),
-            TrackerIoType::Threaded => run_threaded(&opts, tracker),
-        }
+        Some(Tracker::new(stack))
     } else if opts.cmd_proxy_tracker {
-        let base_backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
+        let backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
+        let mut stack = BackendStack::new(backend);
 
         if opts.flag_alternate_base_url.is_some() {
-            let mut stack = BackendStack::new(base_backend);
             let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
             stack.around(public_finder);
-            let tracker = Tracker::new(stack);
-            match opts.flag_tracker_io {
-                TrackerIoType::Evented => run_evented(&opts, tracker),
-                TrackerIoType::Threaded => run_threaded(&opts, tracker),
-            }
-        } else {
-            let tracker = Tracker::new(base_backend);
-            match opts.flag_tracker_io {
-                TrackerIoType::Evented => run_evented(&opts, tracker),
-                TrackerIoType::Threaded => run_threaded(&opts, tracker),
-            }
         }
+
+        if opts.flag_alternate_song_api_url.is_some() {
+            let song_finder = SongFinder::new(opts.flag_alternate_song_api_url.as_ref().cloned().unwrap());
+            stack.around(song_finder);
+        }
+
+        Some(Tracker::new(stack))
+    } else {
+        None
+    };
+
+    match (tracker, &opts.flag_tracker_io) {
+        (Some(tracker), &TrackerIoType::Evented) => run_evented(&opts, tracker),
+        (Some(tracker), &TrackerIoType::Threaded) => run_threaded(&opts, tracker),
+        _ => panic!("Don't know how to run the tracker!"),
     }
 }
 
-fn run_evented<B: Backend + 'static>(opts: &Options, tracker: Tracker<B>) {
+fn run_evented(opts: &Options, tracker: Tracker<BackendStack>) {
     use mogilefs_server::net::tracker::evented::EventedListener;
 
     let listener_result = EventedListener::new(
@@ -101,7 +102,7 @@ fn run_evented<B: Backend + 'static>(opts: &Options, tracker: Tracker<B>) {
      });
 }
 
-fn run_threaded<B: Backend + 'static>(opts: &Options, tracker: Tracker<B>) {
+fn run_threaded(opts: &Options, tracker: Tracker<BackendStack>) {
     use mogilefs_server::net::tracker::threaded::ThreadedListener;
 
     let listener_result = ThreadedListener::new(
@@ -146,8 +147,9 @@ In-Memory Tracker (mem-tracker) Options:
 Proxy Tracker (proxy-tracker) Options:
   (all General Tracker Options and General Storage Options supported)
   Tracker Options:
-    --real-trackers=IPS       A comma-separated list of actual trackers that we're proxying for.    [default: 127.0.0.1:7001]
-    --alternate-base-url=URL  The base URL to look for files that are missing on the real trackers.
+    --real-trackers=IPS           A comma-separated list of actual trackers that we're proxying for.    [default: 127.0.0.1:7001]
+    --alternate-base-url=URL      The base public URL to look for files that are missing on the real trackers.
+    --alternate-song-api-url=URL  The base API URL to find missing song files.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -165,6 +167,7 @@ struct Options {
 
     flag_real_trackers: SocketAddrList,
     flag_alternate_base_url: Option<Url>,
+    flag_alternate_song_api_url: Option<Url>,
 }
 
 // Need to wrap SocketAddr with our own type so that we can implement

@@ -110,11 +110,13 @@ dependencies = [
 [[package]]
 name = "filament-ext"
 version = "0.1.0"
-source = "git+ssh://git@github.com/reverbnation/filament-ext.git#84852dbe25a33e1ba10d19daec528d34e827afa1"
+source = "git+ssh://git@github.com/reverbnation/filament-ext.git#56ada2bbf7b444e02f26ec6a0b6fe21cf9f8740c"
 dependencies = [
  "hyper 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_common 0.2.0 (git+https://github.com/ahwatts/mogilefsd-rs.git)",
+ "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
