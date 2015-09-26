@@ -1,0 +1,7 @@
+# -*- mode: toml; encoding: utf-8; -*-
+
+paths = [
+    "client",
+    "common",
+    "server",
+]

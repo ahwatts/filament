@@ -349,7 +349,7 @@ class RustProjectTask < Rake::TaskLib
         end
 
         if args.with_deps
-          do_in_dir { sh(&cmdline) }
+          do_in_dir { sh(*cmdline) }
         else
           do_in_dir do
             ([ name ] + subprojects.map(&:name)).each do |package|
