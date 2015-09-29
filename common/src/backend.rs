@@ -1,4 +1,8 @@
-use super::error::MogResult;
+use hyper::Client;
+use hyper::status::StatusCode;
+use rand;
+use std::io::Read;
+use super::error::{MogError, MogResult};
 use super::request::{Request, Response};
 use super::requests::*;
 
@@ -15,6 +19,43 @@ pub trait Backend: Send + Sync {
 
     fn handle<R: Request + ?Sized>(&self, request: &R) -> MogResult<Response> where Self: Sized {
         request.perform(self)
+    }
+
+    fn store_file<R: Read>(&self, domain: String, key: String, class: Option<String>, data: &mut R) -> MogResult<()> where Self: Sized {
+        // Register the file with MogileFS, and ask it where we can store it.
+        let open_req = CreateOpen { domain: domain.clone(), class: class, key: key.clone(), multi_dest: true, size: None };
+        let open_res = try!(self.create_open(&open_req));
+
+        // Choose at random one of the places MogileFS suggests.
+        let mut rng = rand::thread_rng();
+        let &&(ref devid, ref path) = try!(rand::sample(&mut rng, open_res.paths.iter(), 1).first().ok_or(MogError::NoPath));
+
+        debug!("Storing data for {:?} to {}", key, path);
+
+        // Upload the file.
+        let client = Client::new();
+        let put_res = try!{
+            client.put(path.clone())
+                .body(data)
+                .send()
+                .map_err(|e| MogError::StorageError(Some(format!("Could not store to {}: {}", path, e))))
+        };
+
+        match &put_res.status {
+            &StatusCode::Ok => {},
+            _ => return Err(MogError::StorageError(Some(format!("Bad response from storage server: {:?}", put_res)))),
+        }
+
+        // Tell MogileFS where we uploaded the file to, and return the
+        // result of telling it so.
+        self.create_close(&CreateClose {
+            domain: domain,
+            key: key,
+            fid: open_res.fid,
+            devid: *devid,
+            path: path.clone(),
+            checksum: None,
+        })
     }
 }
 

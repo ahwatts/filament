@@ -1,3 +1,5 @@
+extern crate hyper;
+extern crate rand;
 extern crate url;
 
 #[macro_use]
