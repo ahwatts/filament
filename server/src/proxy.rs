@@ -132,10 +132,7 @@ impl ProxyTrackerBackend {
             let response_rslt = conn.request(req);
             debug!("Got response {:?} from {:?}", response_rslt, conn.peer_addr());
             response_rslt.and_then(|response| {
-                response.downcast::<Res>()
-                    .ok_or(MogError::Other(
-                    "Unknown response type".to_string(),
-                        None))
+                response.downcast::<Res>().ok_or(MogError::BadResponse)
             })
         })
     }

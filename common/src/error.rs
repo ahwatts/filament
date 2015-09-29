@@ -38,6 +38,8 @@ pub enum MogError {
     UnregDomain(String),
     UnknownCode(String),
     Utf8(Utf8Error),
+    BadResponse,
+    StorageError(Option<String>),
 }
 
 impl MogError {
@@ -150,6 +152,7 @@ impl Display for MogError {
 
             Other(ref op, ref desc) => write!(f, "{} {}", op, desc.clone().unwrap_or_default()),
             UnknownCode(ref c) => write!(f, "Unknown code: {:?}", c),
+            StorageError(ref os) => write!(f, "Storage error: {:?}", os),
 
             _ => write!(f, "{}", self.description()),
         }
@@ -180,6 +183,8 @@ impl Error for MogError {
             UnknownCommand(..) => "Unknown command",
             UnknownKey(..) => "Unknown key",
             UnregDomain(..) => "Domain name invalid / not found",
+            BadResponse => "Wrong response type",
+            StorageError(..) => "Storage error",
             Utf8(ref utf8_err) => utf8_err.description(),
         }
     }

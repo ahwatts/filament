@@ -1,4 +1,5 @@
 extern crate bufstream;
+extern crate hyper;
 extern crate mogilefs_common;
 extern crate rand;
 extern crate url;
@@ -10,6 +11,7 @@ extern crate url;
 extern crate lazy_static;
 
 use bufstream::BufStream;
+use hyper::status::StatusCode;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
 use mogilefs_common::requests::*;
 use std::io::{self, Read, Write};
@@ -35,13 +37,41 @@ impl MogClient {
         resp_rslt
     }
 
-    pub fn store_data<R: Read>(&mut self, domain: String, class: Option<String>, key: String, _data: &mut R) -> MogResult<Response> {
+    pub fn store_data<R: Read>(&mut self, domain: String, class: Option<String>, key: String, data: &mut R) -> MogResult<Response> {
+        // Register the file with MogileFS, and ask it where we can store it.
         let open_req = CreateOpen { domain: domain.clone(), class: class, key: key.clone(), multi_dest: true, size: None };
-        let open_res = self.request(&open_req);
+        let open_res = try!(self.request(&open_req).and_then(|r| r.downcast::<CreateOpenResponse>().ok_or(MogError::BadResponse)));
 
-        println!("open_res = {:?}", open_res);
+        // Choose at random one of the places MogileFS suggests.
+        let mut rng = rand::thread_rng();
+        let &&(ref devid, ref path) = try!(rand::sample(&mut rng, open_res.paths.iter(), 1).first().ok_or(MogError::NoPath));
 
-        unimplemented!()
+        debug!("Storing data for {:?} to {}", key, path);
+
+        // Upload the file.
+        let client = hyper::Client::new();
+        let put_res = try!{
+            client.put(path.clone())
+                .body(data)
+                .send()
+                .map_err(|e| MogError::StorageError(Some(format!("Could not store to {}: {}", path, e))))
+        };
+
+        match &put_res.status {
+            &StatusCode::Ok => {},
+            _ => return Err(MogError::StorageError(Some(format!("Bad response from storage server: {:?}", put_res)))),
+        }
+
+        // Tell MogileFS where we uploaded the file to, and return the
+        // result of telling it so.
+        self.request(&CreateClose {
+            domain: domain.clone(),
+            key: key.clone(),
+            fid: open_res.fid,
+            devid: *devid,
+            path: path.clone(),
+            checksum: None,
+        })
     }
 
     pub fn is_connected(&self) -> bool {
