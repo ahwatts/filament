@@ -1,5 +1,7 @@
-extern crate log;
 extern crate url;
+
+#[macro_use]
+extern crate log;
 
 #[cfg(test)]
 #[macro_use]

@@ -38,6 +38,7 @@ impl ArgsHash {
     pub fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
         match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
             Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
+            Some(ref uu) if uu.scheme == "https" => Ok(uu.clone()),
             _ => Err(missing_error),
         }
     }
