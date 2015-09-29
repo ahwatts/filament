@@ -149,9 +149,15 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
         match token {
             t if t == self.token => {
                 if events.is_readable() {
-                    self.accept(event_loop).unwrap_or_else(|e| {
-                        error!("Error accepting connection: {}", e);
-                    });
+                    match self.accept(event_loop) {
+                        Ok(..) => {},
+                        Err(EventedError::StreamNotReady) => {
+                            info!("Cannot accept connection: stream not ready.");
+                        },
+                        Err(e) => {
+                            error!("Error accepting connection: {}", e);
+                        }
+                    }
                 } else {
                     error!("Unknown event type {:?} on server socket.", events);
                 }
@@ -199,7 +205,7 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
             Notification::Shutdown => self.shutdown(event_loop),
             Notification::CloseConnection(token) => {
                 self.close(event_loop, token).unwrap_or_else(|e| {
-                    error!("Error closing connection {:?}: {}", token, e);
+                    info!("Error closing connection {:?}: {}", token, e);
                 });
             },
             Notification::Response(token, response) => {
