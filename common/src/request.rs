@@ -253,8 +253,12 @@ impl ToArgs for CreateOpen {
             ("multi_dest".to_string(), self.multi_dest.to_string()),
         };
 
-        if self.size.is_some() {
-            rv.push(("size".to_string(), self.size.clone().unwrap().to_string()));
+        if let Some(ref class) = self.class {
+            rv.push(("class".to_string(), class.clone()));
+        }
+
+        if let Some(ref size) = self.size {
+            rv.push(("size".to_string(), size.to_string()));
         }
 
         rv
