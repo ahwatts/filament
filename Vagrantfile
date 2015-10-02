@@ -61,16 +61,17 @@ def common_centos_config(config)
 end
 
 Vagrant.configure(2) do |config|
-  config.vm.define "centos6" do |c6|
-    c6.vm.box = "chef/centos-6.6"
+  config.vm.define "centos6", primary: true do |c6|
+    c6.vm.box = "bento/centos-6.7"
     common_centos_config(c6)
   end
 
   # Due to the GLIBC 2.14 memcpy / memmove scandal, we should probably
-  # just build on CentOS 6, so that we don't get the Bad Symbol.
-
-  # config.vm.define "centos7" do |c7|
-  #   c7.vm.box = "chef/centos-7.0"
-  #   common_centos_config(c7)
-  # end
+  # just build on CentOS 6, so that we don't get the Bad
+  # Symbol. However, supermin doesn't compile on CentOS 6, so the base
+  # Docker image is built with CentOS 7.
+  config.vm.define "centos7" do |c7|
+    c7.vm.box = "bento/centos-7.1"
+    common_centos_config(c7)
+  end
 end
