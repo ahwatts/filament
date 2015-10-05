@@ -1,6 +1,6 @@
 [root]
 name = "filament"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -110,13 +110,14 @@ dependencies = [
 [[package]]
 name = "filament-ext"
 version = "0.1.0"
-source = "git+ssh://git@github.com/reverbnation/filament-ext.git#56ada2bbf7b444e02f26ec6a0b6fe21cf9f8740c"
+source = "git+ssh://git@github.com/reverbnation/filament-ext.git#cd74fc4927ef11aedc1f607e66f8d056f2c15650"
 dependencies = [
  "hyper 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_common 0.2.0 (git+https://github.com/ahwatts/mogilefsd-rs.git)",
  "regex 0.1.41 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
