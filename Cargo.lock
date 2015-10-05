@@ -1,6 +1,6 @@
 [root]
 name = "filament"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -10,7 +10,7 @@ dependencies = [
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_client 0.3.0",
  "mogilefs_common 0.3.0",
- "mogilefs_server 0.3.0",
+ "mogilefs_server 0.3.2",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -294,7 +294,7 @@ dependencies = [
 
 [[package]]
 name = "mogilefs_server"
-version = "0.3.0"
+version = "0.3.2"
 dependencies = [
  "docopt 0.6.72 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
