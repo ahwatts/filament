@@ -42,7 +42,7 @@ pub trait Backend: Send + Sync {
         };
 
         match &put_res.status {
-            &StatusCode::Ok => {},
+            &StatusCode::Ok | &StatusCode::Created => {},
             _ => return Err(MogError::StorageError(Some(format!("Bad response from storage server: {:?}", put_res)))),
         }
 
