@@ -58,6 +58,8 @@ def common_centos_config(config)
         ./install.sh
     fi
   _NACHOS
+
+  # TODO: Need to install rbenv / ruby-build and install Ruby, rake, and the toml gem.
 end
 
 Vagrant.configure(2) do |config|
