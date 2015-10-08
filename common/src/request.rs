@@ -392,6 +392,50 @@ impl ToArgs for CreateClose {
     }
 }
 
+/// A `create_class` request.
+///
+/// Looks like this:
+///
+/// ```text
+/// request = "create_class domain=rn_development_public&class=filament&replpolicy=MultipleHosts%28%29&mindevcount=1\r\n"
+/// response = "OK domain=rn_development_public&class=filament&mindevcount=1\r\n"
+/// ```
+#[derive(Debug, Clone)]
+pub struct CreateClass {
+    pub domain: String,
+    pub class: String,
+    pub mindevcount: u64,
+    pub replpolicy: Option<String>,
+    pub hashtype: Option<String>,
+    pub update: bool,
+}
+
+impl Request for CreateClass {
+    fn op(&self) -> &'static str {
+        "create_class"
+    }
+
+    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
+        unimplemented!()
+    }
+
+    fn perform(&self, _backend: &Backend) -> MogResult<Response> {
+        unimplemented!()
+    }
+}
+
+impl FromBytes for CreateClass {
+    fn from_bytes(_bytes: &[u8]) -> MogResult<CreateClass> {
+        unimplemented!()
+    }
+}
+
+impl ToArgs for CreateClass {
+    fn to_args(&self) -> Vec<(String, String)> {
+        unimplemented!()
+    }
+}
+
 /// A `get_paths` request.
 ///
 /// Looks like this:
