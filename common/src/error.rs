@@ -29,6 +29,7 @@ pub enum MogError {
     NoKey,
     NoPath,
     NoTrackers,
+    InvalidMindevcount,
     Other(String, Option<String>),
     PoisonedMutex,
     RecvError,
@@ -50,16 +51,15 @@ impl MogError {
         use self::MogError::*;
 
         match *self {
-            NoDomain => "no_domain",
-            UnregDomain(..) => "unreg_domain",
-            UnregClass(..) => "unreg_class",
             DomainExists(..) => "domain_exists",
-
-            NoKey => "no_key",
-            UnknownKey(..) => "unknown_key",
+            InvalidMindevcount => "invalid_mindevcount",
             KeyExists(..) => "key_exists",
-
+            NoDomain => "no_domain",
+            NoKey => "no_key",
             UnknownCommand(..) => "unknown_command",
+            UnknownKey(..) => "unknown_key",
+            UnregClass(..) => "unreg_class",
+            UnregDomain(..) => "unreg_domain",
 
             Other(ref op, _) => op,
 
@@ -79,6 +79,7 @@ impl MogError {
         });
 
         match op.map(|o| str::from_utf8(o)) {
+            Some(Ok("invalid_mindevcount")) => InvalidMindevcount,
             Some(Ok("no_class")) => NoClass,
             Some(Ok("no_devid")) => NoDevid,
             Some(Ok("no_domain")) => NoDomain,
@@ -170,6 +171,7 @@ impl Error for MogError {
             DomainExists(..) => "Domain already exists",
             Io(ref io_err) => io_err.description(),
             KeyExists(..) => "Key already exists",
+            InvalidMindevcount => "The mindevcount must be at least 1",
             NoClass => "No class provided",
             NoConnection => "Could not connect to tracker",
             NoContent(..) => "No content",

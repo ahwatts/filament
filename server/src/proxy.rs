@@ -58,6 +58,10 @@ impl Backend for ProxyTrackerBackend {
         self.send_request(req)
     }
 
+    fn create_class(&self, req: &CreateClass) -> MogResult<CreateClassResponse> {
+        self.send_request(req)
+    }
+
     fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
         self.send_request(req)
     }

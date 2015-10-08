@@ -205,11 +205,22 @@ impl Backend for SyncMemBackend {
     }
 
     fn create_close(&self, _request: &CreateClose) -> MogResult<()> {
-        // There's nothing to do here. See the equivalent method on
-        // the actual backend. There's no need acquire the mutex and
-        // call it, since we're not going to be doing anything with
-        // it anyway.
+        // There's nothing to do here, since the create_open request
+        // created the entry, and the storage server request already
+        // stored the file. Just say it worked. Thought: if there was
+        // no create_open or storage server request, should this
+        // return an error?
         Ok(())
+    }
+
+    fn create_class(&self, request: &CreateClass) -> MogResult<CreateClassResponse> {
+        // The in-memory backend doesn't have the concept of storage
+        // classes, so just return an Ok response echoing the request.
+        Ok(CreateClassResponse {
+            domain: request.domain.clone(),
+            class: request.class.clone(),
+            mindevcount: request.mindevcount,
+        })
     }
 
     fn get_paths(&self, request: &GetPaths) -> MogResult<GetPathsResponse> {

@@ -20,6 +20,7 @@ pub mod requests {
     pub use request::CreateDomain;
     pub use request::{CreateOpen, CreateOpenResponse};
     pub use request::CreateClose;
+    pub use request::{CreateClass, CreateClassResponse};
     pub use request::{GetPaths, GetPathsResponse};
     pub use request::{FileInfo, FileInfoResponse};
     pub use request::Rename;

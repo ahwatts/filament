@@ -47,6 +47,7 @@ impl FromBytes for Box<Request> {
             Some(Ok("create_domain")) => CreateDomain::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
             Some(Ok("create_open"))   => CreateOpen::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
             Some(Ok("create_close"))  => CreateClose::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
+            Some(Ok("create_class"))  => CreateClass::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
             Some(Ok("file_info"))     => FileInfo::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
             Some(Ok("get_paths"))     => GetPaths::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
             Some(Ok("rename"))        => Rename::from_bytes(args).map(|r| Box::new(r) as Box<Request>),
@@ -69,6 +70,7 @@ pub enum Response {
     Empty,
     CreateDomain(CreateDomain),
     CreateOpen(CreateOpenResponse),
+    CreateClass(CreateClassResponse),
     FileInfo(FileInfoResponse),
     GetPaths(GetPathsResponse),
     ListKeys(ListKeysResponse),
@@ -82,6 +84,7 @@ impl Response {
             Empty           => downcast(()),
             CreateDomain(r) => downcast(r),
             CreateOpen(r)   => downcast(r),
+            CreateClass(r)  => downcast(r),
             FileInfo(r)     => downcast(r),
             GetPaths(r)     => downcast(r),
             ListKeys(r)     => downcast(r),
@@ -96,6 +99,7 @@ impl ToArgs for Response {
             &Empty               => vec![],
             &CreateDomain(ref r) => r.to_args(),
             &CreateOpen(ref r)   => r.to_args(),
+            &CreateClass(ref r)  => r.to_args(),
             &FileInfo(ref r)     => r.to_args(),
             &GetPaths(ref r)     => r.to_args(),
             &ListKeys(ref r)     => r.to_args(),
@@ -415,26 +419,105 @@ impl Request for CreateClass {
         "create_class"
     }
 
-    fn response_from_bytes(&self, _bytes: &[u8]) -> MogResult<Response> {
-        unimplemented!()
+    fn response_from_bytes(&self, bytes: &[u8]) -> MogResult<Response> {
+        CreateClassResponse::from_bytes(bytes).map(|r| r.to_response())
     }
 
-    fn perform(&self, _backend: &Backend) -> MogResult<Response> {
-        unimplemented!()
+    fn perform(&self, backend: &Backend) -> MogResult<Response> {
+        backend.create_class(self).map(|r| r.to_response())
     }
 }
 
 impl FromBytes for CreateClass {
-    fn from_bytes(_bytes: &[u8]) -> MogResult<CreateClass> {
-        unimplemented!()
+    fn from_bytes(bytes: &[u8]) -> MogResult<CreateClass> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let class = try!(args.extract_required_string("class", MogError::NoClass));
+        let mindevcount = try!(args.extract_required_int("mindevcount", MogError::InvalidMindevcount));
+        let replpolicy = args.extract_optional_string("replpolicy");
+        let hashtype = args.extract_optional_string("hashtype");
+        let update = args.extract_bool_value("update", false);
+
+        Ok(CreateClass {
+            domain: domain,
+            class: class,
+            mindevcount: mindevcount,
+            replpolicy: replpolicy,
+            hashtype: hashtype,
+            update: update,
+        })
     }
 }
 
 impl ToArgs for CreateClass {
     fn to_args(&self) -> Vec<(String, String)> {
-        unimplemented!()
+        let mut rv = vec!{
+            ("domain".to_string(), self.domain.clone()),
+            ("class".to_string(), self.class.clone()),
+            ("mindevcount".to_string(), self.mindevcount.to_string()),
+        };
+
+        if self.replpolicy.is_some() {
+            rv.push(("replpolicy".to_string(), self.replpolicy.clone().unwrap()));
+        }
+
+        if self.hashtype.is_some() {
+            rv.push(("hashtype".to_string(), self.hashtype.clone().unwrap()));
+        }
+
+        if self.update {
+            rv.push(("update".to_string(), "1".to_string()));
+        }
+
+        rv
     }
 }
+
+/// The response to a `create_class` request.
+/// Looks like this:
+///
+/// ```text
+/// request = "create_class domain=rn_development_public&class=filament&replpolicy=MultipleHosts%28%29&mindevcount=1\r\n"
+/// response = "OK domain=rn_development_public&class=filament&mindevcount=1\r\n"
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateClassResponse {
+    pub domain: String,
+    pub class: String,
+    pub mindevcount: u64,
+}
+
+impl ToResponse for CreateClassResponse {
+    fn to_response(self) -> Response {
+        Response::CreateClass(self)
+    }
+}
+
+impl FromBytes for CreateClassResponse {
+    fn from_bytes(bytes: &[u8]) -> MogResult<CreateClassResponse> {
+        let mut args = ArgsHash::from_bytes(bytes);
+        let domain = try!(args.extract_domain());
+        let class = try!(args.extract_required_string("class", MogError::NoClass));
+        let mindevcount = try!(args.extract_required_int("mindevcount", MogError::InvalidMindevcount));
+
+        Ok(CreateClassResponse {
+            domain: domain,
+            class: class,
+            mindevcount: mindevcount,
+        })
+    }
+}
+
+impl ToArgs for CreateClassResponse {
+    fn to_args(&self) -> Vec<(String, String)> {
+        vec!{
+            ("domain".to_string(), self.domain.clone()),
+            ("class".to_string(), self.class.clone()),
+            ("mindevcount".to_string(), self.mindevcount.to_string()),
+        }
+    }
+}
+
 
 /// A `get_paths` request.
 ///

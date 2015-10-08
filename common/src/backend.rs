@@ -11,6 +11,7 @@ pub trait Backend: Send + Sync {
     fn create_domain(&self, &CreateDomain) -> MogResult<CreateDomain>;
     fn create_open  (&self, &CreateOpen)   -> MogResult<CreateOpenResponse>;
     fn create_close (&self, &CreateClose)  -> MogResult<()>;
+    fn create_class (&self, &CreateClass)  -> MogResult<CreateClassResponse>;
     fn get_paths    (&self, &GetPaths)     -> MogResult<GetPathsResponse>;
     fn file_info    (&self, &FileInfo)     -> MogResult<FileInfoResponse>;
     fn delete       (&self, &Delete)       -> MogResult<()>;
@@ -94,6 +95,10 @@ impl Backend for BackendStack {
 
     fn create_close(&self, req: &CreateClose) -> MogResult<()> {
         self.backend.as_ref().unwrap().create_close(req)
+    }
+
+    fn create_class(&self, req: &CreateClass) -> MogResult<CreateClassResponse> {
+        self.backend.as_ref().unwrap().create_class(req)
     }
 
     fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
