@@ -99,7 +99,7 @@ impl<B: 'static + Backend> Handler<B> {
                     .ok_or(EventedError::TooManyConnections)
                     .and_then(|token| {
                         info!("New connection {:?} from {:?}", token, &self.conns[token].stream.peer_addr());
-                        debug!("Registering {:?} as {:?} / {:?}", token, *READABLE, *EDGE_ONESHOT);
+                        trace!("Registering {:?} as {:?} / {:?}", token, *READABLE, *EDGE_ONESHOT);
                         event_loop.register_opt(
                             &self.conns[token].stream, token,
                             *READABLE, *EDGE_ONESHOT)
@@ -127,7 +127,7 @@ impl<B: 'static + Backend> Handler<B> {
             Some(conn) => {
                 let result = conn.write_response(event_loop, response_bytes);
 
-                debug!("Re-registering {:?} as {:?} / {:?}", token, *WRITABLE, *EDGE_ONESHOT);
+                trace!("Re-registering {:?} as {:?} / {:?}", token, *WRITABLE, *EDGE_ONESHOT);
                 event_loop.reregister(&conn.stream, conn.token, *WRITABLE, *EDGE_ONESHOT).unwrap_or_else(|e|{
                     error!("Error re-registering {:?} as {:?}: {}", conn.token, *WRITABLE, e);
                 });
@@ -144,7 +144,7 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
     type Message = Notification;
 
     fn ready(&mut self, event_loop: &mut EventLoop<Self>, token: Token, events: EventSet) {
-        debug!("Ready event for connection {:?}: {:?}", token, events);
+        trace!("Ready event for connection {:?}: {:?}", token, events);
 
         match token {
             t if t == self.token => {
@@ -181,13 +181,13 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
                 }
 
                 if events.is_error() || events.is_hup() {
-                    debug!("Notifying event loop of closed / errored connection {:?}: {:?}", token, events);
+                    trace!("Notifying event loop of closed / errored connection {:?}: {:?}", token, events);
                     event_loop.channel().send(Notification::close_connection(token)).unwrap_or_else(|e| {
                         error!("Error notifying event loop of closed / errored conection {:?}: {}",
                                token, EventedError::from(e));
                     });
                 } else {
-                    debug!("Re-registering {:?} as {:?} / {:?}", token, reregister_as, *EDGE_ONESHOT);
+                    trace!("Re-registering {:?} as {:?} / {:?}", token, reregister_as, *EDGE_ONESHOT);
                     event_loop.reregister(&conn.stream, conn.token, reregister_as, *EDGE_ONESHOT).unwrap_or_else(|e|{
                         error!("Error re-registering {:?} as {:?}: {}", conn.token, reregister_as, e);
                     });
@@ -226,7 +226,7 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
     // }
 
     fn interrupted(&mut self, event_loop: &mut EventLoop<Self>) {
-        debug!("Interrupted event.");
+        trace!("Interrupted event.");
         event_loop.channel().send(Notification::shutdown()).unwrap_or_else(|e| {
             error!("Error handling interrupted event by sending message: {:?}", e);
         });
@@ -257,12 +257,12 @@ impl<B: 'static + Backend> Connection<B> {
     fn read(&mut self, event_loop: &mut EventLoop<Handler<B>>) -> EventedResult<EventSet> {
         match self.stream.try_read_buf(&mut self.in_buf) {
             Ok(Some(n)) => {
-                debug!("Read {} bytes from {:?}", n, self.token);
+                trace!("Read {} bytes from {:?}", n, self.token);
                 self.maybe_dispatch_request(event_loop);
                 Ok(*READABLE)
             },
             Ok(None) => {
-                debug!("No more bytes to read from {:?}", self.token);
+                trace!("No more bytes to read from {:?}", self.token);
                 Ok(*READABLE)
             },
             Err(e) => {
@@ -278,17 +278,17 @@ impl<B: 'static + Backend> Connection<B> {
             let mut reader = Cursor::new(self.out_buf.as_ref());
             match self.stream.try_write_buf(&mut reader) {
                 Ok(Some(n)) if n == self.out_buf.len() => {
-                    debug!("Wrote {} bytes (the whole output buffer) to {:?}",
+                    trace!("Wrote {} bytes (the whole output buffer) to {:?}",
                            n, self.token);
                     Ok(n)
                 },
                 Ok(Some(n)) => {
-                    debug!("Wrote {} bytes to {:?}; {} bytes still need to be written",
+                    trace!("Wrote {} bytes to {:?}; {} bytes still need to be written",
                            n, self.token, self.out_buf.len() - n);
                     Ok(n)
                 },
                 Ok(None) => {
-                    debug!("Not ready to write to {:?}", self.token);
+                    trace!("Not ready to write to {:?}", self.token);
                     Ok(0)
                 },
                 Err(e) => {
@@ -348,7 +348,7 @@ impl<B: 'static + Backend> Connection<B> {
 
     fn shutdown(mut self, event_loop: &mut EventLoop<Handler<B>>) -> EventedResult<()> {
         info!("Shutting down {:?} from {:?}", self.token, self.stream.peer_addr());
-        debug!("Deregistering {:?}", self.token);
+        trace!("Deregistering {:?}", self.token);
         try!(event_loop.deregister(&self.stream));
 
         try!(self.stream.flush());
