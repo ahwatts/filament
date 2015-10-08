@@ -5,6 +5,7 @@ extern crate mogilefs_client;
 extern crate mogilefs_common;
 extern crate url;
 
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
@@ -15,11 +16,20 @@ use rustc_serialize::{Decodable, Decoder};
 use std::net::SocketAddr;
 use url::Url;
 
+static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+static GIT_COMMIT: &'static str = include_str!("../../git-revision");
+
+lazy_static!{
+    static ref FULL_VERSION: String =
+        format!("filament version {} commit {}",
+                VERSION_NUM.unwrap_or("unknown"), GIT_COMMIT);
+}
+
 pub fn main() {
     env_logger::init().unwrap();
 
     let opts: Options = Docopt::new(USAGE)
-        .and_then(|d| d.decode())
+        .and_then(|d| d.version(Some(FULL_VERSION.to_string())).decode())
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
 
@@ -45,6 +55,24 @@ pub fn main() {
             devid: opts.arg_devid.expect("No devid provided."),
             path: opts.arg_path.expect("No URL provided."),
             checksum: opts.flag_checksum,
+        })
+    } else if opts.cmd_create_close {
+        client.request(&CreateClose {
+            domain: opts.arg_domain.expect("No domain provided."),
+            key: opts.arg_key.expect("No key provided."),
+            fid: opts.arg_fid.expect("No fid provided."),
+            devid: opts.arg_devid.expect("No devid provided."),
+            path: opts.arg_path.expect("No URL provided."),
+            checksum: opts.flag_checksum,
+        })
+    } else if opts.cmd_create_class {
+        client.request(&CreateClass {
+            domain: opts.arg_domain.expect("No domain provided."),
+            class: opts.arg_class.expect("No class name provided."),
+            mindevcount: opts.arg_mindevcount.expect("No minimum device count provided."),
+            replpolicy: opts.flag_replpolicy,
+            hashtype: opts.flag_hashtype,
+            update: opts.flag_update,
         })
     } else if opts.cmd_file_info {
         client.request(&FileInfo {
@@ -96,16 +124,18 @@ Usage:
   filament-cli [options] create-domain <domain>
   filament-cli [options] create-open <domain> <key> [--class=STRING --multi-dest --size=N]
   filament-cli [options] create-close <domain> <key> <fid> <devid> <path> [--checksum=STRING]
+  filament-cli [options] create-class <domain> <class> <mindevcount> [--replpolicy=STRING --hashtype=STRING --update]
   filament-cli [options] file-info <domain> <key>
   filament-cli [options] get-paths <domain> <key> [--no-verify --path-count=N]
   filament-cli [options] rename <domain> <from-key> <to-key>
   filament-cli [options] update-class <domain> <key> <new-class>
   filament-cli [options] list-keys <domain> [--prefix=PREFIX --after=AFTER --limit=N]
   filament-cli [options] noop
-  filament-cli (-h | --help)
+  filament-cli (-h | --help | -v | --version)
 
 General Options:
   -h, --help                 This help message.
+  -v, --version              Print version information.
   -t IPS, --trackers IPS     A comma-separated list of tracker ip:port combinations [default: 127.0.0.1:7001]
 ";
 
@@ -116,6 +146,9 @@ struct Options {
     flag_multi_dest: bool,
     flag_size: Option<u64>,
     flag_checksum: Option<String>,
+    flag_replpolicy: Option<String>,
+    flag_hashtype: Option<String>,
+    flag_update: bool,
     flag_prefix: Option<String>,
     flag_after: Option<String>,
     flag_limit: Option<u64>,
@@ -129,11 +162,14 @@ struct Options {
     arg_fid: Option<u64>,
     arg_devid: Option<u64>,
     arg_path: Option<Url>,
+    arg_class: Option<String>,
+    arg_mindevcount: Option<u64>,
     arg_new_class: Option<String>,
 
     cmd_create_domain: bool,
     cmd_create_open: bool,
     cmd_create_close: bool,
+    cmd_create_class: bool,
     cmd_file_info: bool,
     cmd_get_paths: bool,
     cmd_rename: bool,
