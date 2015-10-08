@@ -32,7 +32,7 @@ pub fn main() {
     } else if opts.cmd_create_open {
         client.request(&CreateOpen {
             domain: opts.arg_domain.expect("No domain provided."),
-            class: None,
+            class: opts.flag_class,
             key: opts.arg_key.expect("No key provided."),
             multi_dest: opts.flag_multi_dest,
             size: opts.flag_size,
@@ -94,7 +94,7 @@ A command-line tool for querying a MogileFS system.
 
 Usage:
   filament-cli [options] create-domain <domain>
-  filament-cli [options] create-open <domain> <key> [--multi-dest --size=N]
+  filament-cli [options] create-open <domain> <key> [--class=STRING --multi-dest --size=N]
   filament-cli [options] create-close <domain> <key> <fid> <devid> <path> [--checksum=STRING]
   filament-cli [options] file-info <domain> <key>
   filament-cli [options] get-paths <domain> <key> [--no-verify --path-count=N]
@@ -112,6 +112,7 @@ General Options:
 #[derive(Debug, RustcDecodable)]
 struct Options {
     flag_trackers: SocketAddrList,
+    flag_class: Option<String>,
     flag_multi_dest: bool,
     flag_size: Option<u64>,
     flag_checksum: Option<String>,

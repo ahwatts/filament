@@ -36,6 +36,7 @@ pub enum MogError {
     UnknownCommand(Option<String>),
     UnknownKey(String),
     UnregDomain(String),
+    UnregClass(String),
     UnknownCode(String),
     Utf8(Utf8Error),
     BadResponse,
@@ -51,6 +52,7 @@ impl MogError {
         match *self {
             NoDomain => "no_domain",
             UnregDomain(..) => "unreg_domain",
+            UnregClass(..) => "unreg_class",
             DomainExists(..) => "domain_exists",
 
             NoKey => "no_key",
@@ -85,6 +87,7 @@ impl MogError {
             Some(Ok("unknown_command")) => UnknownCommand(msg),
             Some(Ok("unknown_key")) => UnknownKey(msg.unwrap_or(String::new())),
             Some(Ok("unreg_domain")) => UnregDomain(msg.unwrap_or(String::new())),
+            Some(Ok("unreg_class")) => UnregClass(msg.unwrap_or(String::new())),
             Some(Ok(s)) => Other(s.to_string(), msg),
             Some(Err(utf8e)) => Utf8(utf8e),
             None => UnknownCommand(None),
@@ -142,6 +145,7 @@ impl Display for MogError {
             Utf8(ref utf8_err) => write!(f, "{}", utf8_err),
 
             UnregDomain(ref d) => write!(f, "Domain name {:?} invalid / not found", d),
+            UnregClass(ref d) => write!(f, "Class name {:?} invalid / not found", d),
             DomainExists(ref d) => write!(f, "That domain already exists: {:?}", d),
 
             UnknownKey(ref d) => write!(f, "Unknown key: {:?}", d),
@@ -183,6 +187,7 @@ impl Error for MogError {
             UnknownCommand(..) => "Unknown command",
             UnknownKey(..) => "Unknown key",
             UnregDomain(..) => "Domain name invalid / not found",
+            UnregClass(..) => "Class name invalid / not found",
             BadResponse => "Wrong response type",
             StorageError(..) => "Storage error",
             Utf8(ref utf8_err) => utf8_err.description(),
