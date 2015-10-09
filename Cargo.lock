@@ -167,7 +167,7 @@ dependencies = [
 [[package]]
 name = "iron"
 version = "0.2.2"
-source = "git+https://github.com/ahwatts/iron.git?branch=bug/http_10#faef25f454460f77c245225f2cfadf3658767568"
+source = "git+https://github.com/ahwatts/iron.git?branch=bug/http_10#ba033a923883fddab79463427c5c58987ae399d8"
 dependencies = [
  "conduit-mime-types 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "error 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -276,7 +276,7 @@ dependencies = [
 [[package]]
 name = "mogilefs_common"
 version = "0.3.0"
-source = "git+https://github.com/ahwatts/mogilefsd-rs.git#bd7af04029c394751413ceace8664c78d341280f"
+source = "git+https://github.com/ahwatts/mogilefsd-rs.git#14e4ffeac7fcbd87151083c8ad7a6a10b1a721fe"
 dependencies = [
  "hyper 0.6.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
