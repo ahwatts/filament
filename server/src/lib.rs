@@ -4,6 +4,7 @@ extern crate libc;
 extern crate mio;
 extern crate mogilefs_client;
 extern crate mogilefs_common;
+extern crate mysql;
 extern crate plugin;
 extern crate rand;
 extern crate threadpool;
@@ -22,7 +23,9 @@ extern crate regex;
 
 pub mod backend;
 pub mod ctrlc;
+pub mod database;
 pub mod mem;
+pub mod monitor;
 pub mod net;
 pub mod proxy;
 pub mod range;
