@@ -4,7 +4,6 @@
 
 use chrono::UTC;
 use mysql::conn::{MyOpts, MyConn, QueryResult};
-use mysql::error::MyResult;
 use mysql::value::{self, ToRow};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -31,59 +30,58 @@ impl DataStore {
     }
 
     pub fn domain_by_id(&self, dmid: u16) -> Option<Rc<Domain>> {
-        let domain = self.domain_cache.borrow().find_by_id(dmid as usize);
-        domain.or_else(|| {
+        let mut domain = self.domain_cache.borrow().find_by_id(dmid as usize);
+        domain.clone().or_else(|| {
             let query_result = self.select("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,), |result| {
                 if let Some(Ok(db_row)) = result.next() {
-                    let (dmid, name) = value::from_row::<(u16, String)>(db_row);
-                    let db_domain = Domain { dmid: dmid, name: name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, dmid as usize, name);
+                    let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
+                    let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
+                    self.domain_cache.borrow_mut().add(db_domain, new_dmid as usize, new_name);
+                    domain = self.domain_cache.borrow().find_by_id(dmid as usize);
                 }
             });
 
-            match query_result {
-                Ok(..) => self.domain_cache.borrow().find_by_id(dmid as usize),
-                Err(mye) => {
-                    error!("Error querying database for domain: {}", mye);
-                    None
-                },
-            }
+            domain
         })
     }
 
     pub fn domain_by_name(&self, name: &str) -> Option<Rc<Domain>> {
-        let domain = self.domain_cache.borrow().find_by_name(name);
-        domain.or_else(|| {
-            let query_result = self.select("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,), |result| {
+        let mut domain = self.domain_cache.borrow().find_by_name(name);
+        let mut found = false;
+        domain.clone().or_else(|| {
+            self.select("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,), |result| {
                 if let Some(Ok(db_row)) = result.next() {
-                    let (dmid, name) = value::from_row::<(u16, String)>(db_row);
-                    let db_domain = Domain { dmid: dmid, name: name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, dmid as usize, name);
+                    found = true;
+                    let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
+                    let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
+                    self.domain_cache.borrow_mut().add(db_domain, new_dmid as usize, new_name);
+                    domain = self.domain_cache.borrow().find_by_name(name);
                 }
             });
 
-            match query_result {
-                Ok(..) => self.domain_cache.borrow().find_by_name(name),
-                Err(mye) => {
-                    error!("Error querying database for domain: {}", mye);
-                    None
-                },
-            }
+            domain
         })
     }
 
-    fn select<Q: AsRef<str>, P: ToRow, F>(&self, query: Q, params: P, callback: F) -> MyResult<()>
+    fn select<Q: AsRef<str>, P: ToRow, F>(&self, query: Q, params: P, callback: F)
         where F: FnOnce(&mut QueryResult)
     {
         let mut conn = self.conn.borrow_mut();
         trace!("Executing query: {:?}", query.as_ref());
         let start = UTC::now();
-        let mut result = try!(conn.prep_exec(query.as_ref(), params));
+        let result = conn.prep_exec(query.as_ref(), params);
         let end = UTC::now();
         trace!("Query took {:?}", end - start);
-        debug!("Select query ({:?}): {:?}", end - start, query.as_ref());
-        callback(&mut result);
-        Ok(())
+
+        match result {
+            Ok(mut result_set) => {
+                debug!("Select query ({:?}): {:?}", end - start, query.as_ref());
+                callback(&mut result_set);
+            },
+            Err(e) => {
+                error!("Error with query {:?}: {}", query.as_ref(), e);
+            }
+        }
     }
 }
 
@@ -214,5 +212,15 @@ mod tests {
         let domain = store.domain_by_id(*FILAMENT_TEST_DOMAIN_ID).unwrap();
         assert_eq!(*FILAMENT_TEST_DOMAIN_ID, domain.dmid);
         assert_eq!(*FILAMENT_TEST_DOMAIN_NAME, domain.name);
+    }
+
+    #[test]
+    fn test_get_missing_domain() {
+        let store = test_store!();
+        let domain = store.domain_by_name("This domain doesn't exist!");
+        assert!(domain.is_none());
+
+        let domain2 = store.domain_by_id(65534);
+        assert!(domain2.is_none());
     }
 }
