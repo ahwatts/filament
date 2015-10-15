@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate hyper;
 extern crate iron;
 extern crate libc;
