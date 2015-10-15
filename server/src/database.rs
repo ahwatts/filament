@@ -54,7 +54,21 @@ impl DataStore {
     pub fn domain_by_name(&self, name: &str) -> Option<Rc<Domain>> {
         let domain = self.domain_cache.borrow().find_by_name(name);
         domain.or_else(|| {
-            unimplemented!()
+            let query_result = self.select("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,), |result| {
+                if let Some(Ok(db_row)) = result.next() {
+                    let (dmid, name) = value::from_row::<(u16, String)>(db_row);
+                    let db_domain = Domain { dmid: dmid, name: name.clone() };
+                    self.domain_cache.borrow_mut().add(db_domain, dmid as usize, name);
+                }
+            });
+
+            match query_result {
+                Ok(..) => self.domain_cache.borrow().find_by_name(name),
+                Err(mye) => {
+                    error!("Error querying database for domain: {}", mye);
+                    None
+                },
+            }
         })
     }
 
@@ -140,15 +154,29 @@ impl<T> ObjectCache<T> {
 mod tests {
     use mysql::conn::MyOpts;
     use std::default::Default;
+    use std::env;
     use std::io::{self, Write};
+    use std::net::ToSocketAddrs;
+    use std::str::FromStr;
     use super::*;
 
+    lazy_static!{
+        static ref FILAMENT_TEST_DB_HOST: String = env::var("FILAMENT_TEST_DB_HOST").ok().unwrap_or("127.0.0.1:3306".to_string());
+        static ref FILAMENT_TEST_DB_USER: String = env::var("FILAMENT_TEST_DB_USER").ok().unwrap_or("gibberish".to_string());
+        static ref FILAMENT_TEST_DB_PASS: String = env::var("FILAMENT_TEST_DB_PASS").ok().unwrap_or("gobbledegook".to_string());
+        static ref FILAMENT_TEST_DB_NAME: String = env::var("FILAMENT_TEST_DB_NAME").ok().unwrap_or("mogilefs".to_string());
+        static ref FILAMENT_TEST_DOMAIN_ID: u16 = u16::from_str(&env::var("FILAMENT_TEST_DOMAIN_ID").ok().unwrap_or("1".to_string())).unwrap();
+        static ref FILAMENT_TEST_DOMAIN_NAME: String = env::var("FILAMENT_TEST_DOMAIN_NAME").ok().unwrap_or("filament_test".to_string());
+    }
+
     fn data_store_fixture() -> Result<DataStore, String> {
+        let host_sock_addr = FILAMENT_TEST_DB_HOST.to_socket_addrs().unwrap().next().unwrap();
         DataStore::new(MyOpts {
-            tcp_addr: Some("127.0.0.1".to_string()),
-            user: Some("gibberish".to_string()),
-            pass: Some("gobbledegook".to_string()),
-            db_name: Some("mogilefs".to_string()),
+            tcp_addr: Some(format!("{}", host_sock_addr).split(":").next().unwrap().to_owned()),
+            tcp_port: host_sock_addr.port(),
+            user: Some(FILAMENT_TEST_DB_USER.clone()),
+            pass: Some(FILAMENT_TEST_DB_PASS.clone()),
+            db_name: Some(FILAMENT_TEST_DB_NAME.clone()),
             ..Default::default()
         })
     }
@@ -173,10 +201,18 @@ mod tests {
     }
 
     #[test]
-    fn test_get_domain() {
+    fn test_get_domain_by_name() {
         let store = test_store!();
-        let domain = store.domain_by_id(1).unwrap();
-        assert_eq!(1, domain.dmid);
-        assert_eq!("awesome_files", &domain.name);
+        let domain = store.domain_by_name(&*FILAMENT_TEST_DOMAIN_NAME).unwrap();
+        assert_eq!(*FILAMENT_TEST_DOMAIN_ID, domain.dmid);
+        assert_eq!(*FILAMENT_TEST_DOMAIN_NAME, domain.name);
+    }
+
+    #[test]
+    fn test_get_domain_by_id() {
+        let store = test_store!();
+        let domain = store.domain_by_id(*FILAMENT_TEST_DOMAIN_ID).unwrap();
+        assert_eq!(*FILAMENT_TEST_DOMAIN_ID, domain.dmid);
+        assert_eq!(*FILAMENT_TEST_DOMAIN_NAME, domain.name);
     }
 }
