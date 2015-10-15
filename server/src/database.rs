@@ -162,7 +162,8 @@ mod tests {
             {
                 match data_store_fixture() {
                     Ok(s) => s,
-                    Err(..) => {
+                    Err(e) => {
+                        println!("Could not connect to DB: {}", e);
                         skip();
                         return;
                     }
