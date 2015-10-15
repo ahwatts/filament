@@ -1,5 +1,3 @@
-#![allow(unused_variables, dead_code)]
-
 //! Utilities for working with the MogileFS database.
 
 use chrono::UTC;
@@ -13,7 +11,7 @@ use std::rc::Rc;
 pub struct DataStore {
     conn: RefCell<MyConn>,
     domain_cache: RefCell<ObjectCache<Domain>>,
-    class_cache: RefCell<ObjectCache<Class>>,
+    // class_cache: RefCell<ObjectCache<Class>>,
 }
 
 impl DataStore {
@@ -22,7 +20,7 @@ impl DataStore {
             DataStore {
                 conn: RefCell::new(c),
                 domain_cache: RefCell::new(ObjectCache::new()),
-                class_cache: RefCell::new(ObjectCache::new()),
+                // class_cache: RefCell::new(ObjectCache::new()),
             }
         }).map_err(|e| {
             format!("Error connecting to database: {}", e)
@@ -32,7 +30,7 @@ impl DataStore {
     pub fn domain_by_id(&self, dmid: u16) -> Option<Rc<Domain>> {
         let mut domain = self.domain_cache.borrow().find_by_id(dmid as usize);
         domain.clone().or_else(|| {
-            let query_result = self.select("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,), |result| {
+            self.select("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,), |result| {
                 if let Some(Ok(db_row)) = result.next() {
                     let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
                     let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
@@ -47,11 +45,9 @@ impl DataStore {
 
     pub fn domain_by_name(&self, name: &str) -> Option<Rc<Domain>> {
         let mut domain = self.domain_cache.borrow().find_by_name(name);
-        let mut found = false;
         domain.clone().or_else(|| {
             self.select("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,), |result| {
                 if let Some(Ok(db_row)) = result.next() {
-                    found = true;
                     let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
                     let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
                     self.domain_cache.borrow_mut().add(db_domain, new_dmid as usize, new_name);
