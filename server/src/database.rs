@@ -5,13 +5,14 @@ use mysql::conn::{MyOpts, MyConn, QueryResult};
 use mysql::value::{self, ToRow};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::iter;
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::rc::Rc;
 
 pub struct DataStore {
     conn: RefCell<MyConn>,
-    domain_cache: RefCell<ObjectCache<Domain>>,
-    // class_cache: RefCell<ObjectCache<Class>>,
+    domain_cache: RefCell<ObjectCache<u16, Domain>>,
+    class_cache: RefCell<ObjectCache<(u16, u8), Class>>,
 }
 
 impl DataStore {
@@ -20,7 +21,7 @@ impl DataStore {
             DataStore {
                 conn: RefCell::new(c),
                 domain_cache: RefCell::new(ObjectCache::new()),
-                // class_cache: RefCell::new(ObjectCache::new()),
+                class_cache: RefCell::new(ObjectCache::new()),
             }
         }).map_err(|e| {
             format!("Error connecting to database: {}", e)
@@ -28,14 +29,14 @@ impl DataStore {
     }
 
     pub fn domain_by_id(&self, dmid: u16) -> Option<Rc<Domain>> {
-        let mut domain = self.domain_cache.borrow().find_by_id(dmid as usize);
+        let mut domain = self.domain_cache.borrow().find_by_id(&dmid);
         domain.clone().or_else(|| {
             self.select("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,), |result| {
                 if let Some(Ok(db_row)) = result.next() {
                     let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
                     let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, new_dmid as usize, new_name);
-                    domain = self.domain_cache.borrow().find_by_id(dmid as usize);
+                    self.domain_cache.borrow_mut().add(db_domain, new_dmid, new_name);
+                    domain = self.domain_cache.borrow().find_by_id(&dmid);
                 }
             });
 
@@ -50,12 +51,35 @@ impl DataStore {
                 if let Some(Ok(db_row)) = result.next() {
                     let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
                     let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, new_dmid as usize, new_name);
+                    self.domain_cache.borrow_mut().add(db_domain, new_dmid, new_name);
                     domain = self.domain_cache.borrow().find_by_name(name);
                 }
             });
 
             domain
+        })
+    }
+
+    pub fn class_by_id(&self, dmid: u16, classid: u8) -> Option<Rc<Class>> {
+        let mut class = self.class_cache.borrow().find_by_id(&(dmid, classid));
+        class.clone().or_else(|| {
+            self.select("SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classid = ?", (dmid, classid), |result| {
+                if let Some(Ok(db_row)) = result.next() {
+                    let (new_dmid, new_classid, classname, mindevcount, _hashtype, replpolicy) =
+                        value::from_row::<(u16, u8, String, u8, u8, String)>(db_row);
+                    let db_class = Class {
+                        classid: new_classid,
+                        domain_id: new_dmid,
+                        name: classname.clone(),
+                        mindevcount: mindevcount,
+                        replpolicy: replpolicy,
+                    };
+                    self.class_cache.borrow_mut().add(db_class, (dmid, classid), classname);
+                    class = self.class_cache.borrow().find_by_id(&(dmid, classid));
+                }
+            });
+
+            class
         })
     }
 
@@ -81,62 +105,54 @@ impl DataStore {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Domain {
     pub dmid: u16,
     pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Class {
     pub classid: u8,
-    pub domain: Rc<Domain>,
+    pub domain_id: u16,
     pub name: String,
     pub mindevcount: u8,
     // pub hashtype: u8,
     pub replpolicy: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Fid {
     pub fid: u64,
-    pub domain: Rc<Domain>,
+    pub domain_id: u16,
     pub key: String,
     pub length: u64,
-    pub class: Rc<Class>,
+    pub class_id: u8,
     pub devcount: u8,
 }
 
 #[derive(Debug, Clone)]
-struct ObjectCache<T> {
-    by_id: Vec<Option<Rc<T>>>,
+struct ObjectCache<I: Eq + Hash + Debug, T> {
+    by_id: HashMap<I, Rc<T>>,
     by_name: HashMap<String, Rc<T>>,
 }
 
-impl<T> ObjectCache<T> {
-    fn new() -> ObjectCache<T> {
+impl<I: Eq + Hash + Debug, T> ObjectCache<I, T> {
+    fn new() -> ObjectCache<I, T> {
         ObjectCache {
-            by_id: vec![None, None, None, None, None],
+            by_id: HashMap::new(),
             by_name: HashMap::new(),
         }
     }
 
-    fn add(&mut self, object: T, id: usize, name: String) {
+    fn add(&mut self, object: T, id: I, name: String) {
         let object_rc = Rc::new(object);
-
-        println!("id = {} self.by_id.len() = {}", id, self.by_id.len());
-
-        if self.by_id.len() <= id {
-            let needed = self.by_id.len() - id + 1;
-            self.by_id.extend(iter::repeat(None).take(needed));
-        }
-
-        self.by_id[id] = Some(object_rc.clone());
+        self.by_id.entry(id).or_insert(object_rc.clone());
         self.by_name.entry(name).or_insert(object_rc.clone());
     }
 
-    fn find_by_id(&self, id: usize) -> Option<Rc<T>> {
-        self.by_id.get(id).and_then(|o| o.clone())
+    fn find_by_id(&self, id: &I) -> Option<Rc<T>> {
+        self.by_id.get(id).cloned()
     }
 
     fn find_by_name(&self, name: &str) -> Option<Rc<T>> {
