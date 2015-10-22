@@ -66,7 +66,7 @@ impl DataStore {
             self.select("SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classid = ?", (dmid, classid), |result| {
                 if let Some(Ok(db_row)) = result.next() {
                     let (new_dmid, new_classid, classname, mindevcount, _hashtype, replpolicy) =
-                        value::from_row::<(u16, u8, String, u8, u8, String)>(db_row);
+                        value::from_row::<(u16, u8, String, u8, Option<u8>, Option<String>)>(db_row);
                     let db_class = Class {
                         classid: new_classid,
                         domain_id: new_dmid,
@@ -94,7 +94,7 @@ impl DataStore {
                     (domain.dmid, class_name), |result| {
                         if let Some(Ok(db_row)) = result.next() {
                             let (new_dmid, new_classid, new_class_name, mindevcount, _hashtype, replpolicy) =
-                                value::from_row::<(u16, u8, String, u8, u8, String)>(db_row);
+                                value::from_row::<(u16, u8, String, u8, Option<u8>, Option<String>)>(db_row);
                             let db_class = Class {
                                 classid: new_classid,
                                 domain_id: new_dmid,
@@ -110,7 +110,6 @@ impl DataStore {
 
                 class
             })
-
         })
     }
 
@@ -153,7 +152,7 @@ pub struct Class {
     pub name: String,
     pub mindevcount: u8,
     // pub hashtype: u8,
-    pub replpolicy: String,
+    pub replpolicy: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -210,8 +209,11 @@ mod tests {
         static ref FILAMENT_TEST_DB_USER: String = env::var("FILAMENT_TEST_DB_USER").ok().unwrap_or("gibberish".to_string());
         static ref FILAMENT_TEST_DB_PASS: String = env::var("FILAMENT_TEST_DB_PASS").ok().unwrap_or("gobbledegook".to_string());
         static ref FILAMENT_TEST_DB_NAME: String = env::var("FILAMENT_TEST_DB_NAME").ok().unwrap_or("mogilefs".to_string());
+
         static ref FILAMENT_TEST_DOMAIN_ID: u16 = u16::from_str(&env::var("FILAMENT_TEST_DOMAIN_ID").ok().unwrap_or("1".to_string())).unwrap();
         static ref FILAMENT_TEST_DOMAIN_NAME: String = env::var("FILAMENT_TEST_DOMAIN_NAME").ok().unwrap_or("filament_test".to_string());
+        static ref FILAMENT_TEST_CLASS_ID: u8 = u8::from_str(&env::var("FILAMENT_TEST_CLASS_ID").ok().unwrap_or("1".to_string())).unwrap();
+        static ref FILAMENT_TEST_CLASS_NAME: String = env::var("FILAMENT_TEST_CLASS_NAME").ok().unwrap_or("tet_class".to_string());
     }
 
     fn data_store_fixture() -> Result<DataStore, String> {
@@ -269,5 +271,23 @@ mod tests {
 
         let domain2 = store.domain_by_id(65534);
         assert!(domain2.is_none());
+    }
+
+    #[test]
+    fn test_get_class_by_id() {
+        let store = test_store!();
+        let class = store.class_by_id(*FILAMENT_TEST_DOMAIN_ID, *FILAMENT_TEST_CLASS_ID).unwrap();
+        assert_eq!(*FILAMENT_TEST_CLASS_ID, class.classid);
+        assert_eq!(*FILAMENT_TEST_CLASS_NAME, class.name);
+        assert_eq!(*FILAMENT_TEST_DOMAIN_ID, class.domain_id);
+    }
+
+    #[test]
+    fn test_get_class_by_name() {
+        let store = test_store!();
+        let class = store.class_by_name(&*FILAMENT_TEST_DOMAIN_NAME, &*FILAMENT_TEST_CLASS_NAME).unwrap();
+        assert_eq!(*FILAMENT_TEST_CLASS_ID, class.classid);
+        assert_eq!(*FILAMENT_TEST_CLASS_NAME, class.name);
+        assert_eq!(*FILAMENT_TEST_DOMAIN_ID, class.domain_id);
     }
 }
