@@ -74,12 +74,43 @@ impl DataStore {
                         mindevcount: mindevcount,
                         replpolicy: replpolicy,
                     };
-                    self.class_cache.borrow_mut().add(db_class, (dmid, classid), classname);
+                    let qcl = qualified_class_name(new_dmid, &classname);
+                    self.class_cache.borrow_mut().add(db_class, (dmid, classid), qcl);
                     class = self.class_cache.borrow().find_by_id(&(dmid, classid));
                 }
             });
 
             class
+        })
+    }
+
+    pub fn class_by_name(&self, domain_name: &str, class_name: &str) -> Option<Rc<Class>> {
+        self.domain_by_name(domain_name).and_then(|domain| {
+            let qcl = qualified_class_name(domain.dmid, class_name);
+            let mut class = self.class_cache.borrow().find_by_name(&qcl);
+            class.clone().or_else(|| {
+                self.select(
+                    "SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classname = ?",
+                    (domain.dmid, class_name), |result| {
+                        if let Some(Ok(db_row)) = result.next() {
+                            let (new_dmid, new_classid, new_class_name, mindevcount, _hashtype, replpolicy) =
+                                value::from_row::<(u16, u8, String, u8, u8, String)>(db_row);
+                            let db_class = Class {
+                                classid: new_classid,
+                                domain_id: new_dmid,
+                                name: new_class_name.clone(),
+                                mindevcount: mindevcount,
+                                replpolicy: replpolicy,
+                            };
+                            let new_qcl = qualified_class_name(new_dmid, &new_class_name);
+                            self.class_cache.borrow_mut().add(db_class, (new_dmid, new_classid), new_qcl);
+                            class = self.class_cache.borrow().find_by_id(&(new_dmid, new_classid));
+                        }
+                    });
+
+                class
+            })
+
         })
     }
 
@@ -103,6 +134,10 @@ impl DataStore {
             }
         }
     }
+}
+
+fn qualified_class_name(domain_id: u16, class_name: &str) -> String {
+    format!("{}_{}", domain_id, class_name)
 }
 
 #[derive(Debug, Clone)]
