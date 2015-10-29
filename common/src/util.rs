@@ -42,7 +42,7 @@ impl<B: BufRead> BufReadMb for B {}
 /// A trait abstracting the ability to construct something from a byte
 /// string. The main difference between this and the version in `std`
 /// is that this returns a `MogResult`.
-pub trait FromBytes {
+pub trait FromBytes: Sized {
     fn from_bytes(bytes: &[u8]) -> MogResult<Self>;
 }
 
