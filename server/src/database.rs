@@ -240,6 +240,7 @@ mod tests {
         static ref FILAMENT_TEST_DOMAIN_NAME: String = env::var("FILAMENT_TEST_DOMAIN_NAME").ok().unwrap_or("filament_test".to_string());
         static ref FILAMENT_TEST_CLASS_ID: u8 = u8::from_str(&env::var("FILAMENT_TEST_CLASS_ID").ok().unwrap_or("1".to_string())).unwrap();
         static ref FILAMENT_TEST_CLASS_NAME: String = env::var("FILAMENT_TEST_CLASS_NAME").ok().unwrap_or("tet_class".to_string());
+        static ref FILAMENT_TEST_KEY: String = env::var("FILAMENT_TEST_KEY").ok().unwrap_or("test/key/1".to_string());
     }
 
     fn data_store_fixture() -> Result<DataStore, String> {
@@ -315,5 +316,15 @@ mod tests {
         assert_eq!(*FILAMENT_TEST_CLASS_ID, class.classid);
         assert_eq!(*FILAMENT_TEST_CLASS_NAME, class.name);
         assert_eq!(*FILAMENT_TEST_DOMAIN_ID, class.domain_id);
+    }
+
+    #[test]
+    fn test_get_fid() {
+        let store = test_store!();
+        let fid = store.fid_by_key(&*FILAMENT_TEST_DOMAIN_NAME, &*FILAMENT_TEST_KEY);
+        assert!(fid.is_some());
+
+        let fid2 = fid.unwrap();
+        assert_eq!(*FILAMENT_TEST_KEY, fid2.key);
     }
 }
