@@ -113,6 +113,32 @@ impl DataStore {
         })
     }
 
+    pub fn fid_by_key(&self, domain_name: &str, key: &str) -> Option<Fid> {
+        let domain = match self.domain_by_name(domain_name) {
+            Some(d) => d,
+            None => return None,
+        };
+
+        let mut fid_rv = None;
+        self.select(
+            "SELECT fid, dmid, dkey, length, classid, devcount FROM file WHERE dmid = ? AND dkey = ?",
+            (domain.dmid, key), |result| {
+                if let Some(Ok(db_row)) = result.next() {
+                    let (fid, new_dmid, new_key, length, classid, devcount) =
+                        value::from_row::<(u64, u16, String, u64, u8, u8)>(db_row);
+                    fid_rv = Some(Fid {
+                        fid: fid,
+                        domain_id: new_dmid,
+                        key: new_key,
+                        length: length,
+                        class_id: classid,
+                        devcount: devcount,
+                    })
+                }
+            });
+        fid_rv
+    }
+
     fn select<Q: AsRef<str>, P: ToRow, F>(&self, query: Q, params: P, callback: F)
         where F: FnOnce(&mut QueryResult)
     {
