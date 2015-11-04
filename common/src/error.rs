@@ -63,7 +63,21 @@ impl MogError {
 
             Other(ref op, _) => op,
 
-            _ => "other_error",
+            Io(..) => "io_error",
+            NoClass => "no_class",
+            NoConnection => "no_connection",
+            NoContent(..) => "no_content",
+            NoDevid => "no_devid",
+            NoFid => "no_fid",
+            NoPath => "no_path",
+            NoTrackers => "no_trackers",
+            PoisonedMutex => "poisoned_mutex",
+            SendError => "send_error",
+            RecvError => "recv_error",
+            UnknownCode(..) => "unknown_code",
+            Utf8(..) => "utf8_error",
+            BadResponse => "bad_response",
+            StorageError(..) => "storage_error",
         }
     }
 

@@ -1,3 +1,4 @@
+extern crate chrono;
 extern crate hyper;
 extern crate iron;
 extern crate libc;
@@ -6,6 +7,7 @@ extern crate mogilefs_client;
 extern crate mogilefs_common;
 extern crate plugin;
 extern crate rand;
+extern crate statsd;
 extern crate threadpool;
 extern crate time;
 extern crate url;
