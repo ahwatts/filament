@@ -1,29 +1,23 @@
+use chrono::UTC;
 use mogilefs_common::{Backend, MogError, MogResult, Request, Response, FromBytes};
-use rand::{self, Rng};
 use statsd;
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::sync::Mutex;
 
 pub mod evented;
 pub mod threaded;
 
-thread_local!{
-    static STATSD: RefCell<HashMap<u64, statsd::Client>> = RefCell::new(HashMap::new())
-}
-
 /// The tracker object.
 pub struct Tracker<B: Backend> {
     backend: B,
-    statsd_key: u64,
+    statsd: Option<Mutex<statsd::Client>>,
 }
 
 impl<B: Backend> Tracker<B> {
     /// Create a new Tracker around a particular Backend.
     pub fn new(backend: B) -> Tracker<B> {
-        let mut rng = rand::thread_rng();
         Tracker {
             backend: backend,
-            statsd_key: rng.gen(),
+            statsd: None,
         }
     }
 
@@ -31,10 +25,8 @@ impl<B: Backend> Tracker<B> {
         debug!("Reporting stats to statsd at {:?} with prefix {:?}", host, prefix);
         match statsd::Client::new(host, prefix) {
             Ok(s) => {
-                STATSD.with(|sock_cell| {
-                    sock_cell.borrow_mut().insert(self.statsd_key, s);
-                    Ok(())
-                })
+                self.statsd = Some(Mutex::new(s));
+                Ok(())
             },
             Err(e) => {
                 Err(MogError::Other("Statsd error".to_string(), Some(format!("{:?}", e))))
@@ -57,33 +49,50 @@ impl<B: Backend> Tracker<B> {
 
     /// Handle a Request.
     pub fn handle_request(&self, request: &Request) -> MogResult<Response> {
-        STATSD.with(|sock_cell| {
-            info!("request = {:?}", request);
+        info!("request = {:?}", request);
+        let start = UTC::now();
 
-            let response = if let Some(mut s) = sock_cell.borrow_mut().get_mut(&self.statsd_key) {
-                s.incr(&format!("mogilefs_server.tracker.requests.{}", request.op()));
+        self.with_statsd(|statsd| {
+            let lock = UTC::now();
+            let op_counter = format!("mogilefs_server.tracker.requests.{}", request.op());
+            statsd.incr(&op_counter);
 
-                let rslt = self.backend.handle(request);
+            let lock_time_counter = format!("mogilefs_server.tracker.statsd.lock_wait_time.pre.{}", request.op());
+            statsd.timer(&lock_time_counter, (lock - start).num_milliseconds() as f64);
+        });
 
-                if let Err(ref e) = rslt {
-                    s.incr(&format!("mogilefs_server.tracker.errors.{}", e.error_kind()));
-                }
+        let begin = UTC::now();
+        let response = self.backend.handle(request);
+        let end = UTC::now();
 
-                rslt
-            } else {
-                self.backend.handle(request)
+        self.with_statsd(|statsd| {
+            let lock = UTC::now();
+            if let Err(ref e) = response {
+                let err_counter = format!("mogilefs_server.tracker.errors.{}", e.error_kind());
+                statsd.incr(&err_counter);
+            }
+
+            let time_counter = format!("mogilefs_server.tracker.requests.timing.{}", request.op());
+            statsd.timer(&time_counter, (end - begin).num_milliseconds() as f64);
+
+            let lock_time_counter = format!("mogilefs_server.tracker.statsd.lock_wait_time.post.{}", request.op());
+            statsd.timer(&lock_time_counter, (lock - end).num_milliseconds() as f64);
+        });
+
+        info!("response = {:?}", response);
+        response
+    }
+
+    fn with_statsd<F>(&self, callback: F)
+        where F: Fn(&mut statsd::Client)
+    {
+        if let Some(ref mutex) = self.statsd {
+            let mut lock = match mutex.lock() {
+                Ok(l) => l,
+                Err(p) => p.into_inner(),
             };
 
-            info!("response = {:?}", response);
-            response
-        })
-    }
-}
-
-impl<B: Backend> Drop for Tracker<B> {
-    fn drop(&mut self) {
-        STATSD.with(|sock_cell| {
-            sock_cell.borrow_mut().remove(&self.statsd_key);
-        })
+            callback(&mut lock);
+        }
     }
 }

@@ -329,7 +329,6 @@ dependencies = [
  "mogilefs_client 0.3.0",
  "mogilefs_common 0.3.0",
  "plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "statsd 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
