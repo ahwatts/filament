@@ -1,7 +1,7 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-RUST_VERSION = "1.3.0"
+RUST_VERSION = "1.4.0"
 
 GUEST_ADDITIONS_PATH =
   case RbConfig::CONFIG["host_os"]
@@ -72,7 +72,7 @@ Vagrant.configure(2) do |config|
   # just build on CentOS 6, so that we don't get the Bad
   # Symbol. However, supermin doesn't compile on CentOS 6, so the base
   # Docker image is built with CentOS 7.
-  config.vm.define "centos7" do |c7|
+  config.vm.define "centos7", autostart: false do |c7|
     c7.vm.box = "bento/centos-7.1"
     common_centos_config(c7)
   end
