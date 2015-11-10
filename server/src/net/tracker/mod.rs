@@ -1,7 +1,8 @@
 use chrono::UTC;
 use mogilefs_common::{Backend, MogError, MogResult, Request, Response, FromBytes};
-use statsd;
-use std::sync::Mutex;
+use r2d2;
+use statsd::client::{Client as StatsdClient};
+use super::super::r2d2_statsd::StatsdConnectionManager;
 
 pub mod evented;
 pub mod threaded;
@@ -9,7 +10,7 @@ pub mod threaded;
 /// The tracker object.
 pub struct Tracker<B: Backend> {
     backend: B,
-    statsd: Option<Mutex<statsd::Client>>,
+    statsd_pool: Option<r2d2::Pool<StatsdConnectionManager>>,
 }
 
 impl<B: Backend> Tracker<B> {
@@ -17,19 +18,25 @@ impl<B: Backend> Tracker<B> {
     pub fn new(backend: B) -> Tracker<B> {
         Tracker {
             backend: backend,
-            statsd: None,
+            statsd_pool: None,
         }
     }
 
     pub fn report_stats_to(&mut self, host: &str, prefix: &str) -> MogResult<()> {
         debug!("Reporting stats to statsd at {:?} with prefix {:?}", host, prefix);
-        match statsd::Client::new(host, prefix) {
-            Ok(s) => {
-                self.statsd = Some(Mutex::new(s));
+
+        let config = r2d2::Config::builder().build();
+        let manager = StatsdConnectionManager::new(host, prefix);
+
+        match r2d2::Pool::new(config, manager) {
+            Ok(pool) => {
+                self.statsd_pool = Some(pool);
                 Ok(())
             },
             Err(e) => {
-                Err(MogError::Other("Statsd error".to_string(), Some(format!("{:?}", e))))
+                let msg = format!("Error creating connection pool to statsd: {}", e);
+                error!("{}", msg);
+                Err(MogError::Other("Statsd error".to_string(), Some(msg)))
             }
         }
     }
@@ -84,15 +91,12 @@ impl<B: Backend> Tracker<B> {
     }
 
     fn with_statsd<F>(&self, callback: F)
-        where F: Fn(&mut statsd::Client)
+        where F: Fn(&mut StatsdClient)
     {
-        if let Some(ref mutex) = self.statsd {
-            let mut lock = match mutex.lock() {
-                Ok(l) => l,
-                Err(p) => p.into_inner(),
-            };
-
-            callback(&mut lock);
+        match self.statsd_pool.as_ref().map(|p| p.get()) {
+            Some(Ok(mut conn)) => callback(&mut *conn),
+            Some(Err(e)) => warn!("Error retrieving statsd connection: {}", e),
+            _ => {},
         }
     }
 }

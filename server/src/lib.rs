@@ -6,6 +6,7 @@ extern crate mio;
 extern crate mogilefs_client;
 extern crate mogilefs_common;
 extern crate plugin;
+extern crate r2d2;
 extern crate statsd;
 extern crate threadpool;
 extern crate time;
@@ -26,6 +27,7 @@ pub mod ctrlc;
 pub mod mem;
 pub mod net;
 pub mod proxy;
+pub mod r2d2_statsd;
 pub mod range;
 
 #[cfg(test)]
