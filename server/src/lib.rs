@@ -7,7 +7,8 @@ extern crate mogilefs_client;
 extern crate mogilefs_common;
 extern crate mysql;
 extern crate plugin;
-extern crate rand;
+extern crate r2d2;
+extern crate statsd;
 extern crate threadpool;
 extern crate time;
 extern crate url;
@@ -29,6 +30,7 @@ pub mod mem;
 pub mod monitor;
 pub mod net;
 pub mod proxy;
+pub mod r2d2_statsd;
 pub mod range;
 
 #[cfg(test)]

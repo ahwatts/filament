@@ -31,7 +31,8 @@ impl ProxyTrackerBackend {
             let mut conn_opt = conn_cell.borrow_mut();
 
             if conn_opt.is_none() {
-                *conn_opt = Some(MogClient::new(&self.trackers));
+                let client = MogClient::new(&self.trackers);
+                *conn_opt = Some(client);
             }
 
             let conn = conn_opt.as_mut().unwrap();

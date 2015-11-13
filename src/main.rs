@@ -57,7 +57,16 @@ fn main() {
             iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
         });
 
-        Some(Tracker::new(stack))
+        let mut tracker = Tracker::new(stack);
+        if let Some(ref host) = opts.flag_statsd_host {
+            if let Err(e) = tracker.report_stats_to(
+                &format!("{}", host.0),
+                opts.flag_statsd_prefix.as_ref().unwrap_or(&"".to_string())) {
+                error!("Could not create statsd client: {}", e);
+            }
+        }
+
+        Some(tracker)
     } else if opts.cmd_proxy_tracker {
         let backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
         let mut stack = BackendStack::new(backend);
@@ -72,7 +81,16 @@ fn main() {
             stack.around(song_finder);
         }
 
-        Some(Tracker::new(stack))
+        let mut tracker = Tracker::new(stack);
+        if let Some(ref host) = opts.flag_statsd_host {
+            if let Err(e) = tracker.report_stats_to(
+                &format!("{}", host.0),
+                opts.flag_statsd_prefix.as_ref().unwrap_or(&"".to_string())) {
+                error!("Could not create statsd client: {}", e);
+            }
+        }
+
+        Some(tracker)
     } else {
         None
     };
@@ -128,6 +146,8 @@ Usage:
 General Options:
   -h, --help                 Print this help message.
   -v, --version              Print the version information.
+  --statsd-host=HOST         Report statistics to statsd here.
+  --statsd-prefix=PREFIX     Prefix statsd statistic names with this.
 
 General Tracker Options:
   --tracker-ip=IP            The ip:port for the tracker to listen on. [default: 0.0.0.0:7002]
@@ -156,6 +176,9 @@ Proxy Tracker (proxy-tracker) Options:
 struct Options {
     cmd_mem_tracker: bool,
     cmd_proxy_tracker: bool,
+
+    flag_statsd_host: Option<WrapSocketAddr>,
+    flag_statsd_prefix: Option<String>,
 
     flag_tracker_ip: WrapSocketAddr,
     flag_tracker_threads: usize,

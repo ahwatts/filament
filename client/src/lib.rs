@@ -1,16 +1,20 @@
 extern crate bufstream;
+extern crate chrono;
 extern crate hyper;
 extern crate mogilefs_common;
 extern crate rand;
+extern crate statsd;
 extern crate url;
 
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
 #[cfg(test)]
 #[macro_use]
 extern crate lazy_static;
 
 use bufstream::BufStream;
+use chrono::UTC;
 use hyper::status::StatusCode;
 use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
 use mogilefs_common::requests::*;
@@ -18,21 +22,50 @@ use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use url::{form_urlencoded, percent_encoding};
 
-#[derive(Debug)]
 pub struct MogClient {
     transport: MogClientTransport,
+    statsd: Option<statsd::Client>,
 }
 
 impl MogClient {
     pub fn new<S: ToSocketAddrs>(trackers: &[S]) -> MogClient {
         MogClient {
             transport: MogClientTransport::new(trackers),
+            statsd: None,
+        }
+    }
+
+    pub fn report_stats_to(&mut self, host: &str, prefix: &str) -> MogResult<()> {
+        debug!("Reporting stats to statsd at {:?} with prefix {:?}", host, prefix);
+        match statsd::Client::new(host, prefix) {
+            Ok(s) => {
+                self.statsd = Some(s);
+                Ok(())
+            },
+            Err(e) => {
+                Err(MogError::Other("Statsd error".to_string(), Some(format!("{:?}", e))))
+            }
         }
     }
 
     pub fn request<R: Request + ToArgs + ?Sized>(&mut self, req: &R) -> MogResult<Response> {
         info!("request = {:?}", req);
-        let resp_rslt = self.transport.do_request(req);
+
+        let resp_rslt = if let Some(ref mut s) = self.statsd {
+            s.incr(&format!("mogilefs_client.requests.{}", req.op()));
+
+            let t0 = UTC::now();
+            let rslt = self.transport.do_request(req);
+            let t1 = UTC::now();
+
+            s.timer(&format!("mogilefs_client.request_timing.{}", req.op()),
+                    (t1 - t0).num_milliseconds() as f64);
+
+            rslt
+        } else {
+            self.transport.do_request(req)
+        };
+
         info!("response = {:?}", resp_rslt);
         resp_rslt
     }
@@ -49,9 +82,9 @@ impl MogClient {
         debug!("Storing data for {:?} to {}", key, path);
 
         // Upload the file.
-        let client = hyper::Client::new();
         let put_res = try!{
-            client.put(path.clone())
+            hyper::Client::new()
+                .put(path.clone())
                 .body(data)
                 .send()
                 .map_err(|e| MogError::StorageError(Some(format!("Could not store to {}: {}", path, e))))

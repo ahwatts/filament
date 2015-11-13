@@ -2,7 +2,7 @@ FROM scratch
 MAINTAINER ReverbNation DevOps <devops@reverbnation.com>
 
 ADD filament-centos7-chroot.tar.xz /
-ADD dist/filament-0.3.2-x86_64-unknown-linux-gnu.tar.gz /
+ADD dist/filament-0.4.0-x86_64-unknown-linux-gnu.tar.gz /
 COPY entrypoint.sh /
 RUN chmod 0755 /entrypoint.sh
 
