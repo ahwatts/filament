@@ -1,4 +1,4 @@
-use hyper::Client;
+use hyper::Client as HyperClient;
 use hyper::status::StatusCode;
 use rand;
 use std::io::Read;
@@ -34,7 +34,7 @@ pub trait Backend: Send + Sync {
         debug!("Storing data for {:?} to {}", key, path);
 
         // Upload the file.
-        let client = Client::new();
+        let client = HyperClient::new();
         let put_res = try!{
             client.put(path.clone())
                 .body(data)
@@ -119,5 +119,127 @@ impl Backend for BackendStack {
 
     fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
         self.backend.as_ref().unwrap().list_keys(req)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::error::MogResult;
+    use super::super::requests::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use url::Url;
+
+    struct CountingBackend {
+        create_domain: AtomicUsize,
+        create_open: AtomicUsize,
+        create_close: AtomicUsize,
+        create_class: AtomicUsize,
+        get_paths: AtomicUsize,
+        file_info: AtomicUsize,
+        delete: AtomicUsize,
+        rename: AtomicUsize,
+        list_keys: AtomicUsize,
+    }
+
+    impl CountingBackend {
+        fn new() -> CountingBackend {
+            CountingBackend {
+                create_domain: AtomicUsize::new(0),
+                create_open: AtomicUsize::new(0),
+                create_close: AtomicUsize::new(0),
+                create_class: AtomicUsize::new(0),
+                get_paths: AtomicUsize::new(0),
+                file_info: AtomicUsize::new(0),
+                delete: AtomicUsize::new(0),
+                rename: AtomicUsize::new(0),
+                list_keys: AtomicUsize::new(0),
+            }
+        }
+
+        fn increment(&self, counter: &AtomicUsize) {
+            let mut tries: u8 = 0;
+            loop {
+                let current = counter.load(Ordering::Relaxed);
+                let previous = counter.compare_and_swap(current, current + 1, Ordering::Relaxed);
+                tries += 1;
+                if current == previous || tries > 10 {
+                    break;
+                }
+            }
+        }
+    }
+
+    impl Backend for CountingBackend {
+        fn create_domain(&self, _: &CreateDomain) -> MogResult<CreateDomain> {
+            self.increment(&self.create_domain);
+            Ok(CreateDomain {
+                domain: "test_domain".to_string(),
+            })
+        }
+
+        fn create_open(&self, _: &CreateOpen) -> MogResult<CreateOpenResponse> {
+            self.increment(&self.create_open);
+            Ok(CreateOpenResponse {
+                fid: 1000,
+                paths: vec![(1, Url::parse("http://127.0.0.1:7099/fid/1000/path.fid").unwrap())],
+            })
+        }
+
+        fn create_close(&self, _: &CreateClose) -> MogResult<()> {
+            self.increment(&self.create_close);
+            Ok(())
+        }
+
+        fn create_class(&self, _: &CreateClass) -> MogResult<CreateClassResponse> {
+            self.increment(&self.create_class);
+            Ok(CreateClassResponse {
+                domain: "test_domain".to_string(),
+                class: "test_class".to_string(),
+                mindevcount: 2,
+            })
+        }
+
+        fn get_paths(&self, _: &GetPaths) -> MogResult<GetPathsResponse> {
+            self.increment(&self.get_paths);
+            Ok(GetPathsResponse(vec![ Url::parse("http://127.0.0.1:7099/test/key/1000/file.fid").unwrap() ]))
+        }
+
+        fn file_info(&self, _: &FileInfo) -> MogResult<FileInfoResponse> {
+            self.increment(&self.file_info);
+            Ok(FileInfoResponse {
+                fid: 1000,
+                devcount: 2,
+                length: 1048576,
+                domain: "test_domain".to_string(),
+                class: "test_class".to_string(),
+                key: "test/key/1000".to_string(),
+            })
+        }
+
+        fn delete(&self, _: &Delete) -> MogResult<()> {
+            self.increment(&self.delete);
+            Ok(())
+        }
+
+        fn rename(&self, _: &Rename) -> MogResult<()> {
+            self.increment(&self.rename);
+            Ok(())
+        }
+
+        fn list_keys(&self, _: &ListKeys) -> MogResult<ListKeysResponse> {
+            self.increment(&self.list_keys);
+            Ok(ListKeysResponse(vec![ "test/key/1000".to_string() ]))
+        }
+    }
+
+    #[test]
+    fn test_handle() {
+        let backend = CountingBackend::new();
+
+        assert_eq!(0, backend.create_domain.load(Ordering::Relaxed));
+        let response = backend.handle(&CreateDomain { domain: "test_domain".to_string() });
+        assert!(response.is_ok());
+        assert_eq!(1, backend.create_domain.load(Ordering::Relaxed));
     }
 }
