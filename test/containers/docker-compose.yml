@@ -1,0 +1,11 @@
+db:
+  image: mysql:5
+  environment:
+    MYSQL_ROOT_PASSWORD: ""
+    MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+mogilefsd:
+  build: ./mogilefsd
+  links:
+    - db:mysql
+  ports:
+    - 7001
