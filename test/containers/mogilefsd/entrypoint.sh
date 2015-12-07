@@ -33,4 +33,4 @@ for i in $(seq 1 10); do
     fi
 done
 
-exec -c mogilefsd
+exec mogilefsd
