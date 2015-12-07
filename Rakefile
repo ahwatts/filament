@@ -379,7 +379,7 @@ def release_filename
     triple = "x86_64-unknown-linux-gnu"
   elsif RUBY_PLATFORM == "x86_64-linux-gnu"
       triple = "x86_64-unknown-linux-gnu"
-  elsif RUBY_PLATFORM == "universal.x86_64-darwin14"
+  elsif RUBY_PLATFORM =~ /^universal.x86_64-darwin1[45]$/
     triple = "x86_64-apple-darwin"
   else
     raise "Unknown triple for platform #{RUBY_PLATFORM.inspect}"

@@ -127,6 +127,7 @@ mod tests {
     use super::*;
     use super::super::error::MogResult;
     use super::super::requests::*;
+    use std::io::Cursor;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use url::Url;
 
@@ -241,5 +242,24 @@ mod tests {
         let response = backend.handle(&CreateDomain { domain: "test_domain".to_string() });
         assert!(response.is_ok());
         assert_eq!(1, backend.create_domain.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_store_file() {
+        let backend = CountingBackend::new();
+        let mut content = Cursor::new("File content".as_ref());
+
+        assert_eq!(0, backend.create_open.load(Ordering::Relaxed));
+        assert_eq!(0, backend.create_close.load(Ordering::Relaxed));
+
+        let response = backend.store_file(
+            "test_domain".to_string(),
+            "test/key/1000".to_string(),
+            None, &mut content);
+        println!("response = {:?}", response);
+        assert!(response.is_ok());
+
+        assert_eq!(1, backend.create_open.load(Ordering::Relaxed));
+        assert_eq!(1, backend.create_close.load(Ordering::Relaxed));
     }
 }
