@@ -1,8 +1,9 @@
+require "docker"
+require "mogilefs"
 require "pathname"
 require "rake/packagetask"
 require "rake/tasklib"
 require "toml"
-require "pp"
 
 class CargoBuildTask < Rake::TaskLib
   attr_accessor :name, :project, :binary, :lib, :release, :sources
@@ -390,6 +391,40 @@ end
 
 RustProjectTask.new
 
+desc "Start the docker containers and set up the environment for testing against them."
+task :docker do
+  docker_host = ENV["DOCKER_HOST"] || "tcp://127.0.0.1:2375"
+  docker_ip = docker_host.match(/^tcp:\/\/(.*):\d+$/).captures.first
+  ENV["COMPOSE_PROJECT_NAME"] = "filament"
+
+  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "stop"
+  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "rm", "-v", "--force"
+  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "up", "-d"
+  sleep 2
+
+  tracker = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_mogilefsd_1") }
+  tracker_port = tracker.info["Ports"].find { |p| p["PrivatePort"] == 7001 }["PublicPort"]
+  tracker_addr = "#{docker_ip}:#{tracker_port}"
+  puts "tracker_addr = #{tracker_addr.inspect}"
+
+  storage = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_storage_1_1") }
+  storage_port = storage.info["Ports"].find { |p| p["PrivatePort"] == 7500 }["PublicPort"]
+  storage_addr = "#{docker_ip}:#{storage_port}"
+  puts "storage_addr = #{storage_addr.inspect}"
+
+  mogadm = MogileFS::Admin.new(hosts: [ tracker_addr ])
+
+  loop do
+    begin
+      mogadm.get_domains
+      break
+    rescue
+      puts "#{$!.message} (#{$!.class}), retrying..."
+      sleep 2
+    end
+  end
+end
+
 desc "The dist directory"
 directory "dist"
 
@@ -417,5 +452,8 @@ desc "Build the docs"
 task :doc do
   sh "cargo", "doc"
 end
+
+desc "Run the test suite against a real MogileFS running in Docker."
+task :docker_test, [ :verbose ] => [ :docker, :build, :test ]
 
 task :default, [ :verbose ] => [ :build, :test ]
