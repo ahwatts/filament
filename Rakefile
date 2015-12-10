@@ -391,36 +391,96 @@ end
 
 RustProjectTask.new
 
-desc "Start the docker containers and set up the environment for testing against them."
-task :docker do
-  docker_host = ENV["DOCKER_HOST"] || "tcp://127.0.0.1:2375"
-  docker_ip = docker_host.match(/^tcp:\/\/(.*):\d+$/).captures.first
-  ENV["COMPOSE_PROJECT_NAME"] = "filament"
+namespace :docker do
+  desc "Set up the shell environment for docker-compose."
+  task :env do
+    ENV["COMPOSE_PROJECT_NAME"] = "filament"
+  end
 
-  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "stop"
-  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "rm", "-v", "--force"
-  sh "docker-compose", "-f", "test/containers/docker-compose.yml", "up", "-d"
-  sleep 2
+  desc "Start the docker containers."
+  task :start => [ :env ] do
+    sh "docker-compose", "-f", "test/containers/docker-compose.yml", "up", "-d"
+  end
 
-  tracker = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_mogilefsd_1") }
-  tracker_port = tracker.info["Ports"].find { |p| p["PrivatePort"] == 7001 }["PublicPort"]
-  tracker_addr = "#{docker_ip}:#{tracker_port}"
-  puts "tracker_addr = #{tracker_addr.inspect}"
+  desc "Stop the docker containers."
+  task :stop => [ :env ] do
+    sh "docker-compose", "-f", "test/containers/docker-compose.yml", "stop"
+  end
 
-  storage = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_storage_1_1") }
-  storage_port = storage.info["Ports"].find { |p| p["PrivatePort"] == 7500 }["PublicPort"]
-  storage_addr = "#{docker_ip}:#{storage_port}"
-  puts "storage_addr = #{storage_addr.inspect}"
+  desc "Delete the docker containers."
+  task :clean => [ :stop ] do
+    sh "docker-compose", "-f", "test/containers/docker-compose.yml", "rm", "-v", "--force"
+  end
 
-  mogadm = MogileFS::Admin.new(hosts: [ tracker_addr ])
+  desc "Make sure the docker mogilefs infrastructure is properly set up with hosts, devices, domains, and classes."
+  task :init => [ :start ] do
+    docker_host = ENV["DOCKER_HOST"] || "tcp://127.0.0.1:2375"
+    docker_ip = docker_host.match(/^tcp:\/\/(.*):\d+$/).captures.first
 
-  loop do
-    begin
-      mogadm.get_domains
-      break
-    rescue
-      puts "#{$!.message} (#{$!.class}), retrying..."
-      sleep 2
+    # Figure out the tracker IP / port.
+    tracker = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_mogilefsd_1") }
+    tracker_port = tracker.info["Ports"].find { |p| p["PrivatePort"] == 7001 }["PublicPort"]
+    tracker_addr = "#{docker_ip}:#{tracker_port}"
+    puts "tracker_addr = #{tracker_addr.inspect}"
+
+    # Figure out the storage server IP / port.
+    storage = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_storage_1_1") }
+    storage_port = storage.info["Ports"].find { |p| p["PrivatePort"] == 7500 }["PublicPort"]
+    storage_addr = "#{docker_ip}:#{storage_port}"
+    puts "storage_addr = #{storage_addr.inspect}"
+
+    # Create our client objects.
+    mogadm = MogileFS::Admin.new(hosts: [ tracker_addr ])
+    # mogcl = MogileFS::MogileFS.new(hosts: [ tracker_addr ], domain: "test_domain")
+
+    # Wait until the tracker is ready to handle requests.
+    loop do
+      begin
+        mogadm.get_domains
+        break
+      rescue
+        puts "#{$!.message} (#{$!.class}), retrying..."
+        sleep 2
+      end
+    end
+
+    # Create / update the host for the storage server.
+    storage_host = mogadm.get_hosts.find { |h| h["hostname"] == "storage_1" }
+    if storage_host.nil?
+      mogadm.create_host("storage_1", ip: docker_ip, port: storage_port, status: "alive")
+    else
+      mogadm.update_host("storage_1", ip: docker_ip, port: storage_port, status: "alive")
+    end
+
+    # Create / update the device on the storage server.
+    storage_device = mogadm.get_devices.find { |d| d["devid"] == 1 }
+    if storage_device.nil?
+      mogadm.create_device("storage_1", 1, status: "alive")
+    else
+      mogadm.change_device_state("storage_1", 1, "alive")
+    end
+
+    # Create the test domain.
+    test_domain = mogadm.get_domains["test_domain"]
+    if test_domain.nil?
+      mogadm.create_domain("test_domain")
+      test_domain = mogadm.get_domains["test_domain"]
+    end
+
+    # Make sure the default class has a mindevcount of 1.
+    if test_domain["default"]["mindevcount"] != 1
+      mogadm.update_class("test_domain", "default", mindevcount: 1)
+    end
+
+    # Create the test class.
+    if test_domain["test_class"].nil?
+      mogadm.create_class("test_domain", "test_class", mindevcount: 1)
+      test_domain = mogadm.get_domains["test_domain"]
+    end
+
+    # Make sure the test class has a mindevcount of 1.
+    if test_domain["test_class"]["mindevcount"] != 1
+      mogadm.update_class("test_domain", "test_class", mindevcount: 1)
     end
   end
 end
