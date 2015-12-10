@@ -70,14 +70,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clock_ticks"
-version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "libc 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "conduit-mime-types"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -288,7 +280,7 @@ dependencies = [
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_common 0.4.0",
  "rand 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "statsd 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "statsd 0.4.1 (git+https://github.com/ahwatts/rust-statsd.git)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -331,7 +323,7 @@ dependencies = [
  "plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "r2d2 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
- "statsd 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "statsd 0.4.1 (git+https://github.com/ahwatts/rust-statsd.git)",
  "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -462,10 +454,10 @@ dependencies = [
 [[package]]
 name = "statsd"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+source = "git+https://github.com/ahwatts/rust-statsd.git#67f1463dbaa53d372397db05a5d27c4f083d3839"
 dependencies = [
- "clock_ticks 0.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.32 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

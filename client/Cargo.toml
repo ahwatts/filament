@@ -11,11 +11,15 @@ chrono = "~0.2.0"
 hyper = "~0.6.0"
 rand = "~0.3.0"
 log = "~0.3.1"
-statsd = "~0.4.1"
+# statsd = "~0.4.1"
 url = "~0.2.36"
 
 [dependencies.mogilefs_common]
 path = "../common"
+
+[dependencies.statsd]
+git = "https://github.com/ahwatts/rust-statsd.git"
+branch = "master"
 
 [dev-dependencies]
 lazy_static = "~0.1.14"
