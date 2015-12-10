@@ -9,7 +9,7 @@ matrix:
 before_install:
   - rvm install ruby-2.2
   - rvm use ruby-2.2
-  - gem install toml
+  - gem install toml docker-api mogilefs-client
 script:
   - rake build[verbose]
-  - rake test[verbose]
+  - rake test:unit[verbose]

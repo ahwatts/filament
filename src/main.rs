@@ -54,7 +54,7 @@ fn main() {
             chain.around(RangeMiddleware);
             let iron = Iron::new(chain);
             println!("Storage server (Iron) listening on {:?}", storage_addr);
-            iron.listen_with(storage_addr, storage_threads, Protocol::Http).unwrap();
+            iron.listen_with(storage_addr, storage_threads, Protocol::Http, None).unwrap();
         });
 
         let mut tracker = Tracker::new(stack);

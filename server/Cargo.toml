@@ -7,20 +7,18 @@ homepage = "https://github.com/ahwatts/mogilefsd-rs"
 
 [dependencies]
 chrono = "~0.2.0"
-docopt = "~0.6.70"
-env_logger = "~0.3.1"
-hyper = "~0.6.0"
+hyper = "~0.7.0"
 lazy_static = "~0.1.14"
-libc = "~0.1.8"
+libc = "~0.2.2"
 log = "~0.3.1"
 mio = "~0.4.0"
 plugin = "~0.2.0"
 r2d2 = "~0.6.1"
 rustc-serialize = "~0.3.15"
-statsd = "~0.4.1"
+# statsd = "~0.4.1"
 threadpool = "~0.1.4"
 time = "~0.1.32"
-url = "~0.2.36"
+url = "~0.5.0"
 
 [dependencies.iron]
 git = "https://github.com/ahwatts/iron.git"
@@ -37,6 +35,10 @@ path = "../common"
 version = "*"
 default-features = false
 features = ["socket"]
+
+[dependencies.statsd]
+git = "https://github.com/ahwatts/rust-statsd.git"
+branch = "master"
 
 [dev-dependencies]
 matches = "~0.1.2"
