@@ -12,4 +12,4 @@ before_install:
   - gem install toml
 script:
   - rake build[verbose]
-  - rake test[verbose]
+  - rake test:unit[verbose]
