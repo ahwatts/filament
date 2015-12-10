@@ -5,8 +5,6 @@ require "rake/packagetask"
 require "rake/tasklib"
 require "toml"
 
-# noop.
-
 class CargoBuildTask < Rake::TaskLib
   attr_accessor :name, :project, :binary, :lib, :release, :sources
 
