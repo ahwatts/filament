@@ -392,9 +392,10 @@ end
 RustProjectTask.new
 
 namespace :docker do
-  desc "Set up the shell environment for docker-compose."
+  desc "Set up the shell environment for testing with the real mogilefs cluster."
   task :env do
     ENV["COMPOSE_PROJECT_NAME"] = "filament"
+    ENV["FILAMENT_TEST_DOMAIN"] = "test_domain"
   end
 
   desc "Start the docker containers."
@@ -422,6 +423,7 @@ namespace :docker do
     tracker_port = tracker.info["Ports"].find { |p| p["PrivatePort"] == 7001 }["PublicPort"]
     tracker_addr = "#{docker_ip}:#{tracker_port}"
     puts "tracker_addr = #{tracker_addr.inspect}"
+    ENV["FILAMENT_TEST_TRACKERS"] = tracker_addr
 
     # Figure out the storage server IP / port.
     storage = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_storage_1_1") }
@@ -505,7 +507,14 @@ task :build_release, [ :verbose ] => [ "filament:build:release", "client:build:r
 desc "Clean the main crate and the sub-crates"
 task :clean, [ :with_deps, :verbose ] => [ "filament:clean", "client:clean", "common:clean", "server:clean" ]
 
-desc "Run the tests for all the sub-crates"
+namespace :test do
+  desc "Run the tests for all the sub-crates, skipping things that require a real MogileFS cluster."
+  task :unit, [ :verbose ] => [ :build, :test ]
+
+  desc "Run the tests for all the sub-crates, using a real MogileFS running in Docker."
+  task :integration, [ :verbose ] => [ "docker:env", "docker:init", :build, :test ]
+end
+
 task :test, [ :verbose ] => [ "filament:test", "client:test", "common:test", "server:test" ]
 
 desc "Build the docs"
@@ -513,7 +522,4 @@ task :doc do
   sh "cargo", "doc"
 end
 
-desc "Run the test suite against a real MogileFS running in Docker."
-task :docker_test, [ :verbose ] => [ :docker, :build, :test ]
-
-task :default, [ :verbose ] => [ :build, :test ]
+task :default, [ :verbose ] => [ "test:unit" ]
