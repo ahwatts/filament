@@ -398,6 +398,10 @@ namespace :docker do
   task :env do
     ENV["COMPOSE_PROJECT_NAME"] = "filament"
     ENV["FILAMENT_TEST_DOMAIN"] = "test_domain"
+    ENV["FILAMENT_TEST_CLASS"] = "test_class"
+    ENV["FILAMENT_TEST_DB_USER"] = "mogile"
+    ENV["FILAMENT_TEST_DB_PASS"] = "blarg"
+    ENV["FILAMENT_TEST_DB_NAME"] = "mogilefs"
   end
 
   desc "Start the docker containers."
@@ -419,6 +423,13 @@ namespace :docker do
   task :init => [ :start ] do
     docker_host = ENV["DOCKER_HOST"] || "tcp://127.0.0.1:2375"
     docker_ip = docker_host.match(/^tcp:\/\/(.*):\d+$/).captures.first
+
+    # Figure out the DB IP / port.
+    db = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_db_1") }
+    db_port = db.info["Ports"].find { |p| p["PrivatePort"] == 3306 }["PublicPort"]
+    db_addr = "#{docker_ip}:#{db_port}"
+    puts "db_addr = #{db_addr.inspect}"
+    ENV["FILAMENT_TEST_DB_HOST"] = db_addr
 
     # Figure out the tracker IP / port.
     tracker = Docker::Container.all("all" => 1).find { |c| c.info["Names"].include?("/filament_mogilefsd_1") }

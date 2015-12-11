@@ -237,9 +237,9 @@ mod tests {
         static ref FILAMENT_TEST_DB_NAME: String = env::var("FILAMENT_TEST_DB_NAME").ok().unwrap_or("mogilefs".to_string());
 
         static ref FILAMENT_TEST_DOMAIN_ID: u16 = u16::from_str(&env::var("FILAMENT_TEST_DOMAIN_ID").ok().unwrap_or("1".to_string())).unwrap();
-        static ref FILAMENT_TEST_DOMAIN_NAME: String = env::var("FILAMENT_TEST_DOMAIN_NAME").ok().unwrap_or("filament_test".to_string());
+        static ref FILAMENT_TEST_DOMAIN_NAME: String = env::var("FILAMENT_TEST_DOMAIN").ok().unwrap_or("test_domain".to_string());
         static ref FILAMENT_TEST_CLASS_ID: u8 = u8::from_str(&env::var("FILAMENT_TEST_CLASS_ID").ok().unwrap_or("1".to_string())).unwrap();
-        static ref FILAMENT_TEST_CLASS_NAME: String = env::var("FILAMENT_TEST_CLASS_NAME").ok().unwrap_or("tet_class".to_string());
+        static ref FILAMENT_TEST_CLASS_NAME: String = env::var("FILAMENT_TEST_CLASS").ok().unwrap_or("test_class".to_string());
         static ref FILAMENT_TEST_KEY: String = env::var("FILAMENT_TEST_KEY").ok().unwrap_or("test/key/1".to_string());
     }
 
