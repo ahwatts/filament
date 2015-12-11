@@ -314,7 +314,7 @@ impl FromBytes for CreateOpenResponse {
         let devcount = try!(args.extract_required_int("dev_count", MogError::Other("No device count".to_string(), None)));
         let mut paths = Vec::new();
 
-        for i in (1..(devcount + 1)) {
+        for i in 1..(devcount + 1) {
             let devid = try!(args.extract_required_int(&format!("devid_{}", i), MogError::NoDevid));
             let url = try!(args.extract_required_url(&format!("path_{}", i), MogError::NoPath));
             paths.push((devid, url));
@@ -605,7 +605,7 @@ impl FromBytes for GetPathsResponse {
         let paths = try!(args.extract_required_int("paths", MogError::Other("No path count".to_string(), None)));
         let mut response = GetPathsResponse(Vec::new());
 
-        for i in (1..(paths + 1)) {
+        for i in 1..(paths + 1) {
             response.0.push(try!(args.extract_required_url(&format!("path{}", i), MogError::NoPath)));
         }
 
@@ -974,7 +974,7 @@ impl FromBytes for ListKeysResponse {
         let key_count = try!(args.extract_required_int("key_count", MogError::Other("No key count".to_string(), None)));
         let mut response = ListKeysResponse(Vec::new());
 
-        for i in (1..(key_count + 1)) {
+        for i in 1..(key_count + 1) {
             response.0.push(try!(args.extract_required_string(&format!("key_{}", i), MogError::NoKey)));
         }
 

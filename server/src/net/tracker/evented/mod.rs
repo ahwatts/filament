@@ -320,7 +320,7 @@ impl<B: 'static + Backend> Connection<B> {
             {
                 // There should be no way this can go wrong; we're reading
                 // from and writing to Vecs.
-                let mut reader = BufReader::new(Cursor::new(self.in_buf.as_ref()));
+                let mut reader = BufReader::new(Cursor::new(&self.in_buf));
                 reader.read_until_mb(CRLF, &mut request).unwrap();
                 reader.read_to_end(&mut rest).unwrap();
             }

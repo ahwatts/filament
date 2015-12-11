@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_store_file() {
         let backend = CountingBackend::new();
-        let mut content = Cursor::new("File content".as_ref());
+        let mut content = Cursor::new("File content");
 
         assert_eq!(0, backend.create_open.load(Ordering::Relaxed));
         assert_eq!(0, backend.create_close.load(Ordering::Relaxed));

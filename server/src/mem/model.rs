@@ -253,7 +253,7 @@ pub mod test_support {
 
     pub fn full_domain_fixture() -> MemDomain {
         let mut domain = MemDomain::new(TEST_FULL_DOMAIN);
-        for i in (0..TEST_PREFIX_COUNT) {
+        for i in 0..TEST_PREFIX_COUNT {
             let key_p1 = format!("{}/key/{}", TEST_KEY_PREFIX_1, i+1);
             let key_p2 = format!("{}/key/{}", TEST_KEY_PREFIX_2, i+1);
 
