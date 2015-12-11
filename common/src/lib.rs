@@ -35,3 +35,8 @@ mod backend;
 mod error;
 mod request;
 mod util;
+
+#[cfg(test)]
+pub mod test_support {
+    pub use backend::test_support::*;
+}

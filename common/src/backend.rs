@@ -123,15 +123,14 @@ impl Backend for BackendStack {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod test_support {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use super::*;
     use super::super::error::MogResult;
     use super::super::requests::*;
-    use std::io::Cursor;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use url::Url;
+    use url::*;
 
-    struct CountingBackend {
+    pub struct CountingBackend {
         create_domain: AtomicUsize,
         create_open: AtomicUsize,
         create_close: AtomicUsize,
@@ -144,7 +143,7 @@ mod tests {
     }
 
     impl CountingBackend {
-        fn new() -> CountingBackend {
+        pub fn new() -> CountingBackend {
             CountingBackend {
                 create_domain: AtomicUsize::new(0),
                 create_open: AtomicUsize::new(0),
@@ -157,6 +156,16 @@ mod tests {
                 list_keys: AtomicUsize::new(0),
             }
         }
+
+        pub fn create_domain_count(&self) -> usize { self.create_domain.load(Ordering::Relaxed) }
+        pub fn create_open_count(&self)   -> usize { self.create_open.load(Ordering::Relaxed) }
+        pub fn create_close_count(&self)  -> usize { self.create_close.load(Ordering::Relaxed) }
+        pub fn create_class_count(&self)  -> usize { self.create_class.load(Ordering::Relaxed) }
+        pub fn get_paths_count(&self)     -> usize { self.get_paths.load(Ordering::Relaxed) }
+        pub fn file_info_count(&self)     -> usize { self.file_info.load(Ordering::Relaxed) }
+        pub fn delete_count(&self)        -> usize { self.delete.load(Ordering::Relaxed) }
+        pub fn rename_count(&self)        -> usize { self.rename.load(Ordering::Relaxed) }
+        pub fn list_keys_count(&self)     -> usize { self.list_keys.load(Ordering::Relaxed) }
 
         fn increment(&self, counter: &AtomicUsize) {
             let mut tries: u8 = 0;
@@ -233,15 +242,23 @@ mod tests {
             Ok(ListKeysResponse(vec![ "test/key/1000".to_string() ]))
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use super::*;
+    use super::super::requests::*;
+    use super::super::test_support::CountingBackend;
 
     #[test]
     fn test_handle() {
         let backend = CountingBackend::new();
 
-        assert_eq!(0, backend.create_domain.load(Ordering::Relaxed));
+        assert_eq!(0, backend.create_domain_count());
         let response = backend.handle(&CreateDomain { domain: "test_domain".to_string() });
         assert!(response.is_ok());
-        assert_eq!(1, backend.create_domain.load(Ordering::Relaxed));
+        assert_eq!(1, backend.create_domain_count());
     }
 
     #[test]
@@ -249,8 +266,8 @@ mod tests {
         let backend = CountingBackend::new();
         let mut content = Cursor::new("File content");
 
-        assert_eq!(0, backend.create_open.load(Ordering::Relaxed));
-        assert_eq!(0, backend.create_close.load(Ordering::Relaxed));
+        assert_eq!(0, backend.create_open_count());
+        assert_eq!(0, backend.create_close_count());
 
         let response = backend.store_file(
             "test_domain".to_string(),
@@ -259,7 +276,7 @@ mod tests {
         println!("response = {:?}", response);
         assert!(response.is_ok());
 
-        assert_eq!(1, backend.create_open.load(Ordering::Relaxed));
-        assert_eq!(1, backend.create_close.load(Ordering::Relaxed));
+        assert_eq!(1, backend.create_open_count());
+        assert_eq!(1, backend.create_close_count());
     }
 }
