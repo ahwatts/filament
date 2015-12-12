@@ -8,6 +8,8 @@ use std::io::{BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
 use super::Tracker;
+
+#[cfg(unix)]
 use super::super::super::ctrlc::CtrlC;
 
 pub use self::error::{EventedError, EventedResult};
@@ -42,7 +44,12 @@ impl<B: Backend> EventedListener<B> {
     pub fn run(&mut self) -> EventedResult<()> {
         // Register the server socket with the event loop.
         try!(self.event_loop.register(&self.handler.listener, self.handler.token));
+        self.install_sigint_handler();
+        Ok(try!(self.event_loop.run(&mut self.handler)))
+    }
 
+    #[cfg(unix)]
+    fn install_sigint_handler(&mut self) {
         // register a handler for ctrl+c.
         let notify_channel = self.event_loop.channel();
         CtrlC::set_handler(move|| {
@@ -50,9 +57,10 @@ impl<B: Backend> EventedListener<B> {
                 error!("Error notifying event loop of SIGINT: {:?}", e);
             });
         });
-
-        Ok(try!(self.event_loop.run(&mut self.handler)))
     }
+
+    #[cfg(not(unix))]
+    fn install_sigint_handler(&mut self) {}
 }
 
 struct Handler<B: Backend> {
