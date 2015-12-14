@@ -169,6 +169,11 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
                 } else {
                     error!("Unknown event type {:?} on server socket.", events);
                 }
+
+                trace!("Re-registering {:?} as {:?} / {:?}", self.token, *READABLE, *EDGE_ONESHOT);
+                event_loop.reregister(&self.listener, self.token, *READABLE, *EDGE_ONESHOT).unwrap_or_else(|e|{
+                    error!("Error re-registering {:?} as {:?}: {}", self.token, *READABLE, e);
+                });
             },
             t if self.conns.contains(t) => {
                 let mut reregister_as = *READABLE;
