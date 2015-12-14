@@ -34,11 +34,6 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-
-[[package]]
-name = "bitflags"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -54,7 +49,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bytes"
-version = "0.2.11"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "cfg-if"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -171,7 +171,7 @@ dependencies = [
  "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
  "traitobject 0.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "typeable 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "unicase 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "unicase 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -261,16 +261,30 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.4.4"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bytes 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "nix 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "miow 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "net2 0.2.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nix 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "slab 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "miow"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "kernel32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "net2 0.2.19 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -295,7 +309,7 @@ dependencies = [
 [[package]]
 name = "mogilefs_common"
 version = "0.4.0"
-source = "git+https://github.com/ahwatts/mogilefsd-rs.git#647da45470f31f252e5020f9dafd7ca8e5e9b5c8"
+source = "git+https://github.com/ahwatts/mogilefsd-rs.git#324eabf3e167256989abefe40e0f350243ce378d"
 dependencies = [
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -323,7 +337,7 @@ dependencies = [
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mio 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mio 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_client 1.0.0-dev",
  "mogilefs_common 1.0.0-dev",
  "mysql 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -347,14 +361,25 @@ dependencies = [
  "regex 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
  "unix_socket 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+
+[[package]]
+name = "net2"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "cfg-if 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kernel32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "nix"
-version = "0.3.9"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bitflags 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -553,7 +578,7 @@ dependencies = [
 
 [[package]]
 name = "unicase"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -594,14 +619,6 @@ dependencies = [
 
 [[package]]
 name = "winapi"
-version = "0.1.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "libc 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "winapi"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -609,4 +626,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "winapi-build"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "ws2_32-sys"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "winapi 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "winapi-build 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 

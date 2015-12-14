@@ -24,7 +24,6 @@ extern crate matches;
 extern crate regex;
 
 pub mod backend;
-pub mod ctrlc;
 pub mod database;
 pub mod mem;
 pub mod monitor;
@@ -32,6 +31,9 @@ pub mod net;
 pub mod proxy;
 pub mod r2d2_statsd;
 pub mod range;
+
+#[cfg(unix)]
+pub mod ctrlc;
 
 #[cfg(test)]
 pub mod test_support {

@@ -8,6 +8,8 @@ use std::io::{BufReader, Cursor, Read, Write};
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
 use super::Tracker;
+
+#[cfg(unix)]
 use super::super::super::ctrlc::CtrlC;
 
 pub use self::error::{EventedError, EventedResult};
@@ -41,8 +43,13 @@ impl<B: Backend> EventedListener<B> {
 
     pub fn run(&mut self) -> EventedResult<()> {
         // Register the server socket with the event loop.
-        try!(self.event_loop.register(&self.handler.listener, self.handler.token));
+        try!(self.event_loop.register(&self.handler.listener, self.handler.token, *READABLE, *EDGE_ONESHOT));
+        self.install_sigint_handler();
+        Ok(try!(self.event_loop.run(&mut self.handler)))
+    }
 
+    #[cfg(unix)]
+    fn install_sigint_handler(&mut self) {
         // register a handler for ctrl+c.
         let notify_channel = self.event_loop.channel();
         CtrlC::set_handler(move|| {
@@ -50,9 +57,10 @@ impl<B: Backend> EventedListener<B> {
                 error!("Error notifying event loop of SIGINT: {:?}", e);
             });
         });
-
-        Ok(try!(self.event_loop.run(&mut self.handler)))
     }
+
+    #[cfg(not(unix))]
+    fn install_sigint_handler(&mut self) {}
 }
 
 struct Handler<B: Backend> {
@@ -92,15 +100,15 @@ impl<B: 'static + Backend> Handler<B> {
 
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> EventedResult<()> {
         match self.listener.accept() {
-            Ok(Some(stream)) => {
+            Ok(Some((stream, peer_addr))) => {
                 let tracker = self.tracker.clone();
                 self.conns
                     .insert_with(|token| Connection::new(stream, token, tracker))
                     .ok_or(EventedError::TooManyConnections)
                     .and_then(|token| {
-                        info!("New connection {:?} from {:?}", token, &self.conns[token].stream.peer_addr());
+                        info!("New connection {:?} from {:?}", token, peer_addr);
                         trace!("Registering {:?} as {:?} / {:?}", token, *READABLE, *EDGE_ONESHOT);
-                        event_loop.register_opt(
+                        event_loop.register(
                             &self.conns[token].stream, token,
                             *READABLE, *EDGE_ONESHOT)
                             .map_err(|e| EventedError::from(e))
@@ -373,7 +381,7 @@ mod tests {
     fn fixture_server() -> EventedListener<SyncMemBackend> {
         let backend = sync_backend_fixture();
         let tracker = Tracker::new(backend);
-        EventedListener::new("0.0.0.0:0", tracker, 1, 1).unwrap()
+        EventedListener::new("127.0.0.1:0", tracker, 1, 1).unwrap()
     }
 
     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
