@@ -262,6 +262,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_store_file() {
         let backend = CountingBackend::new();
         let mut content = Cursor::new("File content");
