@@ -381,7 +381,7 @@ mod tests {
     fn fixture_server() -> EventedListener<SyncMemBackend> {
         let backend = sync_backend_fixture();
         let tracker = Tracker::new(backend);
-        EventedListener::new("0.0.0.0:0", tracker, 1, 1).unwrap()
+        EventedListener::new("127.0.0.1:0", tracker, 1, 1).unwrap()
     }
 
     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
