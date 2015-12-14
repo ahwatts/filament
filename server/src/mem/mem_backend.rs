@@ -133,7 +133,7 @@ impl MemBackend {
         let file_info = try!(try!(self.file(domain, key)).ok_or(MogError::UnknownKey(key.to_string())));
         match file_info.content {
             Some(ref reader) => {
-                try!(io::copy(&mut Cursor::new(reader.as_ref()), writer));
+                try!(io::copy(&mut Cursor::new(reader), writer));
                 Ok(())
             },
             None => {

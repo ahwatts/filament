@@ -43,7 +43,7 @@ impl<B: Backend> EventedListener<B> {
 
     pub fn run(&mut self) -> EventedResult<()> {
         // Register the server socket with the event loop.
-        try!(self.event_loop.register(&self.handler.listener, self.handler.token));
+        try!(self.event_loop.register(&self.handler.listener, self.handler.token, *READABLE, *EDGE_ONESHOT));
         self.install_sigint_handler();
         Ok(try!(self.event_loop.run(&mut self.handler)))
     }
@@ -100,15 +100,15 @@ impl<B: 'static + Backend> Handler<B> {
 
     fn accept(&mut self, event_loop: &mut EventLoop<Self>) -> EventedResult<()> {
         match self.listener.accept() {
-            Ok(Some(stream)) => {
+            Ok(Some((stream, peer_addr))) => {
                 let tracker = self.tracker.clone();
                 self.conns
                     .insert_with(|token| Connection::new(stream, token, tracker))
                     .ok_or(EventedError::TooManyConnections)
                     .and_then(|token| {
-                        info!("New connection {:?} from {:?}", token, &self.conns[token].stream.peer_addr());
+                        info!("New connection {:?} from {:?}", token, peer_addr);
                         trace!("Registering {:?} as {:?} / {:?}", token, *READABLE, *EDGE_ONESHOT);
-                        event_loop.register_opt(
+                        event_loop.register(
                             &self.conns[token].stream, token,
                             *READABLE, *EDGE_ONESHOT)
                             .map_err(|e| EventedError::from(e))
@@ -328,7 +328,7 @@ impl<B: 'static + Backend> Connection<B> {
             {
                 // There should be no way this can go wrong; we're reading
                 // from and writing to Vecs.
-                let mut reader = BufReader::new(Cursor::new(self.in_buf.as_ref()));
+                let mut reader = BufReader::new(Cursor::new(&self.in_buf));
                 reader.read_until_mb(CRLF, &mut request).unwrap();
                 reader.read_to_end(&mut rest).unwrap();
             }
