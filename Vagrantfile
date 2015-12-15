@@ -1,24 +1,13 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-RUST_VERSION = "1.4.0"
-
-GUEST_ADDITIONS_PATH =
-  case RbConfig::CONFIG["host_os"]
-  when /darwin|mac os/
-    "/Applications/VirtualBox.app/Contents/MacOS/VBoxGuestAdditions.iso"
-  else
-    raise "Add a path for the guest additions for #{RbConfig::CONFIG["host_os"]}"
-  end
+RUST_VERSION = "1.5.0"
+BOX_RUBY_VERSION = "2.2.3"
 
 def common_centos_config(config)
   config.ssh.forward_agent = true
 
-  config.vm.provider :virtualbox do |vb|
-    # Add a DVD drive there, so we can update the Guest Additions if that becomes necessary.
-    vb.customize [ "storageattach", :id, "--storagectl", "IDE Controller", "--port", 0, "--device", 1, "--type", "dvddrive", "--medium", GUEST_ADDITIONS_PATH ]
-  end
-
+  # Install basic dev tools.
   config.vm.provision :shell, inline: <<-_NACHOS
     set +x
     yum -y update
@@ -29,12 +18,14 @@ def common_centos_config(config)
     fi
   _NACHOS
 
+  # Make sure /usr/local/lib is in the default LD_LIBRARY_PATH.
   config.vm.provision :shell, inline: <<-_NACHOS
     set +x
     echo "/usr/local/lib" > /etc/ld.so.conf.d/local.conf
     ldconfig
   _NACHOS
 
+  # Install / upgrade the rust compiler.
   config.vm.provision :shell, inline: <<-_NACHOS
     set -x
 
@@ -57,6 +48,46 @@ def common_centos_config(config)
         cd $dist_dir
         ./install.sh
     fi
+  _NACHOS
+
+  # Install / upgrade Ruby and the gems we need for the Rakefile via rbenv.
+  config.vm.provision :shell, privileged: false, inline: <<-_NACHOS
+    set -x
+
+    sudo yum install -y gcc openssl-devel libyaml-devel libffi-devel readline-devel zlib-devel gdbm-devel ncurses-devel
+
+    if [ -d ${HOME}/.rbenv ]; then
+        pushd ${HOME}/.rbenv
+        git pull
+        popd
+    else
+        git clone https://github.com/rbenv/rbenv.git ${HOME}/.rbenv
+    fi
+
+    if ! grep "PATH=.*\.rbenv/bin" ${HOME}/.bash_profile; then
+        echo 'export PATH="${HOME}/.rbenv/bin:$PATH"' >> ~/.bash_profile
+    fi
+
+    if ! grep "rbenv init -" ${HOME}/.bash_profile; then
+        echo 'eval "$(rbenv init -)"' >> ~/.bash_profile
+    fi
+
+    export PATH="${HOME}/.rbenv/bin:${PATH}"
+    eval "$(rbenv init -)"
+
+    if [ -d ${HOME}/.rbenv/plugins/ruby-build ]; then
+        pushd ${HOME}/.rbenv/plugins/ruby-build
+        git pull
+        popd
+    else
+        git clone https://github.com/rbenv/ruby-build.git ${HOME}/.rbenv/plugins/ruby-build
+    fi
+
+    rbenv install -s #{BOX_RUBY_VERSION}
+    rbenv global #{BOX_RUBY_VERSION}
+    rbenv rehash
+    gem install --conservative toml docker-api mogilefs-client
+    rbenv rehash
   _NACHOS
 
   # TODO: Need to install rbenv / ruby-build and install Ruby, rake, and the toml gem.

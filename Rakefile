@@ -538,4 +538,4 @@ task :doc do
   sh "cargo", "doc"
 end
 
-task :default, [ :verbose ] => [ "test:unit" ]
+task :default, [ :verbose ] => [ :build, :test ]
