@@ -502,27 +502,36 @@ end
 desc "Compile the source, and put the release tarball in dist"
 task :package => [ File.join("dist", release_filename) ]
 
-desc "Build debug builds of all the things in all the subdirs (you probably don't need to do this)"
-task :build, [ :verbose ] => [ "filament:build:debug", "client:build:debug", "common:build:debug", "server:build:debug" ]
-
-desc "Build release builds of all the things in all the subdirs (you probably really don't need to do this)"
-task :build_release, [ :verbose ] => [ "filament:build:release", "client:build:release", "common:build:release", "server:build:release" ]
-
 desc "Clean the main crate and the sub-crates"
 task :clean, [ :with_deps, :verbose ] => [ "filament:clean", "client:clean", "common:clean", "server:clean" ]
 
-namespace :test do
-  desc "Run the tests for the sub-crates, skipping things that require private repos and / or a real MogileFS cluster."
-  task :ci, [ :verbose ] => [ "client:build:debug", "common:build:debug", "server:build:debug", "client:test", "common:test", "server:test" ]
+namespace :build do
+  desc "Build debug builds of all the things that don't depend on filament-ext. (you probably don't need to do this)"
+  task :ci, [ :verbose ] => [ "client:build:debug", "common:build:debug", "server:build:debug" ]
 
-  desc "Run the tests for all the sub-crates, skipping things that require a real MogileFS cluster."
-  task :unit, [ :verbose ] => [ :build, :test ]
+  desc "Build debug builds of all the things in all the subdirs (you probably don't need to do this)"
+  task :debug, [ :verbose ] => [ "filament:build:debug", "client:build:debug", "common:build:debug", "server:build:debug" ]
 
-  desc "Run the tests for all the sub-crates, using a real MogileFS running in Docker."
-  task :integration, [ :verbose ] => [ "docker:env", "docker:init", :build, :test ]
+  desc "Build release builds of all the things in all the subdirs (you probably really don't need to do this)"
+  task :release, [ :verbose ] => [ "filament:build:release", "client:build:release", "common:build:release", "server:build:release" ]
+
+  task :default, [ :verbose ] => "build:debug"
 end
 
-task :test, [ :verbose ] => [ "filament:test", "client:test", "common:test", "server:test" ]
+task :build, [ :verbose ] => [ "build:debug" ]
+
+namespace :test do
+  desc "Run the tests for the sub-crates, skipping things that require private repos and / or a real MogileFS cluster."
+  task :ci, [ :verbose ] => [ "client:test", "common:test", "server:test" ]
+
+  desc "Run the tests for all the sub-crates, skipping things that require a real MogileFS cluster."
+  task :unit, [ :verbose ] => [ "filament:test", "client:test", "common:test", "server:test" ]
+
+  desc "Run the tests for all the sub-crates, using a real MogileFS running in Docker."
+  task :integration, [ :verbose ] => [ "docker:env", "docker:init", "test:unit" ]
+end
+
+task :test, [ :verbose ] => [ "test:unit" ]
 
 desc "Build the docs"
 task :doc do
