@@ -512,6 +512,9 @@ desc "Clean the main crate and the sub-crates"
 task :clean, [ :with_deps, :verbose ] => [ "filament:clean", "client:clean", "common:clean", "server:clean" ]
 
 namespace :test do
+  desc "Run the tests for the sub-crates, skipping things that require private repos and / or a real MogileFS cluster."
+  task :ci, [ :verbose ] => [ "client:build:debug", "common:build:debug", "server:build:debug", "client:test", "common:test", "server:test" ]
+
   desc "Run the tests for all the sub-crates, skipping things that require a real MogileFS cluster."
   task :unit, [ :verbose ] => [ :build, :test ]
 
