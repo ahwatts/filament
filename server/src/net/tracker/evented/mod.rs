@@ -169,6 +169,11 @@ impl<B: 'static + Backend> mio::Handler for Handler<B> {
                 } else {
                     error!("Unknown event type {:?} on server socket.", events);
                 }
+
+                trace!("Re-registering {:?} as {:?} / {:?}", self.token, *READABLE, *EDGE_ONESHOT);
+                event_loop.reregister(&self.listener, self.token, *READABLE, *EDGE_ONESHOT).unwrap_or_else(|e|{
+                    error!("Error re-registering {:?} as {:?}: {}", self.token, *READABLE, e);
+                });
             },
             t if self.conns.contains(t) => {
                 let mut reregister_as = *READABLE;
@@ -372,16 +377,18 @@ mod tests {
     use std::io::{Write, BufRead, BufReader};
     use std::net::{TcpStream, ToSocketAddrs};
     use std::thread::{self, JoinHandle};
+    use std::time::Duration;
     use super::*;
     use super::notification::Notification;
     use super::super::Tracker;
     use super::super::super::super::mem::SyncMemBackend;
     use super::super::super::super::mem::test_support::*;
+    use env_logger;
 
-    fn fixture_server() -> EventedListener<SyncMemBackend> {
+    fn fixture_server(max_conns: usize, threads: usize) -> EventedListener<SyncMemBackend> {
         let backend = sync_backend_fixture();
         let tracker = Tracker::new(backend);
-        EventedListener::new("127.0.0.1:0", tracker, 1, 1).unwrap()
+        EventedListener::new("127.0.0.1:0", tracker, max_conns, threads).unwrap()
     }
 
     fn client_thread<S: ToSocketAddrs, F>(addr: S, func: F) -> JoinHandle<()>
@@ -389,8 +396,10 @@ mod tests {
     {
         let server_addr = addr.to_socket_addrs().unwrap().next().unwrap();
 
-        thread::spawn(move|| {
-            let writer = TcpStream::connect(server_addr).unwrap();
+        thread::spawn(move || {
+            let writer = TcpStream::connect(server_addr.clone()).expect("Could not connect to fixture tracker");
+            writer.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+            writer.set_write_timeout(Some(Duration::from_millis(100))).unwrap();
             let reader = BufReader::new(writer.try_clone().unwrap());
             func(reader, writer);
         })
@@ -398,7 +407,7 @@ mod tests {
 
     #[test]
     fn basic_interaction() {
-        let mut server = fixture_server();
+        let mut server = fixture_server(1, 1);
         let server_addr = server.handler.listener.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
@@ -426,7 +435,7 @@ mod tests {
 
     #[test]
     fn oneshot_reading() {
-        let mut server = fixture_server();
+        let mut server = fixture_server(1, 1);
         let server_addr = server.handler.listener.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
@@ -441,7 +450,6 @@ mod tests {
             reader.read_line(&mut resp).unwrap();
             assert!(!resp.is_empty());
 
-
             channel.send(Notification::shutdown()).unwrap();
         });
 
@@ -451,7 +459,7 @@ mod tests {
 
     #[test]
     fn multiple_requests_in_a_write() {
-        let mut server = fixture_server();
+        let mut server = fixture_server(1, 1);
         let server_addr = server.handler.listener.local_addr().unwrap();
         let channel = server.event_loop.channel();
 
@@ -476,5 +484,41 @@ mod tests {
 
         server.run().unwrap();
         handle.join().unwrap();
+    }
+
+    #[test]
+    fn multiple_connections() {
+        let _ = env_logger::init();
+
+        let mut server = fixture_server(2, 1);
+        let server_addr = server.handler.listener.local_addr().unwrap();
+        let channel = server.event_loop.channel();
+
+        let conn1 = client_thread(server_addr, move |mut reader, mut writer| {
+            let mut resp = String::new();
+            assert!(resp.is_empty());
+
+            writer.write("noop\r\n".as_bytes()).expect("Could not write request to conn1");
+            reader.read_line(&mut resp).expect("Could not read response from conn1");
+            assert!(!resp.is_empty());
+        });
+
+        let conn2 = client_thread(server_addr, move |mut reader, mut writer| {
+            let mut resp = String::new();
+            assert!(resp.is_empty());
+
+            writer.write("noop\r\n".as_bytes()).expect("Could not write request to conn2");
+            reader.read_line(&mut resp).expect("Could not read response from conn2");
+            assert!(!resp.is_empty());
+        });
+
+        let waiter = thread::spawn(move || {
+            conn1.join().unwrap();
+            conn2.join().unwrap();
+            channel.send(Notification::shutdown()).unwrap();
+        });
+
+        server.run().unwrap();
+        waiter.join().unwrap();
     }
 }

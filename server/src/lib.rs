@@ -23,6 +23,9 @@ extern crate matches;
 #[cfg(test)]
 extern crate regex;
 
+#[cfg(test)]
+extern crate env_logger;
+
 pub mod backend;
 pub mod database;
 pub mod mem;

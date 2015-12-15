@@ -12,5 +12,5 @@ before_install:
   - rvm use ruby-2.2
   - gem install toml docker-api mogilefs-client
 script:
-  - rake build[verbose]
-  - rake test:unit[verbose]
+  - rake build:ci[verbose]
+  - rake test:ci[verbose]
