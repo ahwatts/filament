@@ -4,7 +4,7 @@ version = "0.4.0"
 dependencies = [
  "docopt 0.6.78 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "filament-ext 0.1.0 (git+ssh://git@github.com/reverbnation/filament-ext.git?tag=v0.1.1)",
+ "filament-ext 0.2.0 (git+ssh://git@github.com/reverbnation/filament-ext.git)",
  "iron 0.2.6 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -40,6 +40,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bufstream"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "byteorder"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -110,13 +115,14 @@ dependencies = [
 
 [[package]]
 name = "filament-ext"
-version = "0.1.0"
-source = "git+ssh://git@github.com/reverbnation/filament-ext.git?tag=v0.1.1#3f5a3d98068427b8683fa1243882cc0a52a90caa"
+version = "0.2.0"
+source = "git+ssh://git@github.com/reverbnation/filament-ext.git#c23afb0a765198bca0635cacb6a9d7c71d8edfd4"
 dependencies = [
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mogilefs_common 0.4.0 (git+https://github.com/ahwatts/mogilefsd-rs.git)",
+ "mysql 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -337,6 +343,18 @@ dependencies = [
  "threadpool 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "mysql"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "byteorder 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.34 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
