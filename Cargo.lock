@@ -4,7 +4,7 @@ version = "0.4.0"
 dependencies = [
  "docopt 0.6.78 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "filament-ext 0.1.0 (git+ssh://git@github.com/reverbnation/filament-ext.git)",
+ "filament-ext 0.1.0 (git+ssh://git@github.com/reverbnation/filament-ext.git?tag=v0.1.1)",
  "iron 0.2.6 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -111,7 +111,7 @@ dependencies = [
 [[package]]
 name = "filament-ext"
 version = "0.1.0"
-source = "git+ssh://git@github.com/reverbnation/filament-ext.git#10a9b38ffc38a7292b1717883893fc8900088570"
+source = "git+ssh://git@github.com/reverbnation/filament-ext.git?tag=v0.1.1#3f5a3d98068427b8683fa1243882cc0a52a90caa"
 dependencies = [
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
