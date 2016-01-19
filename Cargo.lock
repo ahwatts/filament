@@ -1,6 +1,6 @@
 [root]
 name = "filament"
-version = "0.4.0"
+version = "0.5.0-dev"
 dependencies = [
  "docopt 0.6.78 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8,9 +8,9 @@ dependencies = [
  "iron 0.2.6 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mogilefs_client 0.4.0",
- "mogilefs_common 0.4.0",
- "mogilefs_server 0.4.0",
+ "mogilefs_client 0.5.0-dev",
+ "mogilefs_common 0.5.0-dev",
+ "mogilefs_server 0.5.0-dev",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -290,13 +290,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "mogilefs_client"
-version = "0.4.0"
+version = "0.5.0-dev"
 dependencies = [
  "bufstream 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.2.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "mogilefs_common 0.4.0",
+ "mogilefs_common 0.5.0-dev",
  "rand 0.3.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "statsd 0.4.1 (git+https://github.com/ahwatts/rust-statsd.git)",
  "url 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -315,7 +315,7 @@ dependencies = [
 
 [[package]]
 name = "mogilefs_common"
-version = "0.4.0"
+version = "0.5.0-dev"
 dependencies = [
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -325,7 +325,7 @@ dependencies = [
 
 [[package]]
 name = "mogilefs_server"
-version = "0.4.0"
+version = "0.5.0-dev"
 dependencies = [
  "chrono 0.2.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -334,8 +334,8 @@ dependencies = [
  "libc 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "mio 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "mogilefs_client 0.4.0",
- "mogilefs_common 0.4.0",
+ "mogilefs_client 0.5.0-dev",
+ "mogilefs_common 0.5.0-dev",
  "plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "r2d2 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
