@@ -1,8 +1,5 @@
-use hyper::Client;
-use hyper::status::StatusCode;
-use rand;
 use std::io::Read;
-use super::error::{MogError, MogResult};
+use super::error::MogResult;
 use super::request::{Request, Response};
 use super::requests::*;
 
@@ -22,14 +19,20 @@ pub trait Backend: Send + Sync {
         request.perform(self)
     }
 
-    fn store_file<R: Read>(&self, domain: String, key: String, class: Option<String>, data: &mut R) -> MogResult<()> where Self: Sized {
+    fn store_file<R: Read>(&self, domain: String, key: String, class: Option<String>, data: &mut R, data_len: u64) -> MogResult<()> where Self: Sized {
+        use hyper::Client;
+        use hyper::header::ContentLength;
+        use hyper::status::StatusCode;
+        use super::error::MogError::*;
+        use rand;
+
         // Register the file with MogileFS, and ask it where we can store it.
         let open_req = CreateOpen { domain: domain.clone(), class: class, key: key.clone(), multi_dest: true, size: None };
         let open_res = try!(self.create_open(&open_req));
 
         // Choose at random one of the places MogileFS suggests.
         let mut rng = rand::thread_rng();
-        let &&(ref devid, ref path) = try!(rand::sample(&mut rng, open_res.paths.iter(), 1).first().ok_or(MogError::NoPath));
+        let &&(ref devid, ref path) = try!(rand::sample(&mut rng, open_res.paths.iter(), 1).first().ok_or(NoPath));
 
         debug!("Storing data for {:?} to {}", key, path);
 
@@ -37,14 +40,15 @@ pub trait Backend: Send + Sync {
         let client = Client::new();
         let put_res = try!{
             client.put(path.clone())
+                .header::<ContentLength>(ContentLength(data_len))
                 .body(data)
                 .send()
-                .map_err(|e| MogError::StorageError(Some(format!("Could not store to {}: {}", path, e))))
+                .map_err(|e| StorageError(Some(format!("Could not store to {}: {}", path, e))))
         };
 
         match &put_res.status {
             &StatusCode::Ok | &StatusCode::Created => {},
-            _ => return Err(MogError::StorageError(Some(format!("Bad response from storage server: {:?}", put_res)))),
+            _ => return Err(StorageError(Some(format!("Bad response from storage server: {:?}", put_res)))),
         }
 
         // Tell MogileFS where we uploaded the file to, and return the
@@ -57,6 +61,44 @@ pub trait Backend: Send + Sync {
             path: path.clone(),
             checksum: None,
         })
+    }
+}
+
+impl Backend for Box<Backend> {
+    fn create_domain(&self, req: &CreateDomain) -> MogResult<CreateDomain> {
+        (&**self).create_domain(req)
+    }
+
+    fn create_open(&self, req: &CreateOpen) -> MogResult<CreateOpenResponse> {
+        (&**self).create_open(req)
+    }
+
+    fn create_close(&self, req: &CreateClose) -> MogResult<()> {
+        (&**self).create_close(req)
+    }
+
+    fn create_class(&self, req: &CreateClass) -> MogResult<CreateClassResponse> {
+        (&**self).create_class(req)
+    }
+
+    fn get_paths(&self, req: &GetPaths) -> MogResult<GetPathsResponse> {
+        (&**self).get_paths(req)
+    }
+
+    fn file_info(&self, req: &FileInfo) -> MogResult<FileInfoResponse> {
+        (&**self).file_info(req)
+    }
+
+    fn delete(&self, req: &Delete) -> MogResult<()> {
+        (&**self).delete(req)
+    }
+
+    fn rename(&self, req: &Rename) -> MogResult<()> {
+        (&**self).rename(req)
+    }
+
+    fn list_keys(&self, req: &ListKeys) -> MogResult<ListKeysResponse> {
+        (&**self).list_keys(req)
     }
 }
 

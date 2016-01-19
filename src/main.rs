@@ -13,7 +13,7 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
-use filament_ext::{MyOpts, PublicFinder, SongFinder};
+use filament_ext::{MyOpts, AlternateFinderBackend, PublicFinder, SongFinder};
 use iron::{Chain, Iron, Protocol};
 use mogilefs_common::{BackendStack, AroundMiddleware};
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
@@ -85,13 +85,15 @@ fn main() {
         let mut stack = BackendStack::new(backend);
 
         if opts.flag_alternate_base_url.is_some() {
-            let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap(), db_opts);
-            stack.around(public_finder);
+            let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
+            let pf_backend = AlternateFinderBackend::new(public_finder, db_opts.clone());
+            stack.around(pf_backend);
         }
 
         if opts.flag_alternate_song_api_url.is_some() {
             let song_finder = SongFinder::new(opts.flag_alternate_song_api_url.as_ref().cloned().unwrap());
-            stack.around(song_finder);
+            let sf_backend = AlternateFinderBackend::new(song_finder, db_opts);
+            stack.around(sf_backend);
         }
 
         let mut tracker = Tracker::new(stack);
