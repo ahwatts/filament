@@ -2,7 +2,7 @@ FROM debian:jessie
 MAINTAINER Andrew Watts <ahwatts@gmail.com>
 
 RUN apt-get update && \
-    apt-get upgrade && \
+    apt-get -y upgrade && \
     apt-get -y install build-essential wget sysstat && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

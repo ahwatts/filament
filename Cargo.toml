@@ -25,6 +25,8 @@ url = "~0.5.0"
 
 [dependencies.filament-ext]
 git = "ssh://git@github.com/reverbnation/filament-ext.git"
+rev = "84771b8"
+# tag = "v0.1.1"
 
 [dependencies.iron]
 git = "https://github.com/ahwatts/iron.git"

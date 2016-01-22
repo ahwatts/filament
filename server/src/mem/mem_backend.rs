@@ -193,6 +193,17 @@ impl SyncMemBackend {
             Err(e) => Err(e),
         }
     }
+
+    pub fn base_url(&self) -> Url {
+        self.1.clone()
+    }
+
+    pub fn set_base_url(&mut self, new_url: Url) -> MogResult<()> {
+        let mut guard = try!(self.0.write());
+        guard.base_url = new_url.clone();
+        self.1 = new_url;
+        Ok(())
+    }
 }
 
 impl Backend for SyncMemBackend {

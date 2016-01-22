@@ -13,7 +13,7 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
-use filament_ext::{PublicFinder, SongFinder};
+use filament_ext::{MyOpts, AlternateFinderBackend, PublicFinder, SongFinder};
 use iron::{Chain, Iron, Protocol};
 use mogilefs_common::{BackendStack, AroundMiddleware};
 use mogilefs_server::mem::{MemBackend, SyncMemBackend};
@@ -22,6 +22,7 @@ use mogilefs_server::net::tracker::Tracker;
 use mogilefs_server::proxy::ProxyTrackerBackend;
 use mogilefs_server::range::RangeMiddleware;
 use rustc_serialize::{Decodable, Decoder};
+use std::default::Default;
 use std::net::SocketAddr;
 use std::thread;
 use url::Url;
@@ -42,6 +43,18 @@ fn main() {
         .and_then(|d| d.version(Some(FULL_VERSION.to_string())).decode())
         .unwrap_or_else(|e| e.exit());
     debug!("opts = {:?}", opts);
+
+    let db_opts = opts.flag_db_host.as_ref().map(|addr| MyOpts {
+        tcp_addr: match addr {
+            &WrapSocketAddr(SocketAddr::V4(v4_ip)) => Some(v4_ip.ip().to_string()),
+            &WrapSocketAddr(SocketAddr::V6(v6_ip)) => Some(v6_ip.ip().to_string()),
+        },
+        tcp_port: addr.0.port(),
+        user: Some(opts.flag_db_user.clone()),
+        pass: opts.flag_db_pass.clone(),
+        db_name: Some(opts.flag_db_name.clone()),
+        ..Default::default()
+    });
 
     let tracker = if opts.cmd_mem_tracker {
         let backend = SyncMemBackend::new(MemBackend::new(opts.flag_base_url.clone()));
@@ -73,12 +86,14 @@ fn main() {
 
         if opts.flag_alternate_base_url.is_some() {
             let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
-            stack.around(public_finder);
+            let pf_backend = AlternateFinderBackend::new(public_finder, db_opts.clone());
+            stack.around(pf_backend);
         }
 
         if opts.flag_alternate_song_api_url.is_some() {
             let song_finder = SongFinder::new(opts.flag_alternate_song_api_url.as_ref().cloned().unwrap());
-            stack.around(song_finder);
+            let sf_backend = AlternateFinderBackend::new(song_finder, db_opts);
+            stack.around(sf_backend);
         }
 
         let mut tracker = Tracker::new(stack);
@@ -160,12 +175,20 @@ General Storage Options:
   -s N, --storage-threads=N  How many storage threads to run.                 [default: 4]
   -u URL, --base-url=URL     The base URL for the storage server.             [default: http://127.0.0.1:7503/]
 
+Database Options:
+  (These can also be specified as environment variables prefixed by
+  FILAMENT_, e.g. FILAMENT_DB_HOST, FILAMENT_DB_USER, etc.)
+  --db-host=IP               The host ip:port to find the MogileFS DB on.
+  --db-user=USER             The username to connect to the DB with.          [default: mogile]
+  --db-pass=PASS             The password to connect to the DB with.
+  --db-name=DB               The MogileFS database name.                      [default: mogilefs]
+
 
 In-Memory Tracker (mem-tracker) Options:
   (all General Tracker Options and General Storage Options supported)
 
 Proxy Tracker (proxy-tracker) Options:
-  (all General Tracker Options and General Storage Options supported)
+  (all General Tracker Options and Database Options supported)
   Tracker Options:
     --real-trackers=IPS           A comma-separated list of actual trackers that we're proxying for.    [default: 127.0.0.1:7001]
     --alternate-base-url=URL      The base public URL to look for files that are missing on the real trackers.
@@ -187,6 +210,11 @@ struct Options {
     flag_storage_ip: WrapSocketAddr,
     flag_storage_threads: usize,
     flag_base_url: Url,
+
+    flag_db_host: Option<WrapSocketAddr>,
+    flag_db_user: String,
+    flag_db_pass: Option<String>,
+    flag_db_name: String,
 
     flag_real_trackers: SocketAddrList,
     flag_alternate_base_url: Option<Url>,

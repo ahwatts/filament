@@ -444,7 +444,7 @@ mod tests {
             assert!(resp.is_empty());
 
             writer.write("file_info domain=rn_develop".as_bytes()).unwrap();
-            thread::sleep_ms(1000);
+            thread::sleep(Duration::from_secs(1));
             writer.write("ment_private&key=test/key/2\r\n".as_bytes()).unwrap();
 
             reader.read_line(&mut resp).unwrap();
