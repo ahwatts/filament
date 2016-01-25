@@ -17,6 +17,7 @@ pub type MogResult<T> = Result<T, MogError>;
 /// The error types that mogilefsd can produce.
 #[derive(Debug)]
 pub enum MogError {
+    Database(String),
     DomainExists(String),
     Io(io::Error),
     KeyExists(String),
@@ -63,6 +64,7 @@ impl MogError {
 
             Other(ref op, _) => op,
 
+            Database(..) => "db_error",
             Io(..) => "io_error",
             NoClass => "no_class",
             NoConnection => "no_connection",
@@ -156,6 +158,7 @@ impl Display for MogError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         use self::MogError::*;
         match *self {
+            Database(ref d) => write!(f, "{}", d),
             Io(ref io_err) => write!(f, "{}", io_err),
             Utf8(ref utf8_err) => write!(f, "{}", utf8_err),
 
@@ -182,6 +185,7 @@ impl Error for MogError {
     fn description(&self) -> &str {
         use self::MogError::*;
         match *self {
+            Database(..) => "Database error",
             DomainExists(..) => "Domain already exists",
             Io(ref io_err) => io_err.description(),
             KeyExists(..) => "Key already exists",

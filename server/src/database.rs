@@ -1,7 +1,10 @@
 //! Utilities for working with the MogileFS database.
 
 use chrono::UTC;
-use mysql::conn::{MyOpts, MyConn, QueryResult};
+use mogilefs_common::{MogError, MogResult};
+use mysql::conn::{MyOpts, QueryResult};
+use mysql::conn::pool::MyPool;
+use mysql::error::MyError;
 use mysql::value::{self, ToRow};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -10,139 +13,168 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 pub struct DataStore {
-    conn: RefCell<MyConn>,
+    pool: MyPool,
     domain_cache: RefCell<ObjectCache<u16, Domain>>,
     class_cache: RefCell<ObjectCache<(u16, u8), Class>>,
 }
 
 impl DataStore {
-    pub fn new(opts: MyOpts) -> Result<DataStore, String> {
-        MyConn::new(opts).map(|c| {
-            DataStore {
-                conn: RefCell::new(c),
-                domain_cache: RefCell::new(ObjectCache::new()),
-                class_cache: RefCell::new(ObjectCache::new()),
-            }
-        }).map_err(|e| {
-            format!("Error connecting to database: {}", e)
+    pub fn new(opts: MyOpts) -> MogResult<DataStore> {
+        let pool = match MyPool::new(opts) {
+            Ok(p) => p,
+            Err(e) => return Err(MogDbError::from(e).into()),
+        };
+
+        Ok(DataStore {
+            pool: pool,
+            domain_cache: RefCell::new(ObjectCache::new()),
+            class_cache: RefCell::new(ObjectCache::new()),
+        })
+    }
+
+    pub fn new_from_pool(pool: MyPool) -> MogResult<DataStore> {
+        Ok(DataStore {
+            pool: pool,
+            domain_cache: RefCell::new(ObjectCache::new()),
+            class_cache: RefCell::new(ObjectCache::new()),
         })
     }
 
     pub fn domain_by_id(&self, dmid: u16) -> Option<Rc<Domain>> {
-        let mut domain = self.domain_cache.borrow().find_by_id(&dmid);
-        domain.clone().or_else(|| {
-            self.select("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,), |result| {
-                if let Some(Ok(db_row)) = result.next() {
-                    let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
-                    let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, new_dmid, new_name);
-                    domain = self.domain_cache.borrow().find_by_id(&dmid);
-                }
-            });
-
-            domain
+        self.domain_cache.borrow().find_by_id(&dmid).or_else(|| {
+            self.find_and_cache_domain("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,));
+            self.domain_cache.borrow().find_by_id(&dmid)
         })
     }
 
     pub fn domain_by_name(&self, name: &str) -> Option<Rc<Domain>> {
-        let mut domain = self.domain_cache.borrow().find_by_name(name);
-        domain.clone().or_else(|| {
-            self.select("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,), |result| {
-                if let Some(Ok(db_row)) = result.next() {
-                    let (new_dmid, new_name) = value::from_row::<(u16, String)>(db_row);
-                    let db_domain = Domain { dmid: new_dmid, name: new_name.clone() };
-                    self.domain_cache.borrow_mut().add(db_domain, new_dmid, new_name);
-                    domain = self.domain_cache.borrow().find_by_name(name);
-                }
-            });
-
-            domain
+        self.domain_cache.borrow().find_by_name(name).or_else(|| {
+            self.find_and_cache_domain("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,));
+            self.domain_cache.borrow().find_by_name(name)
         })
     }
 
-    pub fn class_by_id(&self, dmid: u16, classid: u8) -> Option<Rc<Class>> {
-        let mut class = self.class_cache.borrow().find_by_id(&(dmid, classid));
-        class.clone().or_else(|| {
-            self.select("SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classid = ?", (dmid, classid), |result| {
-                if let Some(Ok(db_row)) = result.next() {
-                    let (new_dmid, new_classid, classname, mindevcount, _hashtype, replpolicy) =
-                        value::from_row::<(u16, u8, String, u8, Option<u8>, Option<String>)>(db_row);
-                    let db_class = Class {
-                        classid: new_classid,
-                        domain_id: new_dmid,
-                        name: classname.clone(),
-                        mindevcount: mindevcount,
-                        replpolicy: replpolicy,
-                    };
-                    let qcl = qualified_class_name(new_dmid, &classname);
-                    self.class_cache.borrow_mut().add(db_class, (dmid, classid), qcl);
-                    class = self.class_cache.borrow().find_by_id(&(dmid, classid));
-                }
-            });
+    fn find_and_cache_domain<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) {
+        if let Some(db_domain) = self.domain_from_db(query.as_ref(), params) {
+            let (id, name) = (db_domain.dmid, db_domain.name.clone());
+            self.domain_cache.borrow_mut().add(db_domain, id, name);
+        }
+    }
 
-            class
+    fn domain_from_db<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) -> Option<Domain> {
+        let dm_rslt = self.select(query.as_ref(), params, |result| {
+            match result.next() {
+                Some(Ok(db_row)) => {
+                    let (dmid, name) = value::from_row::<(u16, String)>(db_row);
+                    Ok(Some(Domain { dmid: dmid, name: name }))
+                },
+                Some(Err(e)) => Err(MogDbError::from(e)),
+                None => Ok(None)
+            }
+        });
+
+        match dm_rslt {
+            Ok(d) => d,
+            Err(e) => {
+                error!("Error getting domain from database: {:?}", e);
+                None
+            },
+        }
+    }
+
+    pub fn class_by_id(&self, dmid: u16, classid: u8) -> Option<Rc<Class>> {
+        self.class_cache.borrow().find_by_id(&(dmid, classid)).or_else(|| {
+            self.find_and_cache_class(
+                "SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classid = ?",
+                (dmid, classid));
+            self.class_cache.borrow().find_by_id(&(dmid, classid))
         })
     }
 
     pub fn class_by_name(&self, domain_name: &str, class_name: &str) -> Option<Rc<Class>> {
         self.domain_by_name(domain_name).and_then(|domain| {
             let qcl = qualified_class_name(domain.dmid, class_name);
-            let mut class = self.class_cache.borrow().find_by_name(&qcl);
-            class.clone().or_else(|| {
-                self.select(
+            self.class_cache.borrow().find_by_name(&qcl).or_else(|| {
+                self.find_and_cache_class(
                     "SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classname = ?",
-                    (domain.dmid, class_name), |result| {
-                        if let Some(Ok(db_row)) = result.next() {
-                            let (new_dmid, new_classid, new_class_name, mindevcount, _hashtype, replpolicy) =
-                                value::from_row::<(u16, u8, String, u8, Option<u8>, Option<String>)>(db_row);
-                            let db_class = Class {
-                                classid: new_classid,
-                                domain_id: new_dmid,
-                                name: new_class_name.clone(),
-                                mindevcount: mindevcount,
-                                replpolicy: replpolicy,
-                            };
-                            let new_qcl = qualified_class_name(new_dmid, &new_class_name);
-                            self.class_cache.borrow_mut().add(db_class, (new_dmid, new_classid), new_qcl);
-                            class = self.class_cache.borrow().find_by_id(&(new_dmid, new_classid));
-                        }
-                    });
-
-                class
+                    (domain.dmid, class_name));
+                self.class_cache.borrow().find_by_name(&qcl)
             })
         })
     }
 
-    pub fn fid_by_key(&self, domain_name: &str, key: &str) -> Option<Fid> {
-        let domain = match self.domain_by_name(domain_name) {
-            Some(d) => d,
-            None => return None,
-        };
-
-        let mut fid_rv = None;
-        self.select(
-            "SELECT fid, dmid, dkey, length, classid, devcount FROM file WHERE dmid = ? AND dkey = ?",
-            (domain.dmid, key), |result| {
-                if let Some(Ok(db_row)) = result.next() {
-                    let (fid, new_dmid, new_key, length, classid, devcount) =
-                        value::from_row::<(u64, u16, String, u64, u8, u8)>(db_row);
-                    fid_rv = Some(Fid {
-                        fid: fid,
-                        domain_id: new_dmid,
-                        key: new_key,
-                        length: length,
-                        class_id: classid,
-                        devcount: devcount,
-                    })
-                }
-            });
-        fid_rv
+    fn find_and_cache_class<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) {
+        if let Some(class) = self.class_from_db(query.as_ref(), params) {
+            let (classid, dmid, class_name) = (class.classid, class.domain_id, class.name.clone());
+            self.class_cache.borrow_mut().add(class, (dmid, classid), qualified_class_name(dmid, &class_name));
+        }
     }
 
-    fn select<Q: AsRef<str>, P: ToRow, F>(&self, query: Q, params: P, callback: F)
-        where F: FnOnce(&mut QueryResult)
+    fn class_from_db<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) -> Option<Class> {
+        let cls_rslt = self.select(query.as_ref(), params, |result| {
+            match result.next() {
+                Some(Ok(db_row)) => {
+                    let (dmid, classid, classname, mindevcount, _hashtype, replpolicy) =
+                        value::from_row::<(u16, u8, String, u8, Option<u8>, Option<String>)>(db_row);
+                    Ok(Some(Class {
+                        classid: classid,
+                        domain_id: dmid,
+                        name: classname,
+                        mindevcount: mindevcount,
+                        replpolicy: replpolicy,
+                    }))
+                },
+                Some(Err(e)) => Err(MogDbError::from(e)),
+                None => Ok(None)
+            }
+        });
+
+        match cls_rslt {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Error getting class from database: {:?}", e);
+                None
+            },
+        }
+    }
+
+    pub fn fid_by_key(&self, domain_name: &str, key: &str) -> Option<Fid> {
+        self.domain_by_name(domain_name).and_then(|domain| {
+            let fid_rslt = self.select(
+                "SELECT fid, dmid, dkey, length, classid, devcount FROM file WHERE dmid = ? AND dkey = ?",
+                (domain.dmid, key), |result| {
+                    match result.next() {
+                        Some(Ok(db_row)) => {
+                            let (fid, new_dmid, new_key, length, classid, devcount) =
+                                value::from_row::<(u64, u16, String, u64, u8, u8)>(db_row);
+                            Ok(Some(Fid {
+                                fid: fid,
+                                domain_id: new_dmid,
+                                key: new_key,
+                                length: length,
+                                class_id: classid,
+                                devcount: devcount,
+                            }))
+                        },
+                        Some(Err(e)) => Err(MogDbError::from(e)),
+                        None => Ok(None),
+                    }
+                });
+
+            match fid_rslt {
+                Ok(f) => f,
+                Err(e) => {
+                    error!("Error getting fid from database: {:?}", e);
+                    None
+                },
+            }
+        })
+    }
+
+    fn select<Q: AsRef<str>, P: ToRow, F, R>(&self, query: Q, params: P, callback: F) -> MogDbResult<R>
+        where F: FnOnce(&mut QueryResult) -> MogDbResult<R>
     {
-        let mut conn = self.conn.borrow_mut();
+        let mut conn = try!(self.pool.get_conn());
         trace!("Executing query: {:?}", query.as_ref());
         let start = UTC::now();
         let result = conn.prep_exec(query.as_ref(), params);
@@ -152,10 +184,11 @@ impl DataStore {
         match result {
             Ok(mut result_set) => {
                 debug!("Select query ({:?}): {:?}", end - start, query.as_ref());
-                callback(&mut result_set);
+                callback(&mut result_set)
             },
             Err(e) => {
                 error!("Error with query {:?}: {}", query.as_ref(), e);
+                Err(MogDbError::from(e))
             }
         }
     }
@@ -219,6 +252,35 @@ impl<I: Eq + Hash + Debug, T> ObjectCache<I, T> {
         self.by_name.get(name).cloned()
     }
 }
+
+#[derive(Debug)]
+enum MogDbError {
+    Common(MogError),
+    Database(MyError),
+}
+
+impl From<MogError> for MogDbError {
+    fn from(err: MogError) -> MogDbError {
+        MogDbError::Common(err)
+    }
+}
+
+impl From<MyError> for MogDbError {
+    fn from(err: MyError) -> MogDbError {
+        MogDbError::Database(err)
+    }
+}
+
+impl Into<MogError> for MogDbError {
+    fn into(self) -> MogError {
+        match self {
+            MogDbError::Common(e) => e,
+            MogDbError::Database(e) => MogError::Database(format!("{}", e)),
+        }
+    }
+}
+
+type MogDbResult<T> = Result<T, MogDbError>;
 
 #[cfg(test)]
 mod tests {
