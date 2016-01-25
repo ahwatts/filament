@@ -6,16 +6,21 @@ use mysql::conn::{MyOpts, QueryResult};
 use mysql::conn::pool::MyPool;
 use mysql::error::MyError;
 use mysql::value::{self, ToRow};
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
+
+type DomainCache = ObjectCache<u16, Domain>;
+type ClassCache = ObjectCache<(u16, u8), Class>;
+
+enum DomainSearch<'a> { Name(&'a str), Id(u16) }
+enum ClassSearch<'a> { Name(u16, &'a str), Id(u16, u8) }
 
 pub struct DataStore {
     pool: MyPool,
-    domain_cache: RefCell<ObjectCache<u16, Domain>>,
-    class_cache: RefCell<ObjectCache<(u16, u8), Class>>,
+    domain_cache: RwLock<DomainCache>,
+    class_cache: RwLock<ClassCache>,
 }
 
 impl DataStore {
@@ -27,37 +32,57 @@ impl DataStore {
 
         Ok(DataStore {
             pool: pool,
-            domain_cache: RefCell::new(ObjectCache::new()),
-            class_cache: RefCell::new(ObjectCache::new()),
+            domain_cache: RwLock::new(ObjectCache::new()),
+            class_cache: RwLock::new(ObjectCache::new()),
         })
     }
 
     pub fn new_from_pool(pool: MyPool) -> MogResult<DataStore> {
         Ok(DataStore {
             pool: pool,
-            domain_cache: RefCell::new(ObjectCache::new()),
-            class_cache: RefCell::new(ObjectCache::new()),
+            domain_cache: RwLock::new(ObjectCache::new()),
+            class_cache: RwLock::new(ObjectCache::new()),
         })
     }
 
-    pub fn domain_by_id(&self, dmid: u16) -> Option<Rc<Domain>> {
-        self.domain_cache.borrow().find_by_id(&dmid).or_else(|| {
+    pub fn domain_by_id(&self, dmid: u16) -> Option<Arc<Domain>> {
+        let search = DomainSearch::Id(dmid);
+        self.domain_from_cache(&search).or_else(|| {
             self.find_and_cache_domain("SELECT dmid, namespace FROM domain WHERE dmid = ?", (dmid,));
-            self.domain_cache.borrow().find_by_id(&dmid)
+            self.domain_from_cache(&search)
         })
     }
 
-    pub fn domain_by_name(&self, name: &str) -> Option<Rc<Domain>> {
-        self.domain_cache.borrow().find_by_name(name).or_else(|| {
+    pub fn domain_by_name(&self, name: &str) -> Option<Arc<Domain>> {
+        let search = DomainSearch::Name(name);
+        self.domain_from_cache(&search).or_else(|| {
             self.find_and_cache_domain("SELECT dmid, namespace FROM domain WHERE namespace = ?", (name,));
-            self.domain_cache.borrow().find_by_name(name)
+            self.domain_from_cache(&search)
         })
     }
 
     fn find_and_cache_domain<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) {
         if let Some(db_domain) = self.domain_from_db(query.as_ref(), params) {
             let (id, name) = (db_domain.dmid, db_domain.name.clone());
-            self.domain_cache.borrow_mut().add(db_domain, id, name);
+            let mut cache = match self.domain_cache.write() {
+                Ok(g) => g,
+                Err(e) => e.into_inner(),
+            };
+            cache.add(db_domain, id, name);
+        }
+    }
+
+    fn domain_from_cache(&self, search: &DomainSearch) -> Option<Arc<Domain>> {
+        use self::DomainSearch::*;
+
+        let cache = match self.domain_cache.read() {
+            Ok(g) => g,
+            Err(e) => e.into_inner(),
+        };
+
+        match search {
+            &Name(domain_name) => cache.find_by_name(domain_name),
+            &Id(ref domain_id) => cache.find_by_id(domain_id),
         }
     }
 
@@ -82,23 +107,24 @@ impl DataStore {
         }
     }
 
-    pub fn class_by_id(&self, dmid: u16, classid: u8) -> Option<Rc<Class>> {
-        self.class_cache.borrow().find_by_id(&(dmid, classid)).or_else(|| {
+    pub fn class_by_id(&self, dmid: u16, classid: u8) -> Option<Arc<Class>> {
+        let search = ClassSearch::Id(dmid, classid);
+        self.class_from_cache(&search).or_else(|| {
             self.find_and_cache_class(
                 "SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classid = ?",
                 (dmid, classid));
-            self.class_cache.borrow().find_by_id(&(dmid, classid))
+            self.class_from_cache(&search)
         })
     }
 
-    pub fn class_by_name(&self, domain_name: &str, class_name: &str) -> Option<Rc<Class>> {
+    pub fn class_by_name(&self, domain_name: &str, class_name: &str) -> Option<Arc<Class>> {
         self.domain_by_name(domain_name).and_then(|domain| {
-            let qcl = qualified_class_name(domain.dmid, class_name);
-            self.class_cache.borrow().find_by_name(&qcl).or_else(|| {
+            let search = ClassSearch::Name(domain.dmid, class_name);
+            self.class_from_cache(&search).or_else(|| {
                 self.find_and_cache_class(
                     "SELECT dmid, classid, classname, mindevcount, hashtype, replpolicy FROM class WHERE dmid = ? and classname = ?",
                     (domain.dmid, class_name));
-                self.class_cache.borrow().find_by_name(&qcl)
+                self.class_from_cache(&search)
             })
         })
     }
@@ -106,7 +132,25 @@ impl DataStore {
     fn find_and_cache_class<Q: AsRef<str>, P: ToRow>(&self, query: Q, params: P) {
         if let Some(class) = self.class_from_db(query.as_ref(), params) {
             let (classid, dmid, class_name) = (class.classid, class.domain_id, class.name.clone());
-            self.class_cache.borrow_mut().add(class, (dmid, classid), qualified_class_name(dmid, &class_name));
+            let mut cache = match self.class_cache.write() {
+                Ok(g) => g,
+                Err(e) => e.into_inner(),
+            };
+            cache.add(class, (dmid, classid), qualified_class_name(dmid, &class_name));
+        }
+    }
+
+    fn class_from_cache(&self, search: &ClassSearch) -> Option<Arc<Class>> {
+        use self::ClassSearch::*;
+
+        let cache = match self.class_cache.read() {
+            Ok(g) => g,
+            Err(e) => e.into_inner(),
+        };
+
+        match search {
+            &Name(domain_id, class_name) => cache.find_by_name(&qualified_class_name(domain_id, class_name)),
+            &Id(domain_id, class_id) => cache.find_by_id(&(domain_id, class_id)),
         }
     }
 
@@ -226,8 +270,8 @@ pub struct Fid {
 
 #[derive(Debug, Clone)]
 struct ObjectCache<I: Eq + Hash + Debug, T> {
-    by_id: HashMap<I, Rc<T>>,
-    by_name: HashMap<String, Rc<T>>,
+    by_id: HashMap<I, Arc<T>>,
+    by_name: HashMap<String, Arc<T>>,
 }
 
 impl<I: Eq + Hash + Debug, T> ObjectCache<I, T> {
@@ -239,16 +283,16 @@ impl<I: Eq + Hash + Debug, T> ObjectCache<I, T> {
     }
 
     fn add(&mut self, object: T, id: I, name: String) {
-        let object_rc = Rc::new(object);
+        let object_rc = Arc::new(object);
         self.by_id.entry(id).or_insert(object_rc.clone());
         self.by_name.entry(name).or_insert(object_rc.clone());
     }
 
-    fn find_by_id(&self, id: &I) -> Option<Rc<T>> {
+    fn find_by_id(&self, id: &I) -> Option<Arc<T>> {
         self.by_id.get(id).cloned()
     }
 
-    fn find_by_name(&self, name: &str) -> Option<Rc<T>> {
+    fn find_by_name(&self, name: &str) -> Option<Arc<T>> {
         self.by_name.get(name).cloned()
     }
 }
@@ -284,6 +328,7 @@ type MogDbResult<T> = Result<T, MogDbError>;
 
 #[cfg(test)]
 mod tests {
+    use mogilefs_common::MogResult;
     use mysql::conn::MyOpts;
     use std::default::Default;
     use std::env;
@@ -305,7 +350,7 @@ mod tests {
         static ref FILAMENT_TEST_KEY: String = env::var("FILAMENT_TEST_KEY").ok().unwrap_or("test/key/1".to_string());
     }
 
-    fn data_store_fixture() -> Result<DataStore, String> {
+    fn data_store_fixture() -> MogResult<DataStore> {
         let host_sock_addr = FILAMENT_TEST_DB_HOST.to_socket_addrs().unwrap().next().unwrap();
         DataStore::new(MyOpts {
             tcp_addr: Some(format!("{}", host_sock_addr).split(":").next().unwrap().to_owned()),

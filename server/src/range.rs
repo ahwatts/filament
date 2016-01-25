@@ -122,17 +122,17 @@ fn modify_all_from(response: &mut Response, orig_body: Vec<u8>, from: u64) {
 }
 
 fn modify_last(response: &mut Response, orig_body: Vec<u8>, to: u64) {
-    let orig_len = orig_body.len();
+    let orig_len = orig_body.len() as u64;
 
-    if to > (orig_len as u64) {
+    if to > orig_len {
         response.headers.set(ContentRange(ContentRangeSpec::Bytes {
-            range: Some((0, (orig_len as u64) - 1)),
-            instance_length: Some(orig_len as u64),
+            range: Some((0, orig_len - 1)),
+            instance_length: Some(orig_len),
         }));
 
         response.set_mut(orig_body);
     } else {
-        let req_from = (orig_len as u64) - to;
+        let req_from = (orig_len) - to;
         let new_body: Vec<u8> = orig_body.into_iter()
             .skip(req_from as usize)
             .collect();
@@ -141,7 +141,7 @@ fn modify_last(response: &mut Response, orig_body: Vec<u8>, to: u64) {
         let res_to = res_from + (new_body.len() as u64) - 1;
         response.headers.set(ContentRange(ContentRangeSpec::Bytes {
             range: Some((res_from, res_to)),
-            instance_length: Some(orig_len as u64),
+            instance_length: Some(orig_len),
         }));
 
         response.set_mut(new_body);
