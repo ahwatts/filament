@@ -1,5 +1,6 @@
 extern crate docopt;
 extern crate env_logger;
+extern crate filament;
 extern crate rustc_serialize;
 extern crate mogilefs_client;
 extern crate mogilefs_common;
@@ -9,11 +10,11 @@ extern crate url;
 #[macro_use] extern crate log;
 
 use docopt::Docopt;
+use filament::util::SocketAddrList;
 use mogilefs_client::MogClient;
 use mogilefs_common::MogError;
 use mogilefs_common::requests::*;
 use rustc_serialize::{Decodable, Decoder};
-use std::net::SocketAddr;
 use url::Url;
 
 static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
@@ -176,29 +177,4 @@ struct Options {
     cmd_update_class: bool,
     cmd_list_keys: bool,
     cmd_noop: bool,
-}
-
-#[derive(Debug)]
-pub struct SocketAddrList(Vec<SocketAddr>);
-
-impl SocketAddrList {
-    pub fn as_slice(&self) -> &[SocketAddr] {
-        &self.0
-    }
-}
-
-impl Decodable for SocketAddrList {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        use std::str::FromStr;
-
-        let addrs_str = try!(d.read_str());
-        let mut addrs = Vec::new();
-
-        for addr_str in addrs_str.split(',') {
-            let addr = try!(SocketAddr::from_str(addr_str).map_err(|e| d.error(&format!("Unable to parse address {:?}: {:?}", addr_str, e))));
-            addrs.push(addr);
-        }
-
-        Ok(SocketAddrList(addrs))
-    }
 }

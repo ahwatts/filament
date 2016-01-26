@@ -26,6 +26,9 @@ use std::default::Default;
 use std::net::SocketAddr;
 use std::thread;
 use url::Url;
+use util::{SocketAddrList, WrapSocketAddr};
+
+pub mod util;
 
 static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 static GIT_COMMIT: &'static str = include_str!("../git-revision");
@@ -221,49 +224,8 @@ struct Options {
     flag_alternate_song_api_url: Option<Url>,
 }
 
-// Need to wrap SocketAddr with our own type so that we can implement
-// RustcDecodable for it.
-#[derive(Debug)]
-struct WrapSocketAddr(SocketAddr);
-
-impl Decodable for WrapSocketAddr {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        use std::str::FromStr;
-        let addr_str = try!(d.read_str());
-        SocketAddr::from_str(&addr_str)
-            .map(|a| WrapSocketAddr(a))
-            .map_err(|e| d.error(format!("Error parsing address {:?}: {:?}",
-                                         addr_str, e).as_ref()))
-    }
-}
-
 #[derive(Debug, RustcDecodable)]
 enum TrackerIoType {
     Threaded,
     Evented,
-}
-
-#[derive(Debug)]
-pub struct SocketAddrList(Vec<SocketAddr>);
-
-impl SocketAddrList {
-    pub fn as_slice(&self) -> &[SocketAddr] {
-        &self.0
-    }
-}
-
-impl Decodable for SocketAddrList {
-    fn decode<D: Decoder>(d: &mut D) -> Result<Self, D::Error> {
-        use std::str::FromStr;
-
-        let addrs_str = try!(d.read_str());
-        let mut addrs = Vec::new();
-
-        for addr_str in addrs_str.split(',') {
-            let addr = try!(SocketAddr::from_str(addr_str).map_err(|e| d.error(&format!("Unable to parse address {:?}: {:?}", addr_str, e))));
-            addrs.push(addr);
-        }
-
-        Ok(SocketAddrList(addrs))
-    }
 }

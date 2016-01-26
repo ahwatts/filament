@@ -6,6 +6,16 @@ authors = ["Andrew Watts <ahwatts@gmail.com>"]
 homepage = "https://github.com/ahwatts/mogilefsd-rs"
 build = "build.rs"
 
+[[bin]]
+name = "filament"
+path = "src/main.rs"
+doc = false
+
+[[bin]]
+name = "filament-cli"
+path = "src/bin/filament-cli.rs"
+doc = false
+
 [dependencies.mogilefs_client]
 path = "client"
 
