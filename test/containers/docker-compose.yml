@@ -7,7 +7,7 @@ db:
     - 3306
 
 storage_1:
-  build: ./cmogstored
+  image: ahwatts/filament-test-cmogstored
   ports:
     - 7500
     - 7501
@@ -15,7 +15,7 @@ storage_1:
     DEVICE_ID: 1
 
 mogilefsd:
-  build: ./mogilefsd
+  image: ahwatts/filament-test-mogilefsd
   links:
     - db:mysql
   ports:
