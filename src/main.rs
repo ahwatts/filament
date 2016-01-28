@@ -87,14 +87,16 @@ fn main() {
         let backend = ProxyTrackerBackend::new(&opts.flag_real_trackers.0).unwrap();
         let mut stack = BackendStack::new(backend);
 
-        if opts.flag_alternate_base_url.is_some() {
-            let public_finder = PublicFinder::new(opts.flag_alternate_base_url.as_ref().cloned().unwrap());
+        if let Some(ref url) = opts.flag_alternate_base_url {
+            info!("Retrieving alternate public images from {}", url);
+            let public_finder = PublicFinder::new(url.clone());
             let pf_backend = AlternateFinderBackend::new(public_finder, db_opts.clone());
             stack.around(pf_backend);
         }
 
-        if opts.flag_alternate_song_api_url.is_some() {
-            let song_finder = SongFinder::new(opts.flag_alternate_song_api_url.as_ref().cloned().unwrap());
+        if let Some(ref url) = opts.flag_alternate_song_api_url {
+            info!("Retrieving alternate songs from {}", url);
+            let song_finder = SongFinder::new(url.clone());
             let sf_backend = AlternateFinderBackend::new(song_finder, db_opts);
             stack.around(sf_backend);
         }
