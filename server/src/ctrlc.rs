@@ -10,7 +10,6 @@ lazy_static!{
     static ref MUTEX: Mutex<bool> = Mutex::new(false);
 }
 
-#[repr(C)]
 fn handler(_: c_int) {
     CVAR.notify_all();
 }
