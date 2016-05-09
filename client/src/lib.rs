@@ -16,11 +16,11 @@ extern crate lazy_static;
 use bufstream::BufStream;
 use chrono::UTC;
 use hyper::status::StatusCode;
-use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs};
+use mogilefs_common::{Request, Response, MogError, MogResult, BufReadMb, ToArgs, ToUrlencodedString};
 use mogilefs_common::requests::*;
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use url::{form_urlencoded, percent_encoding};
+use url::percent_encoding;
 
 pub struct MogClient {
     transport: MogClientTransport,
@@ -146,7 +146,7 @@ impl MogClientTransport {
 
     fn do_request<R: Request + ?Sized>(&mut self, request: &R) -> MogResult<Response> {
         let mut stream = self.stream.take().unwrap_or(ConnectionState::new());
-        let req_line = format!("{} {}\r\n", request.op(), form_urlencoded::serialize(request.to_args()));
+        let req_line = format!("{} {}\r\n", request.op(), request.to_urlencoded_string());
         let mut resp_line = Vec::new();
         let mut tries = 0;
 
@@ -193,7 +193,8 @@ fn response_from_bytes<R: Request + ?Sized>(request: &R, bytes: &[u8]) -> MogRes
         Some(b"ERR") => Err(MogError::from_bytes(&args)),
         o @ _ => {
             let err_str = o.map(|bs| {
-                percent_encoding::lossy_utf8_percent_decode(bs)
+                percent_encoding::percent_decode(bs)
+                    .decode_utf8_lossy()
                     .replace("+", " ")
             });
             Err(MogError::Other("Unknown response code".to_string(), err_str))

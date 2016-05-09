@@ -8,7 +8,7 @@ use std::sync::mpsc::{SendError, RecvError};
 use std::sync::{MutexGuard, RwLockReadGuard, RwLockWriteGuard, PoisonError};
 use super::request::Renderable;
 use super::util::ToUrlencodedString;
-use url::percent_encoding::{self, FORM_URLENCODED_ENCODE_SET};
+use url::percent_encoding::{self, QUERY_ENCODE_SET};
 
 /// A specialization of `Result` with the error type hard-coded to
 /// `MogError`.
@@ -88,7 +88,8 @@ impl MogError {
         let mut toks = bytes.split(|&b| b == b' ');
         let op = toks.next();
         let msg = toks.next().map(|m| {
-            percent_encoding::lossy_utf8_percent_decode(m)
+            percent_encoding::percent_decode(m)
+                .decode_utf8_lossy()
                 .replace("+", " ")
         });
 
@@ -213,7 +214,7 @@ impl Error for MogError {
 
 impl ToUrlencodedString for MogError {
     fn to_urlencoded_string(&self) -> String {
-        percent_encoding::percent_encode(self.description().as_bytes(), FORM_URLENCODED_ENCODE_SET)
+        percent_encoding::percent_encode(self.description().as_bytes(), QUERY_ENCODE_SET).collect()
     }
 }
 

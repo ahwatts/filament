@@ -278,12 +278,13 @@ impl StorageBackend for SyncMemBackend {
 }
 
 pub fn url_for_key(base_url: &Url, domain: &str, key: &str) -> Url {
+    let mut new_path: Vec<&str> = base_url.path_segments().unwrap().collect();
+    new_path.extend([ "d", domain, "k" ].iter());
+    new_path.extend(key.split("/"));
+    new_path = new_path.into_iter().skip_while(|p| p.is_empty()).collect();
+
     let mut key_url = base_url.clone();
-    let mut new_path = Vec::from(key_url.path().unwrap());
-    new_path.extend([ "d", domain, "k" ].iter().map(|s| s.to_string()));
-    new_path.extend(key.split("/").map(|s| s.to_string()));
-    new_path = new_path.into_iter().skip_while(|p| p == "").collect();
-    *key_url.path_mut().unwrap() = new_path;
+    key_url.set_path(&new_path.join("/"));
     key_url
 }
 
@@ -512,7 +513,7 @@ mod tests {
         let backend = backend_fixture();
         assert_eq!(
             format!("http://{}/{}/d/{}/k/{}", TEST_HOST, TEST_BASE_PATH, TEST_DOMAIN, TEST_KEY_1),
-            backend.url_for_key(TEST_DOMAIN, TEST_KEY_1).serialize());
+            backend.url_for_key(TEST_DOMAIN, TEST_KEY_1).as_str());
     }
 
     #[test]

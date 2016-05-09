@@ -13,7 +13,7 @@ impl ArgsHash {
         let args = form_urlencoded::parse(bytes);
         let mut rv = HashMap::new();
         for (k, v) in args.into_iter() {
-            rv.entry(k).or_insert(v);
+            rv.entry(k.into_owned()).or_insert(v.into_owned());
         }
         ArgsHash(rv)
     }
@@ -37,8 +37,8 @@ impl ArgsHash {
     /// with that `key`.
     pub fn extract_required_url(&mut self, key: &str, missing_error: MogError) -> MogResult<Url> {
         match self.0.remove(key).and_then(|u| Url::parse(&u).ok()) {
-            Some(ref uu) if uu.scheme == "http" => Ok(uu.clone()),
-            Some(ref uu) if uu.scheme == "https" => Ok(uu.clone()),
+            Some(ref uu) if uu.scheme() == "http" => Ok(uu.clone()),
+            Some(ref uu) if uu.scheme() == "https" => Ok(uu.clone()),
             _ => Err(missing_error),
         }
     }

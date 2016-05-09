@@ -6,13 +6,13 @@ authors = ["Andrew Watts <ahwatts@gmail.com>"]
 homepage = "https://github.com/ahwatts/mogilefsd-rs"
 
 [dependencies]
-bufstream = "~0.1.0"
-chrono = "~0.2.0"
-hyper = "~0.7.0"
-rand = "~0.3.0"
-log = "~0.3.1"
-# statsd = "~0.4.1"
-url = "~0.5.0"
+bufstream = "^0.1.0"
+chrono = "^0.2.0"
+hyper = "^0.9.3"
+rand = "^0.3.0"
+log = "^0.3.1"
+# statsd = "^0.4.1"
+url = "^1.1.0"
 
 [dependencies.mogilefs_common]
 path = "../common"
@@ -22,4 +22,4 @@ git = "https://github.com/ahwatts/rust-statsd.git"
 branch = "master"
 
 [dev-dependencies]
-lazy_static = "~0.1.14"
+lazy_static = "^0.2.1"
