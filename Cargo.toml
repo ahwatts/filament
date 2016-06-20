@@ -29,6 +29,7 @@ path = "server"
 docopt = "^0.6.70"
 env_logger = "^0.3.1"
 lazy_static = "^0.2.1"
+libc = "^0.2.12"
 log = "^0.3.1"
 rustc-serialize = "^0.3.15"
 

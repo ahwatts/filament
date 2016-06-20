@@ -4,6 +4,7 @@ extern crate docopt;
 extern crate env_logger;
 extern crate filament_ext;
 extern crate iron;
+extern crate libc;
 extern crate mogilefs_common;
 extern crate mogilefs_server;
 extern crate rustc_serialize;
@@ -28,6 +29,7 @@ use std::thread;
 use url::Url;
 use util::{SocketAddrList, WrapSocketAddr};
 
+pub mod lookup;
 pub mod util;
 
 static VERSION_NUM: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
