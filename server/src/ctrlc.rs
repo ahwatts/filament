@@ -1,7 +1,6 @@
 // Adapted from https://github.com/Detegr/rust-ctrlc .
 
 use libc::{signal, c_int, SIGINT};
-use std::mem;
 use std::sync::{Condvar, Mutex};
 use std::thread;
 
@@ -19,8 +18,12 @@ pub struct CtrlC;
 
 impl CtrlC {
     pub fn set_handler<F: Fn() -> () + 'static + Send>(user_handler: F) {
+        // This seems to work, even though F is not the same type of
+        // function as handler.
+        let handler_ptr = handler as *const F;
+
         unsafe {
-            signal(SIGINT, mem::transmute(handler));
+            signal(SIGINT, handler_ptr as usize);
         }
 
         thread::spawn(move || {
