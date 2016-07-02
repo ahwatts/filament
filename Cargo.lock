@@ -4,7 +4,7 @@ version = "0.5.0-dev"
 dependencies = [
  "docopt 0.6.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "filament-ext 0.2.0 (git+ssh://git@github.com/reverbnation/filament-ext.git?rev=71afb4b)",
+ "filament-ext 0.2.0 (git+ssh://git@github.com/reverbnation/filament-ext.git?rev=999a546)",
  "iron 0.3.0 (git+https://github.com/ahwatts/iron.git?branch=bug/http_10)",
  "lazy_static 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -118,12 +118,12 @@ dependencies = [
 [[package]]
 name = "filament-ext"
 version = "0.2.0"
-source = "git+ssh://git@github.com/reverbnation/filament-ext.git?rev=71afb4b#71afb4be126c41d681ef11910bccfbd6f430664a"
+source = "git+ssh://git@github.com/reverbnation/filament-ext.git?rev=999a546#999a5468db3bcfc3a7d7c3ddf521c2bd5d2b3e72"
 dependencies = [
  "hyper 0.9.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "mogilefs_common 0.5.0-dev (git+https://github.com/ahwatts/mogilefsd-rs.git)",
+ "mogilefs_common 0.5.0-dev (git+https://github.com/ahwatts/filament.git)",
  "mysql 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.71 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -318,7 +318,7 @@ dependencies = [
 [[package]]
 name = "mogilefs_common"
 version = "0.5.0-dev"
-source = "git+https://github.com/ahwatts/mogilefsd-rs.git#44d8516d2056c028d159c37a53cd465d3093931a"
+source = "git+https://github.com/ahwatts/filament.git#f92325545c5aa2a22a9cb078fd3dd0f0b7853847"
 dependencies = [
  "hyper 0.9.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -35,7 +35,7 @@ rustc-serialize = "^0.3.15"
 
 [dependencies.filament-ext]
 git = "ssh://git@github.com/reverbnation/filament-ext.git"
-rev = "71afb4b"
+rev = "999a546"
 # tag = "v0.1.1"
 
 [dependencies.iron]
